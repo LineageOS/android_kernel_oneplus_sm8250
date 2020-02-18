@@ -146,3 +146,8 @@ kernel/configs/android-*.cfg
 
 # OP SLA feature
 #opslalib/slalib
+
+#
+#Ignoring Android.bp link file
+#
+Android.bp
