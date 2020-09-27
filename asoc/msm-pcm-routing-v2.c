@@ -89,6 +89,7 @@ static int num_app_cfg_types;
 static int msm_ec_ref_port_id;
 static int afe_loopback_tx_port_index;
 static int afe_loopback_tx_port_id = -1;
+static int singlemic_test = 0;
 
 #define WEIGHT_0_DB 0x4000
 /* all the FEs which can support channel mixer */
@@ -1277,8 +1278,10 @@ static int msm_routing_get_adm_topology(int fedai_id, int session_type,
 						      acdb_dev_id,
 						      ADM_TOPOLOGY_CAL_TYPE_IDX,
 						      false /*exact*/);
-		if (topology < 0)
+		if ((topology < 0) || (singlemic_test == 1)) {
 			topology = NULL_COPP_TOPOLOGY;
+			pr_debug("%s: Force using topology %d\n", __func__, topology);
+		}
 	}
 done:
 	pr_debug("%s: Using topology %d\n", __func__, topology);
@@ -1342,6 +1345,99 @@ static void msm_pcm_routing_build_matrix(int fedai_id, int sess_type,
 		adm_matrix_map(path_type, payload, perf_mode, passthr_mode);
 		msm_pcm_routng_cfg_matrix_map_pp(payload, path_type, perf_mode);
 	}
+}
+
+struct loopback_mapping {
+	bool active;
+	int port_id;
+	int topology;
+	int copp_idx;
+	int volume;
+};
+
+struct loopback_mapping loopback_map = {
+	.active = false,
+};
+
+#define LOOPBACK_ADM_COPP_TX_TOPOLOGY_ID 0x1000BFF5
+#define LOOPBACK_ADM_COPP_RX_TOPOLOGY_ID 0x1000000C
+#define LOOPBACK_ACDB_DEV_TX_ID 201
+#define LOOPBACK_ACDB_DEV_RX_ID 202
+#define LOOPBACK_ACDB_DEV_APP_TYPE 69938
+#define LOOPBACK_VOL_GAIN 0x2000
+
+static const DECLARE_TLV_DB_LINEAR(loopback_rx_vol_gain, 0,
+				LOOPBACK_VOL_GAIN);
+
+static int msm_pcm_loopback_volume_get(struct snd_kcontrol *kcontrol,
+			       struct snd_ctl_elem_value *ucontrol)
+{
+	int vol_ctrl = 0;
+
+	if (loopback_map.active)
+		vol_ctrl = loopback_map.volume;
+
+	ucontrol->value.integer.value[0] = vol_ctrl;
+	pr_info("%s: vol_ctrl = %ld\n", __func__, ucontrol->value.integer.value[0]);
+
+	return 0;
+}
+
+static int msm_pcm_loopback_volume_put(struct snd_kcontrol *kcontrol,
+			       struct snd_ctl_elem_value *ucontrol)
+{
+	pr_info("%s: volume = %d\n", __func__, ucontrol->value.integer.value[0]);
+
+	if (loopback_map.active) {
+		loopback_map.volume = ucontrol->value.integer.value[0];
+		adm_set_mic_gain(loopback_map.port_id, loopback_map.copp_idx, loopback_map.volume);
+	}
+
+	return 0;
+}
+
+static const struct snd_kcontrol_new msm_loopback_volume_controls[] = {
+	SOC_SINGLE_EXT_TLV("Loopback Volume", SND_SOC_NOPM, 0,
+		LOOPBACK_VOL_GAIN, 0, msm_pcm_loopback_volume_get,
+		msm_pcm_loopback_volume_put, loopback_rx_vol_gain)
+};
+
+static int msm_pcm_cfg_loopback_map_pp(int port_id, int perf_mode, int path,
+				int topology, int copp_idx, int acdb_dev_id)
+{
+	if (loopback_map.active == false &&
+		(perf_mode == LOW_LATENCY_PCM_MODE) &&
+		(path == ADM_PATH_PLAYBACK) &&
+		(acdb_dev_id == LOOPBACK_ACDB_DEV_RX_ID)/* &&
+		(topology == LOOPBACK_ADM_COPP_RX_TOPOLOGY_ID)*/) {
+		pr_info("%s: cfg loopback map pp\n", __func__);
+		loopback_map.active = true;
+		loopback_map.port_id = port_id;
+		loopback_map.topology = topology;
+		loopback_map.copp_idx = copp_idx;
+		loopback_map.volume = 0x2000; //default;
+	}
+
+	return 0;
+}
+
+static int msm_pcm_deinit_loopback_map_pp(int port_id, int perf_mode,
+				int topology, int copp_idx)
+{
+	if (loopback_map.active == true &&
+		(perf_mode == LOW_LATENCY_PCM_MODE) &&
+		(port_id == loopback_map.port_id) &&
+		(topology == loopback_map.topology) &&
+		(copp_idx == loopback_map.copp_idx)) {
+		pr_info("%s: deinit loopback map pp\n", __func__);
+		loopback_map.active = false;
+		loopback_map.port_id = 0;
+		loopback_map.topology = 0;
+		loopback_map.copp_idx = 0;
+		loopback_map.volume = 0; //default;
+	}
+
+	return 0;
 }
 
 void msm_pcm_routing_reg_psthr_stream(int fedai_id, int dspst_id,
@@ -1953,6 +2049,9 @@ int msm_pcm_routing_reg_phy_stream(int fedai_id, int perf_mode,
 			if (perf_mode == LEGACY_PCM_MODE)
 				msm_pcm_routing_cfg_pp(port_id, copp_idx,
 						       topology, channels);
+
+			msm_pcm_cfg_loopback_map_pp(port_id, perf_mode, path_type,
+					topology, copp_idx, acdb_dev_id);
 		}
 	}
 	if (num_copps) {
@@ -2040,6 +2139,9 @@ void msm_pcm_routing_dereg_phy_stream(int fedai_id, int stream_type)
 			    (fdai->perf_mode == LEGACY_PCM_MODE) &&
 			    (fdai->passthr_mode == LEGACY_PCM))
 				msm_pcm_routing_deinit_pp(port_id, topology);
+
+			msm_pcm_deinit_loopback_map_pp(port_id, fdai->perf_mode,
+							topology, idx);
 		}
 	}
 
@@ -2223,6 +2325,9 @@ static void msm_pcm_routing_process_audio(u16 reg, u16 val, int set)
 				(passthr_mode == LEGACY_PCM))
 				msm_pcm_routing_cfg_pp(port_id, copp_idx,
 						       topology, channels);
+
+			msm_pcm_cfg_loopback_map_pp(port_id, fdai->perf_mode, path_type,
+					topology, copp_idx, acdb_dev_id);
 		}
 	} else {
 		if (test_bit(val, &msm_bedais[reg].fe_sessions[0]) &&
@@ -2261,6 +2366,10 @@ static void msm_pcm_routing_process_audio(u16 reg, u16 val, int set)
 			    (fdai->perf_mode == LEGACY_PCM_MODE) &&
 			    (passthr_mode == LEGACY_PCM))
 				msm_pcm_routing_deinit_pp(port_id, topology);
+
+			msm_pcm_deinit_loopback_map_pp(port_id, fdai->perf_mode,
+							topology, idx);
+
 			msm_pcm_routing_build_matrix(val, session_type,
 						     path_type,
 						     fdai->perf_mode,
@@ -5795,6 +5904,9 @@ static int msm_routing_ext_ec_put(struct snd_kcontrol *kcontrol,
 	case EXT_EC_REF_SEC_TDM_TX:
 		ext_ec_ref_port_id = AFE_PORT_ID_SECONDARY_TDM_TX;
 		break;
+	case EXT_EC_REF_TERT_MI2S_RX:
+		ext_ec_ref_port_id = AFE_PORT_ID_TERTIARY_MI2S_RX;
+		break;
 	case EXT_EC_REF_NONE:
 	default:
 		ext_ec_ref_port_id = AFE_PORT_INVALID;
@@ -5820,7 +5932,7 @@ static const char * const ext_ec_ref_rx[] = {"NONE", "PRI_MI2S_TX",
 					"SEC_MI2S_TX", "TERT_MI2S_TX",
 					"QUAT_MI2S_TX", "QUIN_MI2S_TX",
 					"SLIM_1_TX", "PRI_TDM_TX",
-					"SEC_TDM_TX", "SENARY_MI2S_TX"};
+					"SEC_TDM_TX", "TERT_MI2S_RX", "SENARY_MI2S_TX"};
 
 static const struct soc_enum msm_route_ext_ec_ref_rx_enum[] = {
 	SOC_ENUM_SINGLE_EXT(ARRAY_SIZE(ext_ec_ref_rx), ext_ec_ref_rx),
@@ -7772,6 +7884,10 @@ static const struct snd_kcontrol_new tert_mi2s_rx_port_mixer_controls[] = {
 	SOC_DOUBLE_EXT("SLIM_8_TX", SND_SOC_NOPM,
 	MSM_BACKEND_DAI_TERTIARY_MI2S_RX,
 	MSM_BACKEND_DAI_SLIMBUS_8_TX, 1, 0, msm_routing_get_port_mixer,
+	msm_routing_put_port_mixer),
+	SOC_DOUBLE_EXT("TX_CDC_DMA_TX_3", SND_SOC_NOPM,
+	MSM_BACKEND_DAI_TERTIARY_MI2S_RX,
+	MSM_BACKEND_DAI_TX_CDC_DMA_TX_3, 1, 0, msm_routing_get_port_mixer,
 	msm_routing_put_port_mixer),
 };
 
@@ -21537,6 +21653,10 @@ static const struct snd_kcontrol_new rx_cdc_dma_rx_0_port_mixer_controls[] = {
 	MSM_BACKEND_DAI_RX_CDC_DMA_RX_0,
 	MSM_BACKEND_DAI_TX_CDC_DMA_TX_3, 1, 0, msm_routing_get_port_mixer,
 	msm_routing_put_port_mixer),
+	SOC_DOUBLE_EXT("TX_CDC_DMA_TX_4", SND_SOC_NOPM,
+	MSM_BACKEND_DAI_RX_CDC_DMA_RX_0,
+	MSM_BACKEND_DAI_TX_CDC_DMA_TX_4, 1, 0, msm_routing_get_port_mixer,
+	msm_routing_put_port_mixer),
 	SOC_DOUBLE_EXT("SLIM_8_TX", SND_SOC_NOPM,
 	MSM_BACKEND_DAI_RX_CDC_DMA_RX_0,
 	MSM_BACKEND_DAI_SLIMBUS_8_TX, 1, 0, msm_routing_get_port_mixer,
@@ -23836,6 +23956,12 @@ static const char * const mi2s_rx_vi_fb_tx_mux_text[] = {
 	"ZERO", "SENARY_TX"
 };
 
+#ifdef CONFIG_SND_SOC_TFA9874_FOR_DAVI
+static const char * const tert_mi2s_rx_vi_fb_tx_mux_text[] = {
+	"ZERO", "TERT_MI2S_TX"
+};
+#endif
+
 static const char * const int4_mi2s_rx_vi_fb_tx_mono_mux_text[] = {
 	"ZERO", "INT5_MI2S_TX"
 };
@@ -23864,6 +23990,12 @@ static const int wsa_rx_0_vi_fb_tx_rch_value[] = {
 static const int mi2s_rx_vi_fb_tx_value[] = {
 	MSM_BACKEND_DAI_MAX, MSM_BACKEND_DAI_SENARY_MI2S_TX
 };
+
+#ifdef CONFIG_SND_SOC_TFA9874_FOR_DAVI
+static const int const tert_mi2s_rx_vi_fb_tx_value[] = {
+	MSM_BACKEND_DAI_MAX, MSM_BACKEND_DAI_TERTIARY_MI2S_TX
+};
+#endif
 
 static const int int4_mi2s_rx_vi_fb_tx_mono_ch_value[] = {
 	MSM_BACKEND_DAI_MAX, MSM_BACKEND_DAI_INT5_MI2S_TX
@@ -23897,6 +24029,13 @@ static const struct soc_enum mi2s_rx_vi_fb_mux_enum =
 	SOC_VALUE_ENUM_DOUBLE(0, MSM_BACKEND_DAI_PRI_MI2S_RX, 0, 0,
 	ARRAY_SIZE(mi2s_rx_vi_fb_tx_mux_text),
 	mi2s_rx_vi_fb_tx_mux_text, mi2s_rx_vi_fb_tx_value);
+
+#ifdef CONFIG_SND_SOC_TFA9874_FOR_DAVI
+static const struct soc_enum tert_mi2s_rx_vi_fb_mux_enum =
+	SOC_VALUE_ENUM_DOUBLE(0, MSM_BACKEND_DAI_TERTIARY_MI2S_RX, 0, 0,
+	ARRAY_SIZE(tert_mi2s_rx_vi_fb_tx_mux_text),
+	tert_mi2s_rx_vi_fb_tx_mux_text, tert_mi2s_rx_vi_fb_tx_value);
+#endif
 
 static const struct soc_enum int4_mi2s_rx_vi_fb_mono_ch_mux_enum =
 	SOC_VALUE_ENUM_DOUBLE(0, MSM_BACKEND_DAI_INT4_MI2S_RX, 0, 0,
@@ -23934,6 +24073,13 @@ static const struct snd_kcontrol_new mi2s_rx_vi_fb_mux =
 	SOC_DAPM_ENUM_EXT("PRI_MI2S_RX_VI_FB_MUX",
 	mi2s_rx_vi_fb_mux_enum, spkr_prot_get_vi_lch_port,
 	spkr_prot_put_vi_lch_port);
+
+#ifdef CONFIG_SND_SOC_TFA9874_FOR_DAVI
+static const struct snd_kcontrol_new tert_mi2s_rx_vi_fb_mux =
+	SOC_DAPM_ENUM_EXT("TERT_MI2S_RX_VI_FB_MUX",
+	tert_mi2s_rx_vi_fb_mux_enum, spkr_prot_get_vi_lch_port,
+	spkr_prot_put_vi_lch_port);
+#endif
 
 static const struct snd_kcontrol_new int4_mi2s_rx_vi_fb_mono_ch_mux =
 	SOC_DAPM_ENUM_EXT("INT4_MI2S_RX_VI_FB_MONO_CH_MUX",
@@ -24907,6 +25053,10 @@ static const struct snd_soc_dapm_widget msm_qdsp6_widgets_mi2s[] = {
 	/* Virtual Pins to force backends ON atm */
 	SND_SOC_DAPM_MUX("PRI_MI2S_RX_VI_FB_MUX", SND_SOC_NOPM, 0, 0,
 				&mi2s_rx_vi_fb_mux),
+#ifdef CONFIG_SND_SOC_TFA9874_FOR_DAVI
+	SND_SOC_DAPM_MUX("TERT_MI2S_RX_VI_FB_MUX", SND_SOC_NOPM, 0, 0,
+				&tert_mi2s_rx_vi_fb_mux),
+#endif
 	SND_SOC_DAPM_MUX("INT4_MI2S_RX_VI_FB_MONO_CH_MUX", SND_SOC_NOPM, 0, 0,
 				&int4_mi2s_rx_vi_fb_mono_ch_mux),
 	SND_SOC_DAPM_MUX("INT4_MI2S_RX_VI_FB_STEREO_CH_MUX", SND_SOC_NOPM, 0, 0,
@@ -26629,6 +26779,7 @@ static const struct snd_soc_dapm_route intercon[] = {
 	{"RX_CDC_DMA_RX_0_Voice Mixer", "VoiceMMode2", "VOICEMMODE2_DL"},
 	{"RX_CDC_DMA_RX_0", NULL, "RX_CDC_DMA_RX_0_Voice Mixer"},
 
+	{"VOC_EXT_EC MUX", "TERT_MI2S_RX", "TERT_MI2S_RX"},
 	{"RX_CDC_DMA_RX_1_Voice Mixer", "Voip", "VOIP_DL"},
 	{"RX_CDC_DMA_RX_1_Voice Mixer", "VoiceMMode1", "VOICEMMODE1_DL"},
 	{"RX_CDC_DMA_RX_1_Voice Mixer", "VoiceMMode2", "VOICEMMODE2_DL"},
@@ -29234,6 +29385,7 @@ static const struct snd_soc_dapm_route intercon_tdm[] = {
 	{"AUDIO_REF_EC_UL1 MUX", "TERT_TDM_RX_2", "TERT_TDM_RX_2"},
 	{"AUDIO_REF_EC_UL1 MUX", "SEC_TDM_TX_0", "SEC_TDM_TX_0"},
 	{"AUDIO_REF_EC_UL1 MUX", "QUIN_TDM_TX_0", "QUIN_TDM_TX_0"},
+	{"AUDIO_REF_EC_UL1 MUX", "TERT_MI2S_RX", "TERT_MI2S_RX"},
 
 	{"AUDIO_REF_EC_UL10 MUX", "QUAT_TDM_TX_1", "QUAT_TDM_TX_1"},
 	{"AUDIO_REF_EC_UL10 MUX", "QUAT_TDM_RX_0", "QUAT_TDM_RX_0"},
@@ -29242,6 +29394,7 @@ static const struct snd_soc_dapm_route intercon_tdm[] = {
 	{"AUDIO_REF_EC_UL10 MUX", "TERT_TDM_TX_0", "TERT_TDM_TX_0"},
 	{"AUDIO_REF_EC_UL10 MUX", "TERT_TDM_RX_2", "TERT_TDM_RX_2"},
 	{"AUDIO_REF_EC_UL10 MUX", "SEC_TDM_TX_0", "SEC_TDM_TX_0"},
+	{"AUDIO_REF_EC_UL10 MUX", "TERT_MI2S_RX", "TERT_MI2S_RX"},
 
 	{"LSM1 Mixer", "QUIN_TDM_TX_0", "QUIN_TDM_TX_0"},
 	{"LSM1 Mixer", "TERT_TDM_TX_0", "TERT_TDM_TX_0"},
@@ -30008,6 +30161,7 @@ static const struct snd_soc_dapm_route intercon_mi2s[] = {
 	{"TERT_MI2S_RX Port Mixer", "SENARY_MI2S_TX", "SENARY_MI2S_TX"},
 	{"TERT_MI2S_RX Port Mixer", "SLIM_0_TX", "SLIMBUS_0_TX"},
 	{"TERT_MI2S_RX Port Mixer", "SLIM_8_TX", "SLIMBUS_8_TX"},
+	{"TERT_MI2S_RX Port Mixer", "TX_CDC_DMA_TX_3", "TX_CDC_DMA_TX_3"},
 	{"TERT_MI2S_RX", NULL, "TERT_MI2S_RX Port Mixer"},
 
 	{"QUAT_MI2S_RX Port Mixer", "PRI_MI2S_TX", "PRI_MI2S_TX"},
@@ -30081,6 +30235,10 @@ static const struct snd_soc_dapm_route intercon_mi2s[] = {
 	{"PRI_MI2S_RX", NULL, "PRI_MI2S_RX_VI_FB_MUX"},
 	{"INT4_MI2S_RX", NULL, "INT4_MI2S_RX_VI_FB_MONO_CH_MUX"},
 	{"INT4_MI2S_RX", NULL, "INT4_MI2S_RX_VI_FB_STEREO_CH_MUX"},
+#ifdef CONFIG_SND_SOC_TFA9874_FOR_DAVI
+	{"TERT_MI2S_RX_VI_FB_MUX", "TERT_MI2S_TX", "TERT_MI2S_TX"},
+	{"TERT_MI2S_RX", NULL, "TERTT_MI2S_RX_VI_FB_MUX"},
+#endif
 };
 #endif
 
@@ -30164,6 +30322,9 @@ static int msm_pcm_routing_close(struct snd_pcm_substream *substream)
 				(fdai->passthr_mode == LEGACY_PCM))
 				msm_pcm_routing_deinit_pp(port_id,
 							  topology);
+
+			msm_pcm_deinit_loopback_map_pp(port_id, fdai->perf_mode,
+							topology, idx);
 		}
 	}
 
@@ -30327,6 +30488,9 @@ static int msm_pcm_routing_prepare(struct snd_pcm_substream *substream)
 				(fdai->passthr_mode == LEGACY_PCM))
 				msm_pcm_routing_cfg_pp(port_id, copp_idx,
 						       topology, channels);
+
+			msm_pcm_cfg_loopback_map_pp(port_id, fdai->perf_mode, path_type,
+					topology, copp_idx, acdb_dev_id);
 		}
 	}
 
@@ -30850,6 +31014,32 @@ static const struct snd_kcontrol_new stereo_channel_reverse_control[] = {
 	msm_routing_stereo_channel_reverse_control_put),
 };
 
+static int msm_routing_singlemic_test_control_get(struct snd_kcontrol *kcontrol,
+				struct snd_ctl_elem_value *ucontrol)
+{
+	ucontrol->value.integer.value[0] = singlemic_test;
+	pr_debug("%s: Singlemic test control value %ld\n", __func__,
+		ucontrol->value.integer.value[0]);
+	return 0;
+}
+
+static int msm_routing_singlemic_test_control_put(struct snd_kcontrol *kcontrol,
+				struct snd_ctl_elem_value *ucontrol)
+{
+
+	pr_debug("%s: Singlemic test control value %ld\n", __func__,
+			ucontrol->value.integer.value[0]);
+	singlemic_test = ucontrol->value.integer.value[0];
+	return 0;
+}
+
+
+static const struct snd_kcontrol_new enginerrMode_singleMic_test[] = {
+	SOC_SINGLE_EXT("Singlemic Test", SND_SOC_NOPM, 0,
+	1, 0, msm_routing_singlemic_test_control_get,
+	msm_routing_singlemic_test_control_put),
+};
+
 static int msm_routing_instance_id_support_info(struct snd_kcontrol *kcontrol,
 						struct snd_ctl_elem_info *uinfo)
 {
@@ -31080,6 +31270,11 @@ static int msm_routing_probe(struct snd_soc_component *component)
 
 	snd_soc_add_component_controls(component, pll_clk_drift_controls,
 				      ARRAY_SIZE(pll_clk_drift_controls));
+	snd_soc_add_component_controls(component,
+			enginerrMode_singleMic_test,
+			ARRAY_SIZE(enginerrMode_singleMic_test));
+	snd_soc_add_component_controls(component, msm_loopback_volume_controls,
+				ARRAY_SIZE(msm_loopback_volume_controls));
 
 	return 0;
 }

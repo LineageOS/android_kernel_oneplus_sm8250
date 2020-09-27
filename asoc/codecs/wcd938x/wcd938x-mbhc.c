@@ -1046,6 +1046,22 @@ done:
 }
 EXPORT_SYMBOL(wcd938x_mbhc_post_ssr_init);
 
+int wcd938x_mbhc_set_st_state(struct wcd938x_mbhc *mbhc, bool enable)
+{
+	struct wcd_mbhc *wcd_mbhc = NULL;
+
+	if (!mbhc)
+		return -EINVAL;
+
+	wcd_mbhc = &mbhc->wcd_mbhc;
+	if (!wcd_mbhc) {
+		pr_err("%s: wcd_mbhc is NULL\n", __func__);
+		return -EINVAL;
+	}
+
+	return wcd_mbhc_set_st_state(wcd_mbhc, enable);
+}
+
 /*
  * wcd938x_mbhc_init: initialize mbhc for wcd938x
  * @mbhc: poniter to wcd938x_mbhc struct pointer to store the configs

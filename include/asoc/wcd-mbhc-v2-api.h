@@ -18,7 +18,7 @@ int wcd_mbhc_init(struct wcd_mbhc *mbhc, struct snd_soc_component *component,
 int wcd_mbhc_get_impedance(struct wcd_mbhc *mbhc, uint32_t *zl,
 			   uint32_t *zr);
 void wcd_mbhc_deinit(struct wcd_mbhc *mbhc);
-
+int wcd_mbhc_set_st_state(struct wcd_mbhc *mbhc, bool enable);
 #else
 static inline void wcd_mbhc_stop(struct wcd_mbhc *mbhc)
 {
@@ -46,6 +46,10 @@ static inline int wcd_mbhc_get_impedance(struct wcd_mbhc *mbhc,
 }
 static inline void wcd_mbhc_deinit(struct wcd_mbhc *mbhc)
 {
+}
+static inline int wcd_mbhc_set_st_state(struct wcd_mbhc *mbhc, bool enable)
+{
+	return 0;
 }
 #endif
 

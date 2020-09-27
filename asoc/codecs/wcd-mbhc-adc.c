@@ -112,7 +112,7 @@ static int wcd_measure_adc_continuous(struct wcd_mbhc *mbhc)
 	/* Get voltage from ADC result */
 	output_mv = wcd_get_voltage_from_adc(adc_result,
 					     wcd_mbhc_get_micbias(mbhc));
-	pr_debug("%s: adc_result: 0x%x, output_mv: %d\n",
+	pr_info("%s: adc_result: 0x%x, output_mv: %d\n",
 		 __func__, adc_result, output_mv);
 
 	return output_mv;
@@ -186,7 +186,7 @@ static int wcd_measure_adc_once(struct wcd_mbhc *mbhc, int mux_ctl)
 			__func__, adc_complete, adc_timeout);
 		ret = -EINVAL;
 	} else {
-		pr_debug("%s: adc complete: %d, adc timeout: %d output_mV: %d\n",
+		pr_info("%s: adc complete: %d, adc timeout: %d output_mV: %d\n",
 			__func__, adc_complete, adc_timeout, output_mv);
 		ret = output_mv;
 	}
@@ -308,7 +308,7 @@ static int wcd_check_cross_conn(struct wcd_mbhc *mbhc)
 	pr_debug("%s: enter\n", __func__);
 	/* Check for button press and plug detection */
 	if (wcd_swch_level_remove(mbhc)) {
-		pr_debug("%s: Switch level is low\n", __func__);
+		pr_info("%s: Switch level is low\n", __func__);
 		return -EINVAL;
 	}
 
@@ -355,9 +355,9 @@ static int wcd_check_cross_conn(struct wcd_mbhc *mbhc)
 	if (hphl_adc_res > mbhc->hphl_cross_conn_thr ||
 	    hphr_adc_res > mbhc->hphr_cross_conn_thr) {
 		plug_type = MBHC_PLUG_TYPE_GND_MIC_SWAP;
-		pr_debug("%s: Cross connection identified\n", __func__);
+		pr_info("%s: Cross connection identified\n", __func__);
 	} else {
-		pr_debug("%s: No Cross connection found\n", __func__);
+		pr_info("%s: No Cross connection found\n", __func__);
 	}
 
 done:
@@ -394,7 +394,7 @@ done:
 	/* Restore electrical detection */
 	WCD_MBHC_REG_UPDATE_BITS(WCD_MBHC_ELECT_SCHMT_ISRC, elect_ctl);
 
-	pr_debug("%s: leave, plug type: %d\n", __func__,  plug_type);
+	pr_info("%s: leave, plug type: %d\n", __func__,  plug_type);
 
 	return (plug_type == MBHC_PLUG_TYPE_GND_MIC_SWAP) ? true : false;
 }
@@ -594,7 +594,7 @@ static void wcd_mbhc_adc_update_fsm_source(struct wcd_mbhc *mbhc,
 static void wcd_schedule_hs_detect_plug(struct wcd_mbhc *mbhc,
 					    struct work_struct *work)
 {
-	pr_debug("%s: scheduling correct_swch_plug\n", __func__);
+	pr_info("%s: scheduling correct_swch_plug\n", __func__);
 	WCD_MBHC_RSC_ASSERT_LOCKED(mbhc);
 	mbhc->hs_detect_work_stop = false;
 	mbhc->mbhc_cb->lock_sleep(mbhc, true);
@@ -605,11 +605,11 @@ static void wcd_schedule_hs_detect_plug(struct wcd_mbhc *mbhc,
 static void wcd_cancel_hs_detect_plug(struct wcd_mbhc *mbhc,
 					 struct work_struct *work)
 {
-	pr_debug("%s: Canceling correct_plug_swch\n", __func__);
+	pr_info("%s: Canceling correct_plug_swch\n", __func__);
 	mbhc->hs_detect_work_stop = true;
 	WCD_MBHC_RSC_UNLOCK(mbhc);
 	if (cancel_work_sync(work)) {
-		pr_debug("%s: correct_plug_swch is canceled\n",
+		pr_info("%s: correct_plug_swch is canceled\n",
 			 __func__);
 		mbhc->mbhc_cb->lock_sleep(mbhc, false);
 	}
@@ -632,6 +632,8 @@ static void wcd_mbhc_adc_detect_plug_type(struct wcd_mbhc *mbhc)
 	if (mbhc->mbhc_cb->mbhc_micbias_control) {
 		mbhc->mbhc_cb->mbhc_micbias_control(component, MIC_BIAS_2,
 						    MICB_ENABLE);
+		if (mbhc->micb_mv >= WCD_MBHC_THR_HS_MICB_MV)
+			mbhc->micbias_enable = true;
 	} else {
 		pr_err("%s: Mic Bias is not enabled\n", __func__);
 		return;
@@ -670,7 +672,7 @@ static int wcd_mbhc_get_plug_from_adc(struct wcd_mbhc *mbhc, int adc_result)
 		plug_type = MBHC_PLUG_TYPE_HIGH_HPH;
 	else
 		plug_type = MBHC_PLUG_TYPE_HEADSET;
-	pr_debug("%s: plug type is %d found\n", __func__, plug_type);
+	pr_info("%s: plug type is %d found\n", __func__, plug_type);
 
 	return plug_type;
 }
@@ -692,7 +694,7 @@ static void wcd_correct_swch_plug(struct work_struct *work)
 	int try = 0;
 	int hs_threshold, micbias_mv;
 
-	pr_debug("%s: enter\n", __func__);
+	pr_info("%s: enter\n", __func__);
 
 	mbhc = container_of(work, struct wcd_mbhc, correct_plug_swch);
 	component = mbhc->component;
@@ -713,13 +715,25 @@ static void wcd_correct_swch_plug(struct work_struct *work)
 
 	if (cross_conn > 0) {
 		plug_type = MBHC_PLUG_TYPE_GND_MIC_SWAP;
-		pr_debug("%s: cross connection found, Plug type %d\n",
+		pr_info("%s: cross connection found, Plug type %d\n",
 			 __func__, plug_type);
 		goto correct_plug_type;
 	}
 	/* Find plug type */
 	output_mv = wcd_measure_adc_continuous(mbhc);
 	plug_type = wcd_mbhc_get_plug_from_adc(mbhc, output_mv);
+
+	/* To correct headset/headphones */
+	if ((plug_type == MBHC_PLUG_TYPE_HEADPHONE) &&
+		(!wcd_swch_level_remove(mbhc))) {
+		if (mbhc->mbhc_cfg->swap_gnd_mic &&
+				mbhc->mbhc_cfg->swap_gnd_mic(component, true)) {
+			pr_info("%s: switch again, it's headset\n", __func__);
+		}
+		msleep(10);
+		output_mv = wcd_measure_adc_continuous(mbhc);
+		plug_type = wcd_mbhc_get_plug_from_adc(mbhc, output_mv);
+	}
 
 	/*
 	 * Report plug type if it is either headset or headphone
@@ -820,7 +834,7 @@ correct_plug_type:
 					 * This is due to GND/MIC switch didn't
 					 * work,  Report unsupported plug.
 					 */
-					pr_debug("%s: switch did not work\n",
+					pr_info("%s: switch did not work\n",
 						 __func__);
 					plug_type = MBHC_PLUG_TYPE_GND_MIC_SWAP;
 					goto report;
@@ -849,7 +863,7 @@ correct_plug_type:
 				if (mbhc->mbhc_cfg->swap_gnd_mic &&
 					mbhc->mbhc_cfg->swap_gnd_mic(component,
 					true)) {
-					pr_debug("%s: US_EU gpio present,flip switch\n"
+					pr_info("%s: US_EU gpio present,flip switch\n"
 						, __func__);
 					continue;
 				}
@@ -857,11 +871,11 @@ correct_plug_type:
 		}
 
 		if (output_mv > hs_threshold) {
-			pr_debug("%s: cable is extension cable\n", __func__);
+			pr_info("%s: cable is extension cable\n", __func__);
 			plug_type = MBHC_PLUG_TYPE_HIGH_HPH;
 			wrk_complete = true;
 		} else {
-			pr_debug("%s: cable might be headset: %d\n", __func__,
+			pr_info("%s: cable might be headset: %d\n", __func__,
 				 plug_type);
 			if (plug_type != MBHC_PLUG_TYPE_GND_MIC_SWAP) {
 				plug_type = wcd_mbhc_get_plug_from_adc(
@@ -886,7 +900,7 @@ correct_plug_type:
 				     (mbhc->current_plug !=
 				     MBHC_PLUG_TYPE_ANC_HEADPHONE) &&
 				    !wcd_swch_level_remove(mbhc)) {
-					pr_debug("%s: cable is %s headset\n",
+					pr_info("%s: cable is %s headset\n",
 						 __func__,
 						((spl_hs_count ==
 							WCD_MBHC_SPL_HS_CNT) ?
@@ -910,7 +924,7 @@ correct_plug_type:
 		 */
 		if ((plug_type == MBHC_PLUG_TYPE_HEADSET) ||
 		    (plug_type == MBHC_PLUG_TYPE_ANC_HEADPHONE)) {
-			pr_debug("%s: plug_type:0x%x already reported\n",
+			pr_info("%s: plug_type:0x%x already reported\n",
 				 __func__, mbhc->current_plug);
 			WCD_MBHC_REG_UPDATE_BITS(WCD_MBHC_ADC_MODE, 0);
 			WCD_MBHC_REG_UPDATE_BITS(WCD_MBHC_ADC_EN, 0);
@@ -919,7 +933,7 @@ correct_plug_type:
 	}
 	if (plug_type == MBHC_PLUG_TYPE_HIGH_HPH) {
 		if (wcd_is_special_headset(mbhc)) {
-			pr_debug("%s: Special headset found %d\n",
+			pr_info("%s: Special headset found %d\n",
 					__func__, plug_type);
 			plug_type = MBHC_PLUG_TYPE_HEADSET;
 		} else {
@@ -933,7 +947,7 @@ report:
 		goto exit;
 	}
 
-	pr_debug("%s: Valid plug found, plug type %d wrk_cmpt %d btn_intr %d\n",
+	pr_info("%s: Valid plug found, plug type %d wrk_cmpt %d btn_intr %d\n",
 			__func__, plug_type, wrk_complete,
 			mbhc->btn_press_intr);
 
@@ -1010,7 +1024,7 @@ exit:
 		mbhc->mbhc_cb->hph_pull_down_ctrl(component, true);
 
 	mbhc->mbhc_cb->lock_sleep(mbhc, false);
-	pr_debug("%s: leave\n", __func__);
+	pr_info("%s: leave\n", __func__);
 }
 
 static irqreturn_t wcd_mbhc_adc_hs_rem_irq(int irq, void *data)
@@ -1021,7 +1035,7 @@ static irqreturn_t wcd_mbhc_adc_hs_rem_irq(int irq, void *data)
 	bool hphpa_on = false;
 	u8  moisture_status = 0;
 
-	pr_debug("%s: enter\n", __func__);
+	pr_info("%s: enter\n", __func__);
 	WCD_MBHC_RSC_LOCK(mbhc);
 
 	timeout = jiffies +
@@ -1115,7 +1129,7 @@ static irqreturn_t wcd_mbhc_adc_hs_ins_irq(int irq, void *data)
 	u8 clamp_state = 0;
 	u8 clamp_retry = WCD_MBHC_FAKE_INS_RETRY;
 
-	pr_debug("%s: enter\n", __func__);
+	pr_info("%s: enter\n", __func__);
 
 	/*
 	 * ADC COMPLETE and ELEC_REM interrupts are both enabled for HEADPHONE,
@@ -1142,6 +1156,13 @@ static irqreturn_t wcd_mbhc_adc_hs_ins_irq(int irq, void *data)
 	} while (--clamp_retry);
 
 	WCD_MBHC_RSC_LOCK(mbhc);
+
+	if (mbhc->use_usbc_detect && wcd_swch_level_remove(mbhc)) {
+		pr_warn("%s: Switch level is low ", __func__);
+		WCD_MBHC_RSC_UNLOCK(mbhc);
+		return IRQ_HANDLED;
+	}
+
 	/*
 	 * If current plug is headphone then there is no chance to
 	 * get ADC complete interrupt, so connected cable should be

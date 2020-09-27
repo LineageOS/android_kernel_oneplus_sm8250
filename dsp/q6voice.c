@@ -2979,12 +2979,12 @@ static int voice_send_cvp_create_cmd(struct voice_data *v)
 						 VSS_IVOCPROC_PORT_ID_NONE;
 	}
 
-	pr_debug("tx_topology: %d tx_port_id=%d, rx_port_id=%d, mode: 0x%x\n",
+	pr_info("tx_topology: %d tx_port_id=%d, rx_port_id=%d, mode: 0x%x\n",
 		cvp_session_cmd.cvp_session.tx_topology_id,
 		cvp_session_cmd.cvp_session.tx_port_id,
 		cvp_session_cmd.cvp_session.rx_port_id,
 		cvp_session_cmd.cvp_session.vocproc_mode);
-	pr_debug("rx_topology: %d, profile_id: 0x%x, pkt_size: %d\n",
+	pr_info("rx_topology: %d, profile_id: 0x%x, pkt_size: %d\n",
 		cvp_session_cmd.cvp_session.rx_topology_id,
 		cvp_session_cmd.cvp_session.profile_id,
 		cvp_session_cmd.hdr.pkt_size);

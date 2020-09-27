@@ -26,6 +26,7 @@ extern int wcd938x_mbhc_post_ssr_init(struct wcd938x_mbhc *mbhc,
 				    struct snd_soc_component *component);
 extern int wcd938x_mbhc_get_impedance(struct wcd938x_mbhc *wcd938x_mbhc,
 				    uint32_t *zl, uint32_t *zr);
+extern int wcd938x_mbhc_set_st_state(struct wcd938x_mbhc *mbhc, bool enable);
 #else
 static inline int wcd938x_mbhc_init(struct wcd938x_mbhc **mbhc,
 				  struct snd_soc_component *component,
@@ -63,6 +64,10 @@ static inline int wcd938x_mbhc_get_impedance(struct wcd938x_mbhc *wcd938x_mbhc,
 	if (zr)
 		*zr = 0;
 	return -EINVAL;
+}
+static inline int wcd938x_mbhc_set_st_state(struct wcd_mbhc *mbhc, bool enable)
+{
+	return 0;
 }
 #endif
 

@@ -592,6 +592,10 @@ struct wcd_mbhc {
 	struct snd_soc_jack button_jack;
 	struct mutex codec_resource_lock;
 
+	bool use_usbc_detect;
+	bool usbc_analog_status;
+	struct delayed_work mbhc_usbc_detect_dwork;
+
 	/* Holds codec specific interrupt mapping */
 	const struct wcd_mbhc_intr *intr_ids;
 
@@ -616,6 +620,13 @@ struct wcd_mbhc {
 	bool force_linein;
 	struct device_node *fsa_np;
 	struct notifier_block fsa_nb;
+
+	struct delayed_work mbhc_lock_dwork;
+	bool st_state;
+	bool st_lpress_lock_sleep;
+
+	struct pinctrl *pinctrl;
+	struct pinctrl_state *pinctrl_default;
 };
 
 void wcd_mbhc_find_plug_and_report(struct wcd_mbhc *mbhc,
