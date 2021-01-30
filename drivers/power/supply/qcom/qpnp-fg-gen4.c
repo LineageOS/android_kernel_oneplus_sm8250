@@ -4698,9 +4698,13 @@ static int fg_psy_get_property(struct power_supply *psy,
 				rc = external_fg->get_time_to_full();
 				if (rc >= 0)
 					pval->intval = rc;
-		} else
+		} else if (fg->use_external_fg && external_fg
+				&& external_fg->fast_chg_started()) {
+			pval->intval = -ENODATA;
+		} else {
 			rc = ttf_get_time_to_full(chip->ttf, &pval->intval);
-		pval->intval = pval->intval > 0 ? pval->intval : 1;
+			pval->intval = pval->intval > 0 ? pval->intval : 1;
+		}
 		break;
 	case POWER_SUPPLY_PROP_CC_STEP:
 		if ((chip->ttf->cc_step.sel >= 0) &&

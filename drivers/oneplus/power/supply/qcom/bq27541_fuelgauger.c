@@ -1104,6 +1104,8 @@ static int bq27541_set_wlchg_started_status(bool wlchg_started_status)
 	return 0;
 }
 
+static bool get_dash_started(void);
+
 static struct external_battery_gauge bq27541_batt_gauge = {
 	.get_battery_mvolts     = bq27541_get_battery_mvolts,
 	.get_battery_mvolts_2cell_max = bq27541_get_battery_mvolts_2cell_max,
@@ -1125,6 +1127,7 @@ static struct external_battery_gauge bq27541_batt_gauge = {
 	.get_average_current        = bq27541_get_average_current,
 	.set_allow_reading          = bq27541_set_allow_reading,
 	.set_lcd_off_status         = bq27541_set_lcd_off_status,
+	.fast_chg_started           = get_dash_started,
 	.fast_chg_started_status    = bq27541_get_fastchg_started_status,
 	.wlchg_started_status       = bq27541_set_wlchg_started_status,
 	.get_time_to_full           = bq28z610_get_time_to_full,
