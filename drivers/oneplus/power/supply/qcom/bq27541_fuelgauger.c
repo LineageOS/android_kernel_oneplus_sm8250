@@ -2373,7 +2373,7 @@ static int bq28z610_get_time_to_full(void)
 		return time_to_full * 60;
 	}
 
-	return bq27541_di->time_to_full;
+	return -ENODATA;
 }
 
 static int bq27541_battery_probe(struct i2c_client *client,
