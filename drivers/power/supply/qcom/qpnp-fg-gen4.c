@@ -4515,7 +4515,7 @@ static int fg_psy_get_property(struct power_supply *psy,
 					&& external_fg->get_battery_soc)
 			pval->intval = external_fg->get_battery_soc();
 		else
-			pval->intval = 50;
+			rc = fg_gen4_get_prop_capacity(fg, &pval->intval);
 		break;
 	case POWER_SUPPLY_PROP_REAL_CAPACITY:
 		rc = fg_gen4_get_prop_real_capacity(fg, &pval->intval);
@@ -4537,14 +4537,14 @@ static int fg_psy_get_property(struct power_supply *psy,
 				&& external_fg->get_battery_mvolts)
 			pval->intval = external_fg->get_battery_mvolts();
 		else
-			pval->intval = 4000000;
+			rc = fg_get_battery_voltage(fg, &pval->intval);
 		break;
 	case POWER_SUPPLY_PROP_CURRENT_NOW:
 		if (fg->use_external_fg && external_fg
 				&& external_fg->get_average_current)
 			pval->intval = external_fg->get_average_current();
 		else
-			pval->intval = 0;
+			rc = fg_get_battery_current(fg, &pval->intval);
 		break;
 	case POWER_SUPPLY_PROP_CURRENT_AVG:
 		rc = fg_get_sram_prop(fg, FG_SRAM_IBAT_FLT, &pval->intval);
@@ -4558,7 +4558,7 @@ static int fg_psy_get_property(struct power_supply *psy,
 			pval->intval =
 					external_fg->get_battery_temperature();
 		} else
-			pval->intval = -400;
+			rc = fg_gen4_get_battery_temp(fg, &pval->intval);
 		break;
 	case POWER_SUPPLY_PROP_BATTERY_HEALTH:
 		if (get_extern_fg_regist_done() && fg->use_external_fg && external_fg
