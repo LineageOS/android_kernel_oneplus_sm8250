@@ -1,0 +1,50 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "4ee3d52b_2556813d",
+        "filename": "drivers/oneplus/power/supply/qcom/bq27541_fuelgauger.c",
+        "patchSetId": 4
+      },
+      "lineNbr": 268,
+      "author": {
+        "id": 10067
+      },
+      "writtenOn": "2021-02-12T12:39:47Z",
+      "side": 1,
+      "message": "may as well lie about it and just return some bogus data so that android will show rapidly charging lmao",
+      "range": {
+        "startLine": 268,
+        "startChar": 9,
+        "endLine": 268,
+        "endChar": 18
+      },
+      "revId": "58e1aec15a05f88035258b5577249ccaeef2f35d",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": true
+    },
+    {
+      "key": {
+        "uuid": "8e558a35_0154ec80",
+        "filename": "drivers/oneplus/power/supply/qcom/bq27541_fuelgauger.c",
+        "patchSetId": 4
+      },
+      "lineNbr": 848,
+      "author": {
+        "id": 10067
+      },
+      "writtenOn": "2021-02-12T12:39:47Z",
+      "side": 1,
+      "message": "same.",
+      "range": {
+        "startLine": 848,
+        "startChar": 9,
+        "endLine": 848,
+        "endChar": 18
+      },
+      "revId": "58e1aec15a05f88035258b5577249ccaeef2f35d",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": true
+    }
+  ]
+}
