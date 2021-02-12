@@ -264,6 +264,9 @@ static int bq27541_battery_voltage(struct bq27541_device_info *di)
 	if (atomic_read(&di->suspended) == 1)
 		return di->batt_vol_pre;
 
+	if (get_dash_started())
+		return -ENODATA;
+
 	if (di->allow_reading) {
 #ifdef CONFIG_GAUGE_BQ27411
 		/* david.liu@bsp, 20161004 Add BQ27411 support */
@@ -840,6 +843,9 @@ static int bq27541_average_current(struct bq27541_device_info *di)
 	/* Add for get right soc when sleep long time */
 	if (atomic_read(&di->suspended) == 1)
 		return -di->current_pre;
+
+	if (get_dash_started())
+		return -ENODATA;
 
 	if (di->allow_reading) {
 #ifdef CONFIG_GAUGE_BQ27411

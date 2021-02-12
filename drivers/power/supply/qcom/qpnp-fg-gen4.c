@@ -4534,16 +4534,20 @@ static int fg_psy_get_property(struct power_supply *psy,
 		break;
 	case POWER_SUPPLY_PROP_VOLTAGE_NOW:
 		if (fg->use_external_fg && external_fg
-				&& external_fg->get_battery_mvolts)
-			pval->intval = external_fg->get_battery_mvolts();
-		else
+				&& external_fg->get_battery_mvolts) {
+			rc = external_fg->get_battery_mvolts();
+			if (rc >= 0)
+				pval->intval = rc;
+		} else
 			pval->intval = 4000000;
 		break;
 	case POWER_SUPPLY_PROP_CURRENT_NOW:
 		if (fg->use_external_fg && external_fg
-				&& external_fg->get_average_current)
-			pval->intval = external_fg->get_average_current();
-		else
+				&& external_fg->get_average_current) {
+			rc = external_fg->get_average_current();
+			if (rc >= 0)
+				pval->intval = rc;
+		} else
 			pval->intval = 0;
 		break;
 	case POWER_SUPPLY_PROP_CURRENT_AVG:
