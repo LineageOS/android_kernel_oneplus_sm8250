@@ -44,6 +44,8 @@
 #define TFA98XX_FLAG_LP_MODES	        (1 << 7)
 #define TFA98XX_FLAG_TDM_DEVICE         (1 << 8)
 
+#define TFA98XX_FLAG_ADAPT_NOISE_MODE   (1 << 9)
+
 #define TFA9894_NONDSP_STEREO
 
 #ifdef TFA9894_NONDSP_STEREO
@@ -93,6 +95,9 @@ struct tfa98xx {
 	struct delayed_work monitor_work;
 	struct delayed_work interrupt_work;
 	struct delayed_work tapdet_work;
+
+	struct delayed_work nmodeupdate_work;
+
 	struct mutex dsp_lock;
 	int dsp_init;
 	int dsp_fw_state;

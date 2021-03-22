@@ -41,8 +41,11 @@
 #define TFA98XX_KEY2_PROTECTED_MTP0_MTPEX_POS	1
 #define TFA98XX_KEY2_PROTECTED_MTP0_MTPOTC_POS	0
 
+#define MIN_BATT_LEVEL 640
+#define MAX_BATT_LEVEL 670
 void tfanone_ops(struct tfa_device_ops *ops);
 void tfa9872_ops(struct tfa_device_ops *ops);
+void tfa9873_ops(struct tfa_device_ops *ops);
 void tfa9874_ops(struct tfa_device_ops *ops);
 void tfa9912_ops(struct tfa_device_ops *ops);
 void tfa9888_ops(struct tfa_device_ops *ops);
@@ -229,6 +232,7 @@ void tfa_set_query_info(struct tfa_device *tfa)
 	tfa->vstep = -1;
 	/* defaults */
 	tfa->is_probus_device = 0;
+	tfa->advance_keys_handling = 0;
 	tfa->tfa_family = 1;
 	tfa->daimap = Tfa98xx_DAI_I2S;		/* all others */
 	tfa->spkr_count = 1;
@@ -263,6 +267,17 @@ void tfa_set_query_info(struct tfa_device *tfa)
 		tfa->is_probus_device = 1;
 		tfa->daimap = Tfa98xx_DAI_TDM;
 		tfa9872_ops(&tfa->dev_ops); /* register device operations */
+		break;
+	case 0x73:
+		/* tfa9873 */
+		tfa->supportDrc = supportYes;
+		tfa->tfa_family = 2;
+		tfa->spkr_count = 1;
+		tfa->is_probus_device = 1;
+		tfa->has_msg = 1;
+		tfa->advance_keys_handling = 1;
+		tfa->daimap = Tfa98xx_DAI_TDM;
+		tfa9873_ops(&tfa->dev_ops); /* register device operations */
 		break;
 	case 0x74:
 		/* tfa9874 */
@@ -360,6 +375,7 @@ int tfa98xx_dev2family(int dev_type)
 		return 1;
 	case 0x88:
 	case 0x72:
+	case 0x73:
 	case 0x13:
 	case 0x74:
 	case 0x94:
@@ -428,6 +444,7 @@ enum Tfa98xx_DMEM tfa98xx_filter_mem(struct tfa_device *tfa, int filter_index, u
 				*address = bq_table[6][idx];
 			break;
 		case 0x72:
+		case 0x73:
 		case 0x74:
 		case 0x13:
 		default:
@@ -608,6 +625,22 @@ enum Tfa98xx_Error tfa98xx_set_osc_powerdown(struct tfa_device *tfa, int state)
 	return Tfa98xx_Error_Not_Implemented;
 }
 
+/** update low power mode of the device.
+*
+*  @param[in] tfa device description structure
+*  @param[in] state new state 0 - LPMODE is on, 1 LPMODE is off.
+*
+*  @return Tfa98xx_Error_Ok when successfull, error otherwise.
+*/
+enum Tfa98xx_Error tfa98xx_update_lpm(struct tfa_device *tfa, int state)
+{
+	if (tfa->dev_ops.update_lpm) {
+		return tfa->dev_ops.update_lpm(tfa, state);
+	}
+
+	return Tfa98xx_Error_Not_Implemented;
+}
+
 /** Check presence of powerswitch=1 in configuration and optimal setting.
 *
 *  @param[in] tfa device description structure
@@ -748,6 +781,8 @@ void tfa98xx_key2(struct tfa_device *tfa, int lock)
 	TFA_WRITE_REG(tfa, MTPKEY2, lock? 0 :0x5A );
 	/* unhide lock registers */
 	reg_write(tfa, (tfa->tfa_family == 1) ? 0x40 :0x0F, 0);
+	if (!tfa->advance_keys_handling)
+		reg_write(tfa, (tfa->tfa_family == 1) ? 0x40 : 0x0F, 0);
 }
 void tfa2_manual_mtp_cpy(struct tfa_device *tfa,  uint16_t reg_row_to_keep,uint16_t reg_row_to_set ,uint8_t row)///MCH_TO_TEST
 {
@@ -802,7 +837,10 @@ enum Tfa98xx_Error tfa98xx_set_mtp(struct tfa_device *tfa, uint16_t value, uint1
 			pr_info("No change in MTP. Value not written! \n");
 		return Tfa98xx_Error_Ok;
 	}
-
+	error = tfa98xx_update_lpm(tfa, 1);
+	if (error) {
+		return error;
+	}
 	/* Assure FAIM is enabled (enable it when neccesery) */
 	error = tfa98xx_faim_protect(tfa, 1);
 	if (error) {
@@ -860,6 +898,11 @@ enum Tfa98xx_Error tfa98xx_set_mtp(struct tfa_device *tfa, uint16_t value, uint1
 	}
 	if (tfa->verbose) {
 		pr_debug("MTP clock disabled.\n");
+	}
+
+	error = tfa98xx_update_lpm(tfa, 0);
+	if (error) {
+		return error;
 	}
 
 	return error;
@@ -2606,6 +2649,44 @@ enum Tfa98xx_Error show_current_state(struct tfa_device *tfa)
 	return err;
 }
 
+enum Tfa98xx_Error tfaGetFwApiVersion(struct tfa_device *tfa, unsigned char *pFirmwareVersion)
+{
+	enum Tfa98xx_Error err = 0;
+	char cmd_buf[4];
+	int cmd_len, res_len;
+
+	if (tfa == NULL)
+		return Tfa98xx_Error_Bad_Parameter;
+	if (!tfa->is_probus_device)
+	{
+		err = mem_read(tfa, FW_VAR_API_VERSION, 1, (int *)pFirmwareVersion);
+		if (err) {
+			pr_debug("%s Error: Unable to get API Version from DSP \n", __FUNCTION__);
+			return err;
+		}
+	}
+	else
+	{
+		cmd_len = 0x03;
+
+		cmd_buf[0] = 0x00;
+		cmd_buf[1] = 0x80;
+		cmd_buf[2] = 0xFE;
+
+
+		err = tfa98xx_write_dsp(tfa, cmd_len, (const char *)cmd_buf);
+
+		if (err == 0)
+		{
+			res_len = 3;
+			err = tfa98xx_read_dsp(tfa, res_len, (unsigned char *)pFirmwareVersion);
+
+		}
+	}
+	return err;
+
+}
+
 /*
  *  start the speakerboost algorithm
  *  this implies a full system startup when the system was not already started
@@ -3877,6 +3958,7 @@ enum tfa_error tfa_dev_mtp_set(struct tfa_device *tfa, enum tfa_mtp item, int va
 		case TFA_MTP_RE25:
 		case TFA_MTP_RE25_PRIM:
 			if(tfa->tfa_family == 2) {
+				tfa98xx_key2(tfa, 0);
 				if((tfa->rev & 0xFF) == 0x88)
 					TFA_SET_BF(tfa, R25CL, (uint16_t)value);
 				else
@@ -3885,6 +3967,7 @@ enum tfa_error tfa_dev_mtp_set(struct tfa_device *tfa, enum tfa_mtp item, int va
 				        tfa2_manual_mtp_cpy(tfa, 0xf4, value, 2);
 					TFA_SET_BF(tfa, R25C, (uint16_t)value);
 				}
+				tfa98xx_key2(tfa, 1);
 			}
 			break;
 		case TFA_MTP_RE25_SEC:
@@ -3971,6 +4054,44 @@ enum Tfa98xx_Error tfa_status(struct tfa_device *tfa)
 	}
 
 	return Tfa98xx_Error_Ok;
+}
+
+#define NR_OF_BATS 10
+void tfa_adapt_noisemode(struct tfa_device *tfa)
+{
+	int i, avbatt;
+	long total_bats = 0;
+	if ((tfa_get_bf(tfa, 0x5900) == 0) || (tfa_get_bf(tfa, TFA9873_BF_LP1) == 1))
+	{
+		if (tfa->verbose)
+			pr_debug("Adapting low noise mode is not needed, condition not fulfilled!\n");
+		return;
+	}
+	if (tfa->verbose)
+		pr_debug("Adapting low noise mode\n");
+
+	for (i = 0; i < NR_OF_BATS; i++) {
+		int bat = TFA_GET_BF(tfa, BATS);
+		if (tfa->verbose)
+			pr_debug("bats[%d]=%d\n", i, bat);
+		total_bats += bat;
+		msleep_interruptible(5);
+	}
+
+	avbatt = (int)(total_bats / NR_OF_BATS);
+
+	if (avbatt <= MIN_BATT_LEVEL && !tfa_get_bf(tfa, TFA9873_BF_LNMODE))
+	{
+		tfa_set_bf(tfa, TFA9873_BF_LNMODE, 1);
+		pr_debug("\navbatt= %d--Applying high noise gain\n", avbatt);
+	}
+	else if (avbatt > MAX_BATT_LEVEL && tfa_get_bf(tfa, TFA9873_BF_LNMODE))
+	{
+		tfa_set_bf(tfa, TFA9873_BF_LNMODE, 0);
+		pr_debug("\navbatt= %d--Applying automatic noise gain\n", avbatt);
+	}
+
+
 }
 
 int tfa_plop_noise_interrupt(struct tfa_device *tfa, int profile, int vstep)

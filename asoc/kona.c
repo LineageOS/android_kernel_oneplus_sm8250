@@ -932,7 +932,11 @@ static struct wcd_mbhc_config wcd_mbhc_cfg = {
 	.mbhc_micbias = MIC_BIAS_2,
 	.anc_micbias = MIC_BIAS_2,
 	.enable_anc_mic_detect = false,
+	#ifdef CONFIG_SND_SOC_EBBA_AUDIO_KERNEL
+	.moisture_duty_cycle_en = false,
+	#else
 	.moisture_duty_cycle_en = true,
+	#endif
 };
 
 static inline int param_is_mask(int p)
@@ -6755,6 +6759,12 @@ static struct snd_soc_dai_link ext_disp_be_dai_link[] = {
 #if IS_ENABLED(CONFIG_SND_SOC_TFA9894)
 static struct snd_soc_dai_link_component tfa98xx_dai_link_component[]=
 {
+#if IS_ENABLED(CONFIG_SND_SOC_EBBA_AUDIO_KERNEL)
+	{
+		.name= "tfa98xx.2-0034",
+		.dai_name="tfa98xx-aif-2-34",
+	},
+#else
 	{
 		.name= "tfa98xx.0-0034",
 		.dai_name="tfa98xx-aif-0-34",
@@ -6764,6 +6774,7 @@ static struct snd_soc_dai_link_component tfa98xx_dai_link_component[]=
 		.name= "tfa98xx.0-0035",
 		.dai_name="tfa98xx-aif-0-35",
 	},
+#endif
 };
 #endif
 

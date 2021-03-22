@@ -35,6 +35,9 @@
 #include "tfa98xx.h"
 #include "tfa.h"
 #include "tfa_internal.h"
+#if IS_ENABLED(CONFIG_SND_SOC_EBBA_AUDIO_KERNEL)
+#include <linux/hardware_info.h>        //add smartpa in hardwareInfo
+#endif
 
 /* required for enum tfa9912_irq */
 #include "tfa98xx_tfafieldnames.h"
@@ -2499,6 +2502,17 @@ static void tfa98xx_tapdet_work(struct work_struct *work)
 	queue_delayed_work(tfa98xx->tfa98xx_wq, &tfa98xx->tapdet_work, HZ/10);
 }
 
+static void tfa98xx_nmode_update_work(struct work_struct *work)
+{
+	struct tfa98xx *tfa98xx;
+
+	tfa98xx = container_of(work, struct tfa98xx, nmodeupdate_work.work);
+	mutex_lock(&tfa98xx->dsp_lock);
+	tfa_adapt_noisemode(tfa98xx->tfa);
+	mutex_unlock(&tfa98xx->dsp_lock);
+	queue_delayed_work(tfa98xx->tfa98xx_wq, &tfa98xx->nmodeupdate_work,5 * HZ);
+}
+
 static void tfa98xx_monitor(struct work_struct *work)
 {
 	struct tfa98xx *tfa98xx;
@@ -3022,7 +3036,9 @@ static int tfa98xx_mute(struct snd_soc_dai *dai, int mute, int stream)
 			tfa_dev_stop(tfa98xx->tfa);
 			tfa98xx->dsp_init = TFA98XX_DSP_INIT_STOPPED;
 			mutex_unlock(&tfa98xx->dsp_lock);
-		}
+			if(tfa98xx->flags & TFA98XX_FLAG_ADAPT_NOISE_MODE)
+				cancel_delayed_work_sync(&tfa98xx->nmodeupdate_work);
+         }
 	} else {
 #ifdef TFA9894_NONDSP_STEREO
 		if (stream == SNDRV_PCM_STREAM_PLAYBACK)
@@ -3041,6 +3057,10 @@ static int tfa98xx_mute(struct snd_soc_dai *dai, int mute, int stream)
 			   (tfa98xx->dsp_init != TFA98XX_DSP_INIT_PENDING))
 				tfa98xx_dsp_init(tfa98xx);
 			tfa98xx_keyreg_print(tfa98xx);
+
+			if(tfa98xx->flags & TFA98XX_FLAG_ADAPT_NOISE_MODE)
+				queue_delayed_work(tfa98xx->tfa98xx_wq, &tfa98xx->nmodeupdate_work, 0);
+
 		} else
 			tfa98xx->cstream = 1;
 #else
@@ -3138,6 +3158,7 @@ static int tfa98xx_probe(struct snd_soc_component *component)
 	INIT_DELAYED_WORK(&tfa98xx->monitor_work, tfa98xx_monitor);
 	INIT_DELAYED_WORK(&tfa98xx->interrupt_work, tfa98xx_interrupt);
 	INIT_DELAYED_WORK(&tfa98xx->tapdet_work, tfa98xx_tapdet_work);
+	INIT_DELAYED_WORK(&tfa98xx->nmodeupdate_work, tfa98xx_nmode_update_work);
 
 	tfa98xx->component = component;
 
@@ -3555,6 +3576,14 @@ static ssize_t tfa98xx_state_show(struct device *dev, struct device_attribute *a
 static struct device_attribute tfa98xx_state_attr =
      __ATTR(calibra, 0444, tfa98xx_state_show, tfa98xx_state_store);
 
+#if IS_ENABLED(CONFIG_SND_SOC_EBBA_AUDIO_KERNEL)
+void tfa98xx_firmware_show()
+{
+	 char  tfa98xx_name[30] ="";
+	 snprintf(tfa98xx_name,sizeof(tfa98xx_name),"tfa9873EUK/N1");
+	 hardwareinfo_set_prop(HARDWARE_SMARTPA, tfa98xx_name);
+}
+#endif
 
 static int tfa98xx_i2c_probe(struct i2c_client *i2c,
 			     const struct i2c_device_id *id)
@@ -3659,6 +3688,13 @@ static int tfa98xx_i2c_probe(struct i2c_client *i2c,
 			tfa98xx->flags |= TFA98XX_FLAG_REMOVE_PLOP_NOISE;
 			/* tfa98xx->flags |= TFA98XX_FLAG_LP_MODES; */
 			tfa98xx->flags |= TFA98XX_FLAG_TDM_DEVICE;
+			break;
+		case 0x73: /* tfa9873 */
+			pr_info("TFA9873 detected\n");
+			tfa98xx->flags |= TFA98XX_FLAG_MULTI_MIC_INPUTS;
+			tfa98xx->flags |= TFA98XX_FLAG_CALIBRATION_CTL;
+			tfa98xx->flags |= TFA98XX_FLAG_TDM_DEVICE;
+			tfa98xx->flags |= TFA98XX_FLAG_ADAPT_NOISE_MODE;
 			break;
 		case 0x74: /* tfa9874 */
 			pr_info("TFA9874 detected\n");
@@ -3829,7 +3865,9 @@ register_codec:
 		dev_info(&i2c->dev, "error creating sysfs files\n");
 
 	pr_info("%s Probe completed successfully!\n", __func__);
-
+#if IS_ENABLED(CONFIG_SND_SOC_EBBA_AUDIO_KERNEL)
+	tfa98xx_firmware_show();
+#endif
 	INIT_LIST_HEAD(&tfa98xx->list);
 
 	mutex_lock(&tfa98xx_mutex);
@@ -3853,6 +3891,7 @@ static int tfa98xx_i2c_remove(struct i2c_client *i2c)
 	cancel_delayed_work_sync(&tfa98xx->monitor_work);
 	cancel_delayed_work_sync(&tfa98xx->init_work);
 	cancel_delayed_work_sync(&tfa98xx->tapdet_work);
+	cancel_delayed_work_sync(&tfa98xx->nmodeupdate_work);
 
 	device_remove_bin_file(&i2c->dev, &dev_attr_reg);
 	device_remove_bin_file(&i2c->dev, &dev_attr_rw);
@@ -3895,6 +3934,7 @@ MODULE_DEVICE_TABLE(i2c, tfa98xx_i2c_id);
 #ifdef CONFIG_OF
 static struct of_device_id tfa98xx_dt_match[] = {
 	{ .compatible = "nxp,tfa9872" },
+	{ .compatible = "nxp,tfa9873" },
 	{ .compatible = "nxp,tfa9874" },
 	{ .compatible = "nxp,tfa9888" },
 	{ .compatible = "nxp,tfa9890" },
