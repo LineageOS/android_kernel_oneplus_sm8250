@@ -185,7 +185,7 @@ static int ufstw_read_lu_attr(struct ufstw_lu *tw, u8 idn, u32 *attr_val)
 	blk_add_trace_msg(tw->ufsf->sdev_ufs_lu[tw->lun]->request_queue,
 			  "%s:%d IDN %s (%d)", __func__, __LINE__,
 			  idn == QUERY_ATTR_IDN_TW_FLUSH_STATUS ? "TW_FLUSH_STATUS" :
-			  idn == QUERY_ATTR_IDN_TW_BUF_SIZE ? "TW_BUF_SIZE" :
+			  idn == QUERY_ATTR_IDN_TW_AVAIL_BUF_SIZE ? "TW_AVAIL_BUF_SIZE" :
 			  idn == QUERY_ATTR_IDN_TW_BUF_LIFETIME_EST ? "TW_BUF_LIFETIME_EST" :
 			  "UNKNOWN", idn);
 
@@ -386,7 +386,7 @@ static void ufstw_flush_work_fn(struct work_struct *dwork)
 	}
 
 	pm_runtime_get_sync(hba->dev);
-	if (ufstw_read_lu_attr(tw, QUERY_ATTR_IDN_TW_BUF_SIZE,
+	if (ufstw_read_lu_attr(tw, QUERY_ATTR_IDN_TW_AVAIL_BUF_SIZE,
 			       &tw->tw_available_buffer_size))
 		goto error_put;
 
@@ -610,7 +610,7 @@ static inline void ufstw_print_lu_flag_attr(struct ufstw_lu *tw)
 	INFO_MSG("tw_attr LUN(%d) [%u] flush_status  %u", tw->lun,
 		 QUERY_ATTR_IDN_TW_FLUSH_STATUS, tw->tw_flush_status);
 	INFO_MSG("tw_attr LUN(%d) [%u] buffer_size  %u", tw->lun,
-		 QUERY_ATTR_IDN_TW_BUF_SIZE, tw->tw_available_buffer_size);
+		 QUERY_ATTR_IDN_TW_AVAIL_BUF_SIZE, tw->tw_available_buffer_size);
 	INFO_MSG("tw_attr LUN(%d) [%d] bufffer_lifetime  %u(0x%X)",
 		 tw->lun, QUERY_ATTR_IDN_TW_BUF_LIFETIME_EST,
 		 tw->tw_lifetime_est, tw->tw_lifetime_est);
@@ -637,7 +637,7 @@ static inline void ufstw_lu_update(struct ufstw_lu *tw)
 			       &tw->tw_flush_status))
 		goto error_put;
 
-	if (ufstw_read_lu_attr(tw, QUERY_ATTR_IDN_TW_BUF_SIZE,
+	if (ufstw_read_lu_attr(tw, QUERY_ATTR_IDN_TW_AVAIL_BUF_SIZE,
 			       &tw->tw_available_buffer_size))
 		goto error_put;
 
@@ -1328,7 +1328,7 @@ static ssize_t ufstw_sysfs_show_##_name(struct ufstw_lu *tw, char *buf) \
 
 /* SYSFS FUNCTION */
 define_sysfs_attr_r_function(flush_status, QUERY_ATTR_IDN_TW_FLUSH_STATUS)
-define_sysfs_attr_r_function(available_buffer_size, QUERY_ATTR_IDN_TW_BUF_SIZE)
+define_sysfs_attr_r_function(available_buffer_size, QUERY_ATTR_IDN_TW_AVAIL_BUF_SIZE)
 define_sysfs_attr_r_function(lifetime_est, QUERY_ATTR_IDN_TW_BUF_LIFETIME_EST)
 
 static ssize_t ufstw_sysfs_show_tw_enable(struct ufstw_lu *tw, char *buf)
