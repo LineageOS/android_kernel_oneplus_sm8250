@@ -9625,6 +9625,29 @@ int afe_spk_prot_feed_back_cfg(int src_port, int dst_port,
 	}
 	pr_debug("%s: src_port 0x%x  dst_port 0x%x l_ch %d r_ch %d\n",
 		 __func__, src_port, dst_port, l_ch, r_ch);
+
+#if IS_ENABLED(CONFIG_SND_SOC_EBBA_AUDIO_KERNEL)
+	index = 0;
+	memset(&prot_config, 0, sizeof(prot_config));
+	prot_config.feedback_path_cfg.dst_portid =
+		q6audio_get_port_id(dst_port);
+	if (l_ch) {
+		prot_config.feedback_path_cfg.chan_info[index++] = 1;
+		prot_config.feedback_path_cfg.chan_info[index++] = 2;
+	}
+	if (r_ch) {
+		prot_config.feedback_path_cfg.chan_info[index++] = 3;
+		prot_config.feedback_path_cfg.chan_info[index++] = 4;
+	}
+
+	prot_config.feedback_path_cfg.num_channels = index;
+	pr_debug("%s no of channels: %d\n", __func__, index);
+	prot_config.feedback_path_cfg.minor_version = 1;
+	ret = afe_spk_prot_prepare(src_port, dst_port,
+		AFE_PARAM_ID_FEEDBACK_PATH_CFG, &prot_config,
+		 sizeof(union afe_spkr_prot_config));
+
+#else
 	if (q6core_get_avcs_api_version_per_service(
 		APRV2_IDS_SERVICE_ID_ADSP_AFE_V) >= AFE_API_VERSION_V9) {
 		if (l_ch) {
@@ -9659,7 +9682,7 @@ int afe_spk_prot_feed_back_cfg(int src_port, int dst_port,
 				AFE_PARAM_ID_FEEDBACK_PATH_CFG, &prot_config,
 				 sizeof(union afe_spkr_prot_config));
 	}
-
+#endif
 fail_cmd:
 	return ret;
 }

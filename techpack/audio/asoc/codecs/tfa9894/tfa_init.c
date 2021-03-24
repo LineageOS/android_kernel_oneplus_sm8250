@@ -96,6 +96,14 @@ static enum Tfa98xx_Error tfa_set_osc_powerdown(struct tfa_device *tfa, int stat
 	return Tfa98xx_Error_Ok;
 }
 
+static enum Tfa98xx_Error tfa_update_lpm(struct tfa_device *tfa, int state)
+{
+	(void)tfa;
+	(void)state;
+
+	return Tfa98xx_Error_Ok;
+}
+
 static enum Tfa98xx_Error tfa_dsp_reset(struct tfa_device *tfa, int state)
 {
 	/* generic function */
@@ -196,6 +204,7 @@ void set_ops_defaults(struct tfa_device_ops *ops)
 	ops->set_mute = tfa_set_mute_nodsp;
 	ops->faim_protect = tfa_faim_protect;
 	ops->set_osc_powerdown = tfa_set_osc_powerdown;
+	ops->update_lpm = tfa_update_lpm;
 }
 
 /***********************************************************************************/
@@ -706,6 +715,139 @@ void tfa9872_ops(struct tfa_device_ops *ops)
 	ops->get_swprof = tfa9872_get_swprofile;
 	ops->set_swvstep = tfa9872_set_swvstep;
 	ops->get_swvstep = tfa9872_get_swvstep;
+	ops->set_mute = tfa_set_mute_nodsp;
+}
+
+/***********************************************************************************/
+/* TFA9873                                                                         */
+/***********************************************************************************/
+
+static int tfa9873_set_swprofile(struct tfa_device *tfa, unsigned short new_value)
+{
+	int active_value = tfa_dev_get_swprof(tfa);
+
+	/* Set the new value in the struct */
+	tfa->profile = new_value - 1;
+
+	/* Set the new value in the hw register */
+	tfa_set_bf_volatile(tfa, TFA9873_BF_SWPROFIL, new_value);
+
+	return active_value;
+}
+
+static int tfa9873_get_swprofile(struct tfa_device *tfa)
+{
+	return tfa_get_bf(tfa, TFA9873_BF_SWPROFIL) - 1;
+}
+
+static int tfa9873_set_swvstep(struct tfa_device *tfa, unsigned short new_value)
+{
+
+	/* Set the new value in the struct */
+	tfa->vstep = new_value - 1;
+
+	/* Set the new value in the hw register */
+	tfa_set_bf_volatile(tfa, TFA9873_BF_SWVSTEP, new_value);
+
+	return new_value;
+}
+
+static int tfa9873_get_swvstep(struct tfa_device *tfa)
+{
+	return tfa_get_bf(tfa, TFA9873_BF_SWVSTEP) - 1;
+}
+
+static enum Tfa98xx_Error tfa9873_dsp_system_stable(struct tfa_device *tfa, int *ready)
+{
+	enum Tfa98xx_Error error = Tfa98xx_Error_Ok;
+
+	/* check CLKS: ready if set */
+	*ready = tfa_get_bf(tfa, TFA9873_BF_CLKS) == 1;
+
+	return error;
+}
+
+static int tfa9873_get_mtpb(struct tfa_device *tfa) {
+
+	int value;
+	value = tfa_get_bf(tfa, TFA9873_BF_MTPB);
+	return value;
+}
+static enum Tfa98xx_Error tfa9873_faim_protect(struct tfa_device *tfa, int status)
+{
+	enum Tfa98xx_Error ret = Tfa98xx_Error_Ok;
+	ret = tfa_set_bf_volatile(tfa, TFA9873_BF_OPENMTP, (uint16_t)(status));
+	return ret;
+}
+static enum Tfa98xx_Error tfa9873_specific(struct tfa_device* tfa)
+{
+	enum Tfa98xx_Error error = Tfa98xx_Error_Ok;
+	unsigned short value, xor;
+
+	if (tfa->in_use == 0)
+		return Tfa98xx_Error_NotOpen;
+
+	error = reg_write(tfa, 0x0F, 0x5A6B);
+	error = reg_read(tfa, 0xFB, &value);
+	xor = value ^ 0x005A;
+	error = reg_write(tfa, 0xA0, xor);
+	tfa98xx_key2(tfa, 0);
+
+	switch (tfa->rev) {
+	case 0x0a73:
+		reg_write(tfa, 0x02, 0x0628); //POR=0x0008
+		reg_write(tfa, 0x4c, 0x00e9); //POR=0x00ff
+		reg_write(tfa, 0x52, 0x17d0); //POR=0x57d0
+		reg_write(tfa, 0x56, 0x0011); //POR=0x0019
+		reg_write(tfa, 0x58, 0x0200); //POR=0x0210
+		reg_write(tfa, 0x59, 0x0001); //POR=0x0000
+		reg_write(tfa, 0x5f, 0x0180); //POR=0x0100
+		reg_write(tfa, 0x61, 0x0183); //POR=0x0a82
+		reg_write(tfa, 0x63, 0x055a); //POR=0x0a9a
+		reg_write(tfa, 0x65, 0x0542); //POR=0x0a82
+		reg_write(tfa, 0x6f, 0x00a3); //POR=0x0085
+		reg_write(tfa, 0x70, 0xa3fb); //POR=0x23fb
+		reg_write(tfa, 0x71, 0x007e); //POR=0x107e
+		reg_write(tfa, 0x83, 0x009a); //POR=0x0799
+		reg_write(tfa, 0x84, 0x0211); //POR=0x0011
+		reg_write(tfa, 0x85, 0x0382); //POR=0x0380
+		reg_write(tfa, 0x8c, 0x0210); //POR=0x0010
+		reg_write(tfa, 0xd5, 0x0000); //POR=0x0100
+		break;
+	case 0x0b73:
+		reg_write(tfa, 0x02, 0x0628); //POR=0x0008
+		reg_write(tfa, 0x61, 0x0183); //POR=0x0182
+		reg_write(tfa, 0x63, 0x005a); //POR=0x055a
+		reg_write(tfa, 0x6f, 0x0082); //POR=0x00a5
+		reg_write(tfa, 0x70, 0xa3eb); //POR=0x23fb
+		reg_write(tfa, 0x73, 0x0187); //POR=0x0107
+		reg_write(tfa, 0x83, 0x071c); //POR=0x0799
+		reg_write(tfa, 0x85, 0x0380); //POR=0x0382
+		reg_write(tfa, 0xd5, 0x004d); //POR=0x014d
+		break;
+	case 0x1a73:
+		break;
+	default:
+		pr_info("\nWarning: Optimal settings not found for device with revid = 0x%x \n", tfa->rev);
+		break;
+	}
+	error = tfa_set_bf_volatile(tfa, TFA9873_BF_FSSYNCEN, 0);
+	pr_info("info : disabled FS synchronisation! \n");
+	return error;
+}
+void tfa9873_ops(struct tfa_device_ops *ops)
+{
+	/* Set defaults for ops */
+	set_ops_defaults(ops);
+
+	ops->tfa_init = tfa9873_specific;
+	ops->set_swprof = tfa9873_set_swprofile;
+	ops->get_swprof = tfa9873_get_swprofile;
+	ops->set_swvstep = tfa9873_set_swvstep;
+	ops->get_swvstep = tfa9873_get_swvstep;
+	ops->dsp_system_stable = tfa9873_dsp_system_stable;
+	ops->faim_protect = tfa9873_faim_protect;
+	ops->get_mtpb = tfa9873_get_mtpb;
 	ops->set_mute = tfa_set_mute_nodsp;
 }
 
