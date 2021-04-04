@@ -4700,7 +4700,6 @@ static int fg_psy_get_property(struct power_supply *psy,
 					pval->intval = rc;
 		} else
 			rc = ttf_get_time_to_full(chip->ttf, &pval->intval);
-		pval->intval = pval->intval > 0 ? pval->intval : 1;
 		break;
 	case POWER_SUPPLY_PROP_CC_STEP:
 		if ((chip->ttf->cc_step.sel >= 0) &&
