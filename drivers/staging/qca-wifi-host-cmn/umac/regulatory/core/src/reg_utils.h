@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2017-2021 The Linux Foundation. All rights reserved.
  *
  *
  * Permission to use, copy, modify, and/or distribute this software for
@@ -157,13 +157,23 @@ reg_is_disable_for_freq(struct wlan_objmgr_pdev *pdev, qdf_freq_t freq)
 
 #ifdef DISABLE_CHANNEL_LIST
 /**
- * reg_restore_cached_channels() - Cache the current state of the channels
+ * reg_disable_cached_channels() - Disable cached channels
+ * @pdev: The physical dev to cache the channels for
+ */
+QDF_STATUS reg_disable_cached_channels(struct wlan_objmgr_pdev *pdev);
+/**
+ * reg_restore_cached_channels() - Restore disabled cached channels
  * @pdev: The physical dev to cache the channels for
  */
 QDF_STATUS reg_restore_cached_channels(struct wlan_objmgr_pdev *pdev);
 #else
 static inline
 QDF_STATUS reg_restore_cached_channels(struct wlan_objmgr_pdev *pdev)
+{
+	return QDF_STATUS_SUCCESS;
+}
+static inline
+QDF_STATUS reg_disable_cached_channels(struct wlan_objmgr_pdev *pdev)
 {
 	return QDF_STATUS_SUCCESS;
 }
@@ -216,20 +226,20 @@ QDF_STATUS reg_cache_channel_state(struct wlan_objmgr_pdev *pdev,
 /**
  * reg_set_band() - Sets the band information for the PDEV
  * @pdev: The physical dev to set the band for
- * @band: The set band parameters to configure for the physical device
+ * @band_bitmap: The set band parameters to configure for the physical device
  *
  * Return: QDF_STATUS
  */
-QDF_STATUS reg_set_band(struct wlan_objmgr_pdev *pdev, enum band_info band);
+QDF_STATUS reg_set_band(struct wlan_objmgr_pdev *pdev, uint32_t band_bitmap);
 
 /**
  * reg_get_band() - Get the band information for the PDEV
  * @pdev: The physical dev to get the band for
- * @band: The band parameters of the physical device
+ * @band_bitmap: The band parameters of the physical device
  *
  * Return: QDF_STATUS
  */
-QDF_STATUS reg_get_band(struct wlan_objmgr_pdev *pdev, enum band_info *band);
+QDF_STATUS reg_get_band(struct wlan_objmgr_pdev *pdev, uint32_t *band_bitmap);
 
 /**
  * reg_set_fcc_constraint() - Apply fcc constraints on channels 12/13
@@ -642,17 +652,4 @@ static inline bool reg_is_etsi13_srd_chan(struct wlan_objmgr_pdev *pdev,
 }
 #endif
 
-#if defined(DISABLE_CHANNEL_LIST) && defined(CONFIG_REG_CLIENT)
-/**
- * set_disable_channel_state() - Set disable channel state flag
- * @pdev_priv_obj: Pointer to pdev object
- */
-void set_disable_channel_state(
-	struct wlan_regulatory_pdev_priv_obj *pdev_priv_obj);
-#else
-static inline void set_disable_channel_state(
-	struct wlan_regulatory_pdev_priv_obj *pdev_priv_obj)
-{
-}
-#endif
 #endif

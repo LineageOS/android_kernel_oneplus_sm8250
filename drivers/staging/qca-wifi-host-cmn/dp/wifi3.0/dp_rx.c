@@ -1919,7 +1919,7 @@ dp_rx_ring_record_entry(struct dp_soc *soc, uint8_t ring_num,
 	struct hal_buf_info hbi;
 	uint32_t idx;
 
-	if (qdf_unlikely(!&soc->rx_ring_history[ring_num]))
+	if (qdf_unlikely(!soc->rx_ring_history[ring_num]))
 		return;
 
 	hal_rx_reo_buf_paddr_get(ring_desc, &hbi);
@@ -2225,6 +2225,9 @@ more_data:
 
 		qdf_nbuf_set_tid_val(rx_desc->nbuf,
 				     HAL_RX_REO_QUEUE_NUMBER_GET(ring_desc));
+		qdf_nbuf_set_rx_reo_dest_ind(
+				rx_desc->nbuf,
+				HAL_RX_REO_MSDU_REO_DST_IND_GET(ring_desc));
 
 		QDF_NBUF_CB_RX_PKT_LEN(rx_desc->nbuf) = msdu_desc_info.msdu_len;
 
