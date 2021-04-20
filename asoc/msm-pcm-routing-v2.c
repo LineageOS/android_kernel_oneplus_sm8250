@@ -1278,8 +1278,7 @@ static int msm_routing_get_adm_topology(int fedai_id, int session_type,
 						      acdb_dev_id,
 						      ADM_TOPOLOGY_CAL_TYPE_IDX,
 						      false /*exact*/);
-		if ((topology < 0) ||
-			(singlemic_test == 1 && session_type == SESSION_TYPE_TX)) {
+		if ((topology < 0) || (singlemic_test == 1)) {
 			topology = NULL_COPP_TOPOLOGY;
 			pr_debug("%s: Force using topology %d\n", __func__, topology);
 		}
@@ -21653,6 +21652,10 @@ static const struct snd_kcontrol_new rx_cdc_dma_rx_0_port_mixer_controls[] = {
 	SOC_DOUBLE_EXT("TX_CDC_DMA_TX_3", SND_SOC_NOPM,
 	MSM_BACKEND_DAI_RX_CDC_DMA_RX_0,
 	MSM_BACKEND_DAI_TX_CDC_DMA_TX_3, 1, 0, msm_routing_get_port_mixer,
+	msm_routing_put_port_mixer),
+	SOC_DOUBLE_EXT("TX_CDC_DMA_TX_4", SND_SOC_NOPM,
+	MSM_BACKEND_DAI_RX_CDC_DMA_RX_0,
+	MSM_BACKEND_DAI_TX_CDC_DMA_TX_4, 1, 0, msm_routing_get_port_mixer,
 	msm_routing_put_port_mixer),
 	SOC_DOUBLE_EXT("SLIM_8_TX", SND_SOC_NOPM,
 	MSM_BACKEND_DAI_RX_CDC_DMA_RX_0,
