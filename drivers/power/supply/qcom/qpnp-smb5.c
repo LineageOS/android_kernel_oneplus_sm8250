@@ -2636,7 +2636,7 @@ static enum power_supply_property smb5_batt_props[] = {
 //	POWER_SUPPLY_PROP_FCC_STEPPER_ENABLE,
 	POWER_SUPPLY_PROP_OP_DISABLE_CHARGE,
 	POWER_SUPPLY_PROP_TIME_TO_FULL_AVG,
-#if defined(OEM_TARGET_PRODUCT_KEBAB)
+#if 0
 	POWER_SUPPLY_PROP_TIME_TO_FULL_NOW,
 #endif
 	POWER_SUPPLY_PROP_DUMP_REG,
@@ -2850,7 +2850,7 @@ static int smb5_batt_get_prop(struct power_supply *psy,
 		rc = smblib_get_prop_from_bms(chg,
 				POWER_SUPPLY_PROP_TIME_TO_FULL_AVG, val);
 		break;
-#if defined(OEM_TARGET_PRODUCT_KEBAB)
+#if 0
 	case POWER_SUPPLY_PROP_TIME_TO_FULL_NOW:
 		rc = smblib_get_prop_from_bms(chg,
 				POWER_SUPPLY_PROP_TIME_TO_FULL_NOW, val);
