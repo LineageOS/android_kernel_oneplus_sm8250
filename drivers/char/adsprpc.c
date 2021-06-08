@@ -799,19 +799,11 @@ static int fastrpc_mmap_find(struct fastrpc_file *fl, int fd,
 static int dma_alloc_memory(dma_addr_t *region_phys, void **vaddr, size_t size,
 					unsigned long dma_attr)
 {
-	int err = 0;
 	struct fastrpc_apps *me = &gfa;
 
 	if (me->dev == NULL) {
 		pr_err("device adsprpc-mem is not initialized\n");
 		return -ENODEV;
-	}
-	VERIFY(err, size > 0 && size < me->max_size_limit);
-	if (err) {
-		err = -EFAULT;
-		pr_err("adsprpc: %s: invalid allocation size 0x%zx\n",
-			__func__, size);
-		return err;
 	}
 	*vaddr = dma_alloc_attrs(me->dev, size, region_phys,
 					GFP_KERNEL, dma_attr);
@@ -1843,10 +1835,9 @@ static int get_args(uint32_t kernel, struct smq_invoke_ctx *ctx)
 	PERF_END);
 	for (i = bufs; i < bufs + handles; ++i) {
 		struct fastrpc_mmap *map = ctx->maps[i];
-		if (map) {
-			pages[i].addr = map->phys;
-			pages[i].size = map->size;
-		}
+
+		pages[i].addr = map->phys;
+		pages[i].size = map->size;
 	}
 	fdlist = (uint64_t *)&pages[bufs + handles];
 	crclist = (uint32_t *)&fdlist[M_FDLIST];
@@ -2431,13 +2422,13 @@ static int fastrpc_internal_invoke(struct fastrpc_file *fl, uint32_t mode,
 	inv_args(ctx);
 	PERF_END);
 
-	PERF(fl->profile, GET_COUNTER(perf_counter, PERF_PUTARGS),
-	VERIFY(err, 0 == (err = put_args(kernel, ctx, invoke->pra)));
-	PERF_END);
+	VERIFY(err, 0 == (err = ctx->retval));
 	if (err)
 		goto bail;
 
-	VERIFY(err, 0 == (err = ctx->retval));
+	PERF(fl->profile, GET_COUNTER(perf_counter, PERF_PUTARGS),
+	VERIFY(err, 0 == put_args(kernel, ctx, invoke->pra));
+	PERF_END);
 	if (err)
 		goto bail;
  bail:
@@ -3202,7 +3193,8 @@ static int fastrpc_mmap_remove_pdr(struct fastrpc_file *fl)
 	VERIFY(err, cid == fl->cid);
 	if (err)
 		goto bail;
-	if (!me->channel[fl->cid].spd[session].ispdup) {
+	if (!me->channel[fl->cid].spd[session].ispdup &&
+		me->channel[fl->cid].spd[session].pdrhandle) {
 		err = -ENOTCONN;
 		goto bail;
 	}
@@ -3289,13 +3281,15 @@ static int fastrpc_internal_munmap(struct fastrpc_file *fl,
 	mutex_unlock(&fl->map_mutex);
 	if (err)
 		goto bail;
-	VERIFY(err, !fastrpc_munmap_on_dsp(fl, map->raddr,
-				map->phys, map->size, map->flags));
-	if (err)
-		goto bail;
-	mutex_lock(&fl->map_mutex);
-	fastrpc_mmap_free(map, 0);
-	mutex_unlock(&fl->map_mutex);
+	if (map) {
+		VERIFY(err, !fastrpc_munmap_on_dsp(fl, map->raddr,
+					map->phys, map->size, map->flags));
+		if (err)
+			goto bail;
+		mutex_lock(&fl->map_mutex);
+		fastrpc_mmap_free(map, 0);
+		mutex_unlock(&fl->map_mutex);
+	}
 bail:
 	if (err && map) {
 		mutex_lock(&fl->map_mutex);

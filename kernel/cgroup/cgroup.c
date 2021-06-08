@@ -84,13 +84,6 @@ EXPORT_SYMBOL_GPL(cgroup_mutex);
 EXPORT_SYMBOL_GPL(css_set_lock);
 #endif
 
-#ifdef CONFIG_RATP
-#define STUNE_TYPE_MAX 5
-int stune_map[STUNE_TYPE_MAX] = {0, 0, 0, 0, 0};
-const char *stune_cgroup_type[STUNE_TYPE_MAX] = {"foreground", "background",
-				"top-app", "rt", "audio-app"};
-#endif
-
 DEFINE_SPINLOCK(trace_cgroup_path_lock);
 char trace_cgroup_path[TRACE_CGROUP_PATH_LEN];
 
@@ -4457,9 +4450,6 @@ static void *cgroup_procs_next(struct seq_file *s, void *v, loff_t *pos)
 	struct kernfs_open_file *of = s->private;
 	struct css_task_iter *it = of->priv;
 
-	if (pos)
-		(*pos)++;
-
 	return css_task_iter_next(it);
 }
 
@@ -4475,7 +4465,7 @@ static void *__cgroup_procs_start(struct seq_file *s, loff_t *pos,
 	 * from position 0, so we can simply keep iterating on !0 *pos.
 	 */
 	if (!it) {
-		if (WARN_ON_ONCE((*pos)))
+		if (WARN_ON_ONCE((*pos)++))
 			return ERR_PTR(-EINVAL);
 
 		it = kzalloc(sizeof(*it), GFP_KERNEL);
@@ -4483,11 +4473,10 @@ static void *__cgroup_procs_start(struct seq_file *s, loff_t *pos,
 			return ERR_PTR(-ENOMEM);
 		of->priv = it;
 		css_task_iter_start(&cgrp->self, iter_flags, it);
-	} else if (!(*pos)) {
+	} else if (!(*pos)++) {
 		css_task_iter_end(it);
 		css_task_iter_start(&cgrp->self, iter_flags, it);
-	} else
-		return it->cur_task;
+	}
 
 	return cgroup_procs_next(s, NULL, NULL);
 }
@@ -4953,10 +4942,6 @@ static struct cgroup_subsys_state *css_create(struct cgroup *cgrp,
 	struct cgroup_subsys_state *parent_css = cgroup_css(parent, ss);
 	struct cgroup_subsys_state *css;
 	int err;
-#ifdef CONFIG_RATP
-	const char *tune_cgroup;
-	int i;
-#endif
 
 	lockdep_assert_held(&cgroup_mutex);
 
@@ -4994,20 +4979,6 @@ static struct cgroup_subsys_state *css_create(struct cgroup *cgrp,
 		ss->warned_broken_hierarchy = true;
 	}
 
-#ifdef CONFIG_RATP
-	/* establish the groups of schedtune mapping table*/
-	if (css->cgroup && css->cgroup->kn) {
-		tune_cgroup = css->cgroup->kn->name;
-		if (!strncmp(ss->name, "schedtune", strlen("schedtune"))) {
-			for (i = 0; i < STUNE_TYPE_MAX; ++i) {
-				if (!strncmp(tune_cgroup, stune_cgroup_type[i], strlen(stune_cgroup_type[i]))) {
-					stune_map[i] = i+1;
-					break;
-				}
-			}
-		}
-	}
-#endif
 	return css;
 
 err_list_del:
@@ -6086,10 +6057,6 @@ void cgroup_sk_alloc(struct sock_cgroup_data *skcd)
 		cgroup_get(sock_cgroup_ptr(skcd));
 		return;
 	}
-
-	/* Don't associate the sock with unrelated interrupted task's cgroup. */
-	if (in_interrupt())
-		return;
 
 	rcu_read_lock();
 

@@ -118,6 +118,7 @@
 #define ADAPTER_TYPE_UNKNOWN 0
 #define ADAPTER_TYPE_FASTCHAGE_DASH 1
 #define ADAPTER_TYPE_FASTCHAGE_WARP 2
+#define ADAPTER_TYPE_FASTCHAGE_PD_65W	7
 #define ADAPTER_TYPE_USB 3
 #define ADAPTER_TYPE_NORMAL_CHARGE 4
 #define ADAPTER_TYPE_EPP 5
@@ -138,6 +139,8 @@
 #define CHARGE_FULL_FAN_THREOD_HI 380
 
 #define FASTCHG_CURR_ERR_MAX 5
+#define WPC_ADAPTER_TYPE_MASK		0x07
+#define WPC_ADAPTER_ID_MASK		0xF8
 
 enum {
 	WPC_CHG_STATUS_DEFAULT,
@@ -238,6 +241,7 @@ struct wpc_data {
 	bool charge_done;
 	int adapter_type;
 	int charge_type;
+	int adapter_id;
 	int charge_voltage;
 	int charge_current;
 	enum WLCHG_TEMP_REGION_TYPE temp_region;
@@ -362,7 +366,9 @@ struct charge_param {
 	int epp_curr_step[EPP_CURR_STEP_MAX];
 	bool fastchg_fod_enable;
 	unsigned char fastchg_match_q;
+	unsigned char fastchg_match_q_new;
 	unsigned char fastchg_fod_parm[FOD_PARM_LENGTH];
+	unsigned char fastchg_fod_parm_new[FOD_PARM_LENGTH];
 	unsigned char fastchg_fod_parm_startup[FOD_PARM_LENGTH];
 	struct op_fastchg_ffc_step ffc_chg;
 };

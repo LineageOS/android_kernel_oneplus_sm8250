@@ -31,13 +31,6 @@
 #include "iris/dsi_iris5_gpio.h"
 #endif
 #include <linux/pm_wakeup.h>
-#include "sde_dbg.h"
-
-#ifdef OEM_TARGET_PRODUCT_EBBA
-#include "linux/hardware_info.h"
-extern char Lcm_name[HARDWARE_MAX_ITEM_LONGTH];
-#endif
-
 /**
  * topology is currently defined by a set of following 3 values:
  * 1. num of layer mixers
@@ -598,7 +591,6 @@ int dsi_panel_trigger_esd_attack(struct dsi_panel *panel)
 
 	if (gpio_is_valid(r_config->reset_gpio)) {
 		gpio_set_value(r_config->reset_gpio, 0);
-		SDE_EVT32(SDE_EVTLOG_FUNC_CASE1);
 		DSI_INFO("GPIO pulled low to simulate ESD\n");
 		return 0;
 	}
@@ -872,7 +864,6 @@ int dsi_panel_tx_cmd_set(struct dsi_panel *panel,
 	cmds = mode->priv_info->cmd_sets[type].cmds;
 	count = mode->priv_info->cmd_sets[type].count;
 	state = mode->priv_info->cmd_sets[type].state;
-	SDE_EVT32(type, state, count);
 
 	if (count == 0) {
 		DSI_DEBUG("[%s] No commands to be sent for state(%d)\n",
@@ -1209,12 +1200,7 @@ int dsi_panel_set_backlight(struct dsi_panel *panel, u32 bl_lvl)
 	if (panel->host_config.ext_bridge_mode)
 		return 0;
 
-#ifndef OEM_TARGET_PRODUCT_EBBA
 	DSI_DEBUG("backlight type:%d lvl:%d\n", bl->type, bl_lvl);
-#else
-	DSI_INFO("backlight type:%d lvl:%d\n", bl->type, bl_lvl);
-#endif
-
 	switch (bl->type) {
 	case DSI_BACKLIGHT_WLED:
 		rc = backlight_device_set_brightness(bl->raw_bd, bl_lvl);
@@ -1693,9 +1679,6 @@ static int dsi_panel_parse_misc_host_config(struct dsi_host_common_cfg *host,
 		host->t_clk_pre = val;
 		DSI_DEBUG("[%s] t_clk_pre = %d\n", name, val);
 	}
-
-	host->t_clk_pre_extend = utils->read_bool(utils->data,
-						"qcom,mdss-dsi-t-clk-pre-extend");
 
 	host->ignore_rx_eot = utils->read_bool(utils->data,
 						"qcom,mdss-dsi-rx-eot-ignore");
@@ -2290,8 +2273,6 @@ const char *cmd_set_prop_map[DSI_CMD_SET_MAX] = {
 	"qcom,mdss-dsi-panel-register-read-command",
 	"qcom,mdss-dsi-panel-level2-key-enable-command",
 	"qcom,mdss-dsi-panel-level2-key-disable-command",
-	"qcom,mdss-dsi-loading-effect-1-command",
-	"qcom,mdss-dsi-loading-effect-off-command",
 #if defined(CONFIG_PXLW_IRIS)
 	"iris,abyp-panel-command",
 #endif
@@ -2382,8 +2363,6 @@ const char *cmd_set_state_map[DSI_CMD_SET_MAX] = {
 	"qcom,mdss-dsi-panel-register-read-command-state",
 	"qcom,mdss-dsi-panel-level2-key-enable-command-state",
 	"qcom,mdss-dsi-panel-level2-key-disable-command-state",
-	"qcom,mdss-dsi-loading-effect-1-command-state",
-	"qcom,mdss-dsi-loading-effect-off-command-state",
 #if defined(CONFIG_PXLW_IRIS)
 	"iris,abyp-panel-command-state",
 #endif
@@ -2834,7 +2813,7 @@ static int dsi_panel_parse_gpios(struct dsi_panel *panel)
 			 panel->name, rc);
 	}
 
-	if(get_prj_version() == 14 || get_prj_version() == 15) {
+	if(get_prj_version() == 14) {
 		panel->vddd_gpio = utils->get_named_gpio(utils->data, "qcom,vddd-gpio", 0);
 		DSI_DEBUG("panel->vddd_gpio = %d\n",panel->vddd_gpio);
 		if (!gpio_is_valid(panel->vddd_gpio)) {
@@ -4193,11 +4172,6 @@ struct dsi_panel *dsi_panel_get(struct device *parent,
 	if (rc)
 		goto error;
 
-#ifdef OEM_TARGET_PRODUCT_EBBA
-	strlcpy(Lcm_name, panel->name, strlen(panel->name)+1);
-	DSI_INFO("hardware info panel name:%s\n", Lcm_name);
-#endif
-
 	mutex_init(&panel->panel_lock);
 
 	return panel;
@@ -5096,7 +5070,6 @@ int dsi_panel_send_roi_dcs(struct dsi_panel *panel, int ctrl_idx,
 	}
 	DSI_DEBUG("[%s] send roi x %d y %d w %d h %d\n", panel->name,
 			roi->x, roi->y, roi->w, roi->h);
-	SDE_EVT32(roi->x, roi->y, roi->w, roi->h);
 
 	mutex_lock(&panel->panel_lock);
 
@@ -6003,29 +5976,19 @@ int dsi_panel_set_native_loading_effect_mode(struct dsi_panel *panel, int level)
 	}
     mode = panel->cur_mode;
 	mutex_lock(&panel->panel_lock);
-	if(strcmp(panel->name, "samsung amb655x fhd cmd mode dsc dsi panel") == 0){
-		if (level==0) {
-		  count = mode->priv_info->cmd_sets[DSI_CMD_LOADING_EFFECT_OFF_NEW].count;
-		  rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_LOADING_EFFECT_OFF_NEW);
-		  DSI_ERR("turn OFF loading compensate different APL is different\n");
-		  } else if(level==1) {
-		  count = mode->priv_info->cmd_sets[DSI_CMD_LOADING_EFFECT_ON_1].count;
-		  rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_LOADING_EFFECT_ON_1);
-		  DSI_ERR("turn ON_1 loading compensate.different APL is the same\n");
-		  }
-		}
-	else {
-		if (level) {
-			count = mode->priv_info->cmd_sets[DSI_CMD_LOADING_EFFECT_ON].count;
+
+    if (level) {
+        count = mode->priv_info->cmd_sets[DSI_CMD_LOADING_EFFECT_ON].count;
+
             rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_LOADING_EFFECT_ON);
             DSI_ERR("turn on loading effect\n");
-			} else {
-			count = mode->priv_info->cmd_sets[DSI_CMD_LOADING_EFFECT_OFF].count;
+    } else {
+        count = mode->priv_info->cmd_sets[DSI_CMD_LOADING_EFFECT_OFF].count;
+
             rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_LOADING_EFFECT_OFF);
             DSI_ERR("turn off loading effect.\n");
-			}
-		}
-	  mutex_unlock(&panel->panel_lock);
+    }
+	mutex_unlock(&panel->panel_lock);
 return rc;
 }
 
@@ -7014,7 +6977,6 @@ int dsi_panel_dimming_gamma_write(struct dsi_panel *panel)
 			payload = (u8 *)cmds[8].msg.tx_buf;
 			for (i = 1; i < 9; i++)
 				payload[i] = dimming_gamma_120hz[i+35];
-			/* GAMMA change Setting (120Hz) 80-500nit */
 			payload = (u8 *)cmds[10].msg.tx_buf;
 			for (i = 1; i < 9; i++)
 				payload[i] = dimming_gamma_120hz_500step[i-1];

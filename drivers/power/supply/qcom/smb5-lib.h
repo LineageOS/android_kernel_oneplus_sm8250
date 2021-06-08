@@ -932,8 +932,6 @@ struct smb_charger {
 	int			qcpd_9v_vbat_thr;
 	unsigned int		adapter_sid;
 	unsigned long		lcd_st_debounce_expire;
-	int			cool_down;
-	bool		en_temp_ctrl_center;
 	int			reconnect_count;
 	bool		tried_fastchg;
 	bool		icon_debounce;
@@ -1228,6 +1226,5 @@ extern void op_release_usb_lock(void);
 bool is_op_chg_available(struct smb_charger *chg);
 bool is_charger_not_match(struct smb_charger *chg);
 #endif
-void op_smart_charge_by_cool_down(struct smb_charger *chg, int val);
 
 #endif /* __SMB5_CHARGER_H */

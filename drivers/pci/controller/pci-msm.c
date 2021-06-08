@@ -761,7 +761,6 @@ struct msm_pcie_dev_t {
 	uint32_t smmu_sid_base;
 	uint32_t link_check_max_count;
 	uint32_t target_link_speed;
-	uint32_t dt_target_link_speed;
 	uint32_t n_fts;
 	uint32_t ep_latency;
 	uint32_t switch_latency;
@@ -1518,29 +1517,6 @@ static void pcie_parf_dump(struct msm_pcie_dev_t *dev)
 			readl_relaxed(dev->parf + (i + 20)),
 			readl_relaxed(dev->parf + (i + 24)),
 			readl_relaxed(dev->parf + (i + 28)));
-	}
-}
-
-static void pcie_dm_core_dump(struct msm_pcie_dev_t *dev)
-{
-	int i, size;
-
-	PCIE_DUMP(dev, "PCIe: RC%d DBI/dm_core register dump\n", dev->rc_idx);
-
-	size = resource_size(dev->res[MSM_PCIE_RES_DM_CORE].resource);
-
-	for (i = 0; i < size; i += 32) {
-		PCIE_DUMP(dev,
-			"RC%d: 0x%04x %08x %08x %08x %08x %08x %08x %08x %08x\n",
-			dev->rc_idx, i,
-			readl_relaxed(dev->dm_core + i),
-			readl_relaxed(dev->dm_core + (i + 4)),
-			readl_relaxed(dev->dm_core + (i + 8)),
-			readl_relaxed(dev->dm_core + (i + 12)),
-			readl_relaxed(dev->dm_core + (i + 16)),
-			readl_relaxed(dev->dm_core + (i + 20)),
-			readl_relaxed(dev->dm_core + (i + 24)),
-			readl_relaxed(dev->dm_core + (i + 28)));
 	}
 }
 
@@ -5275,6 +5251,29 @@ static irqreturn_t handle_wake_irq(int irq, void *data)
 	return IRQ_HANDLED;
 }
 
+static void pcie_dm_core_dump(struct msm_pcie_dev_t *dev)
+{
+	int i, size;
+
+	PCIE_DUMP(dev, "PCIe: RC%d DBI/dm_core register dump\n", dev->rc_idx);
+
+	size = resource_size(dev->res[MSM_PCIE_RES_DM_CORE].resource);
+
+	for (i = 0; i < size; i += 32) {
+		PCIE_DUMP(dev,
+			"RC%d: 0x%04x %08x %08x %08x %08x %08x %08x %08x %08x\n",
+			dev->rc_idx, i,
+			readl_relaxed(dev->dm_core + i),
+			readl_relaxed(dev->dm_core + (i + 4)),
+			readl_relaxed(dev->dm_core + (i + 8)),
+			readl_relaxed(dev->dm_core + (i + 12)),
+			readl_relaxed(dev->dm_core + (i + 16)),
+			readl_relaxed(dev->dm_core + (i + 20)),
+			readl_relaxed(dev->dm_core + (i + 24)),
+			readl_relaxed(dev->dm_core + (i + 28)));
+	}
+}
+
 static void msm_pcie_handle_linkdown(struct msm_pcie_dev_t *dev)
 {
 	int i;
@@ -5285,14 +5284,12 @@ static void msm_pcie_handle_linkdown(struct msm_pcie_dev_t *dev)
 	dev->link_status = MSM_PCIE_LINK_DOWN;
 	dev->shadow_en = false;
 
-	/* PCIe registers dump on link down */
 	PCIE_DUMP(dev, "PCIe:Linkdown IRQ for RC%d Dumping PCIe registers\n",
 		dev->rc_idx);
 	pcie_phy_dump(dev);
 	pcie_parf_dump(dev);
 	pcie_dm_core_dump(dev);
 
-	/* assert PERST */
 	if (!(msm_pcie_keep_resources_on & BIT(dev->rc_idx)))
 		gpio_set_value(dev->gpio[MSM_PCIE_GPIO_PERST].num,
 				dev->gpio[MSM_PCIE_GPIO_PERST].on);
@@ -6080,11 +6077,9 @@ static int msm_pcie_probe(struct platform_device *pdev)
 		pcie_dev->rc_idx, pcie_dev->link_check_max_count);
 
 	of_property_read_u32(of_node, "qcom,target-link-speed",
-				&pcie_dev->dt_target_link_speed);
+				&pcie_dev->target_link_speed);
 	PCIE_DBG(pcie_dev, "PCIe: RC%d: target-link-speed: 0x%x.\n",
-		pcie_dev->rc_idx, pcie_dev->dt_target_link_speed);
-
-	pcie_dev->target_link_speed = pcie_dev->dt_target_link_speed;
+		pcie_dev->rc_idx, pcie_dev->target_link_speed);
 
 	of_property_read_u32(of_node, "qcom,n-fts", &pcie_dev->n_fts);
 	PCIE_DBG(pcie_dev, "n-fts: 0x%x.\n", pcie_dev->n_fts);
@@ -6471,39 +6466,6 @@ err:
 	return ret;
 }
 EXPORT_SYMBOL(msm_pcie_prevent_l1);
-
-int msm_pcie_set_target_link_speed(u32 rc_idx, u32 target_link_speed)
-{
-	struct msm_pcie_dev_t *pcie_dev = &msm_pcie_dev[rc_idx];
-
-	if (!pcie_dev->drv_ready) {
-		PCIE_DBG(pcie_dev,
-			"PCIe: RC%d: has not been successfully probed yet\n",
-			pcie_dev->rc_idx);
-		return -EPROBE_DEFER;
-	}
-
-	if (target_link_speed > pcie_dev->bw_gen_max ||
-		(pcie_dev->dt_target_link_speed &&
-		target_link_speed > pcie_dev->dt_target_link_speed)) {
-		PCIE_DBG(pcie_dev,
-			"PCIe: RC%d: invalid target link speed: %d\n",
-			pcie_dev->rc_idx, target_link_speed);
-		return -EINVAL;
-	}
-
-	pcie_dev->target_link_speed = target_link_speed;
-
-	if (!target_link_speed)
-		pcie_dev->target_link_speed = pcie_dev->dt_target_link_speed ?
-			pcie_dev->dt_target_link_speed : pcie_dev->bw_gen_max;
-
-	PCIE_DBG(pcie_dev, "PCIe: RC%d: target_link_speed is now: 0x%x.\n",
-		pcie_dev->rc_idx, pcie_dev->target_link_speed);
-
-	return 0;
-}
-EXPORT_SYMBOL(msm_pcie_set_target_link_speed);
 
 int msm_pcie_set_link_bandwidth(struct pci_dev *pci_dev, u16 target_link_speed,
 				u16 target_link_width)

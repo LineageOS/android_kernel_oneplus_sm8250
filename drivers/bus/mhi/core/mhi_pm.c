@@ -252,7 +252,7 @@ int mhi_ready_state_transition(struct mhi_controller *mhi_cntrl)
 	u32 reset = 1, ready = 0;
 	struct mhi_event *mhi_event;
 	enum MHI_PM_STATE cur_state;
-	int ret = -EIO, i;
+	int ret, i;
 
 	MHI_CNTRL_LOG("Waiting to enter READY state\n");
 
@@ -270,13 +270,11 @@ int mhi_ready_state_transition(struct mhi_controller *mhi_cntrl)
 
 	/* device enter into error state */
 	if (MHI_PM_IN_FATAL_STATE(mhi_cntrl->pm_state))
-		goto error_ready;
+		return -EIO;
 
 	/* device did not transition to ready state */
-	if (reset || !ready) {
-		ret = -ETIMEDOUT;
-		goto error_ready;
-	}
+	if (reset || !ready)
+		return -ETIMEDOUT;
 
 	MHI_CNTRL_LOG("Device in READY State\n");
 	write_lock_irq(&mhi_cntrl->pm_lock);
@@ -288,7 +286,7 @@ int mhi_ready_state_transition(struct mhi_controller *mhi_cntrl)
 		MHI_CNTRL_ERR("Error moving to state %s from %s\n",
 				to_mhi_pm_state_str(MHI_PM_POR),
 				to_mhi_pm_state_str(cur_state));
-		goto error_ready;
+		return -EIO;
 	}
 	read_lock_bh(&mhi_cntrl->pm_lock);
 	if (!MHI_REG_ACCESS_VALID(mhi_cntrl->pm_state))
@@ -297,7 +295,6 @@ int mhi_ready_state_transition(struct mhi_controller *mhi_cntrl)
 	ret = mhi_init_mmio(mhi_cntrl);
 	if (ret) {
 		MHI_CNTRL_ERR("Error programming mmio registers\n");
-		ret = -EIO;
 		goto error_mmio;
 	}
 
@@ -329,11 +326,7 @@ int mhi_ready_state_transition(struct mhi_controller *mhi_cntrl)
 error_mmio:
 	read_unlock_bh(&mhi_cntrl->pm_lock);
 
-error_ready:
-	mhi_cntrl->status_cb(mhi_cntrl, mhi_cntrl->priv_data,
-			     MHI_CB_BOOTUP_TIMEOUT);
-
-	return ret;
+	return -EIO;
 }
 
 int mhi_pm_m0_transition(struct mhi_controller *mhi_cntrl)
@@ -975,7 +968,6 @@ int mhi_async_power_up(struct mhi_controller *mhi_cntrl)
 	if (val >= mhi_cntrl->len) {
 		write_unlock_irq(&mhi_cntrl->pm_lock);
 		MHI_ERR("Invalid bhi offset:%x\n", val);
-		ret = -EINVAL;
 		goto error_bhi_offset;
 	}
 
@@ -993,7 +985,6 @@ int mhi_async_power_up(struct mhi_controller *mhi_cntrl)
 		if (val >= mhi_cntrl->len) {
 			write_unlock_irq(&mhi_cntrl->pm_lock);
 			MHI_ERR("Invalid bhie offset:%x\n", val);
-			ret = -EINVAL;
 			goto error_bhi_offset;
 		}
 
@@ -1146,14 +1137,7 @@ int mhi_sync_power_up(struct mhi_controller *mhi_cntrl)
 			   MHI_PM_IN_ERROR_STATE(mhi_cntrl->pm_state),
 			   msecs_to_jiffies(mhi_cntrl->timeout_ms));
 
-	if (MHI_IN_MISSION_MODE(mhi_cntrl->ee))
-		return 0;
-
-	MHI_ERR("MHI did not reach mission mode within %d ms\n",
-		mhi_cntrl->timeout_ms);
-	mhi_cntrl->status_cb(mhi_cntrl, mhi_cntrl->priv_data,
-			     MHI_CB_BOOTUP_TIMEOUT);
-	return -ETIMEDOUT;
+	return (MHI_IN_MISSION_MODE(mhi_cntrl->ee)) ? 0 : -ETIMEDOUT;
 }
 EXPORT_SYMBOL(mhi_sync_power_up);
 
@@ -1670,8 +1654,7 @@ int mhi_device_get_sync(struct mhi_device *mhi_dev, int vote)
 }
 EXPORT_SYMBOL(mhi_device_get_sync);
 
-int mhi_device_get_sync_atomic(struct mhi_device *mhi_dev, int timeout_us,
-			       bool in_panic)
+int mhi_device_get_sync_atomic(struct mhi_device *mhi_dev, int timeout_us)
 {
 	struct mhi_controller *mhi_cntrl = mhi_dev->mhi_cntrl;
 
@@ -1697,20 +1680,11 @@ int mhi_device_get_sync_atomic(struct mhi_device *mhi_dev, int timeout_us,
 		return 0;
 	}
 
-	if (in_panic) {
-		while (mhi_get_mhi_state(mhi_cntrl) != MHI_STATE_M0 &&
-		       !MHI_PM_IN_ERROR_STATE(mhi_cntrl->pm_state) &&
-		       timeout_us > 0) {
-			udelay(MHI_FORCE_WAKE_DELAY_US);
-			timeout_us -= MHI_FORCE_WAKE_DELAY_US;
-		}
-	} else {
-		while (mhi_cntrl->pm_state != MHI_PM_M0 &&
-		       !MHI_PM_IN_ERROR_STATE(mhi_cntrl->pm_state) &&
-		       timeout_us > 0) {
-			udelay(MHI_FORCE_WAKE_DELAY_US);
-			timeout_us -= MHI_FORCE_WAKE_DELAY_US;
-		}
+	while (mhi_cntrl->pm_state != MHI_PM_M0 &&
+			!MHI_PM_IN_ERROR_STATE(mhi_cntrl->pm_state) &&
+			timeout_us > 0) {
+		udelay(MHI_FORCE_WAKE_DELAY_US);
+		timeout_us -= MHI_FORCE_WAKE_DELAY_US;
 	}
 
 	if (MHI_PM_IN_ERROR_STATE(mhi_cntrl->pm_state) || timeout_us <= 0) {

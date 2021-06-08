@@ -87,10 +87,6 @@
 #include <linux/oem/oneplus_healthinfo.h>
 #endif /*CONFIG_ONEPLUS_HEALTHINFO*/
 
-#ifdef CONFIG_UXCHAIN_V2
-extern int sysctl_uxchain_v2;
-#endif
-
 struct rq;
 struct cpuidle_state;
 
@@ -120,7 +116,6 @@ struct walt_sched_stats {
 	int nr_big_tasks;
 	u64 cumulative_runnable_avg_scaled;
 	u64 pred_demands_sum_scaled;
-	unsigned int nr_rtg_high_prio_tasks;
 };
 
 struct group_cpu_time {
@@ -207,13 +202,7 @@ static inline void cpu_load_update_active(struct rq *this_rq) { }
 #ifdef CONFIG_64BIT
 # define NICE_0_LOAD_SHIFT	(SCHED_FIXEDPOINT_SHIFT + SCHED_FIXEDPOINT_SHIFT)
 # define scale_load(w)		((w) << SCHED_FIXEDPOINT_SHIFT)
-# define scale_load_down(w) \
-({ \
-	unsigned long __w = (w); \
-	if (__w) \
-		__w = max(2UL, __w >> SCHED_FIXEDPOINT_SHIFT); \
-	__w; \
-})
+# define scale_load_down(w)	((w) >> SCHED_FIXEDPOINT_SHIFT)
 #else
 # define NICE_0_LOAD_SHIFT	(SCHED_FIXEDPOINT_SHIFT)
 # define scale_load(w)		(w)
@@ -2940,18 +2929,6 @@ struct related_thread_group *task_related_thread_group(struct task_struct *p)
 	return rcu_dereference(p->grp);
 }
 
-static inline bool task_rtg_high_prio(struct task_struct *p)
-{
-	return task_in_related_thread_group(p) &&
-		(p->prio <= sysctl_walt_rtg_cfs_boost_prio);
-}
-
-static inline bool walt_low_latency_task(struct task_struct *p)
-{
-	return p->low_latency &&
-		(task_util(p) < sysctl_walt_low_latency_task_threshold);
-}
-
 /* Is frequency of two cpus synchronized with each other? */
 static inline int same_freq_domain(int src_cpu, int dst_cpu)
 {
@@ -3184,11 +3161,6 @@ static inline
 struct related_thread_group *task_related_thread_group(struct task_struct *p)
 {
 	return NULL;
-}
-
-static inline bool task_rtg_high_prio(struct task_struct *p)
-{
-	return false;
 }
 
 static inline u32 task_load(struct task_struct *p) { return 0; }

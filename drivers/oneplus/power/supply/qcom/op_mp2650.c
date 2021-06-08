@@ -26,7 +26,6 @@
 
 #include <op_mp2650.h>
 #include <linux/oem/boot_mode.h>
-#include <linux/oem/power/oem_external_fg.h>
 
 #define DEBUG_BY_FILE_OPS
 #define MP2762_CP_PSY
@@ -34,9 +33,6 @@
 struct mp2650_charger *s_mcharger = NULL;
 int reg_access_allow = 0;
 int mp2650_reg = 0;
-
-int connected_charger_type;
-EXPORT_SYMBOL(connected_charger_type);
 
 static void mp2650_set_mps_otg_en_val(int value);
 static int mp2650_otg_enable(struct mp2650_charger *chg, bool en);
@@ -269,21 +265,15 @@ static int mp2650_get_vindpm_vol(void)
 
 static void mp2650_set_aicl_point(int vbatt_mv)
 {
-	struct mp2650_charger *chip = s_mcharger;
-	chg_err("connected charger type  = %d\n", connected_charger_type);
+    struct mp2650_charger *chip = s_mcharger;
+
 	if(chip->hw_aicl_point == 4440 && vbatt_mv > 4140) {
-		chip->hw_aicl_point = 4520; // real 4500
-		if (connected_charger_type == CDP_CHARGER || connected_charger_type == SDP_CHARGER)
-			chip->sw_aicl_point = 4650;
-		else
-			chip->sw_aicl_point = 4535;
+		chip->hw_aicl_point = 4520;
+		chip->sw_aicl_point = 4650;
 		mp2650_set_vindpm_vol(chip->hw_aicl_point);
 	} else if(chip->hw_aicl_point == 4520 && vbatt_mv < 4000) {
-		chip->hw_aicl_point = 4440; // real 4400
-		if (connected_charger_type == CDP_CHARGER || connected_charger_type == SDP_CHARGER)
-			chip->sw_aicl_point = 4650;
-		else
-			chip->sw_aicl_point = 4500;
+		chip->hw_aicl_point = 4440;
+		chip->sw_aicl_point = 4650;
 		mp2650_set_vindpm_vol(chip->hw_aicl_point);
 	}
 
@@ -760,7 +750,6 @@ static int mp2650_other_registers_init(void)
 
 	rc = mp2650_config_interface(REG10_MP2650_ADDRESS, 0x01, 0xff);
 	rc = mp2650_config_interface(REG11_MP2650_ADDRESS, 0xfe, 0xff);
-	rc = mp2650_config_interface(REG2D_MP2650_ADDRESS, 0x0f, 0xff);
 	return rc;
 }
 
@@ -1168,7 +1157,7 @@ int mp2650_hardware_init(void)
 
 	//must be before set_vindpm_vol and set_input_current
 	chg->hw_aicl_point = 4440;
-	chg->sw_aicl_point = 4500;
+	chg->sw_aicl_point = 4650;
 	chg->sw_aicl_result_ma = 500;
 
 	mp2650_reset_charger();
@@ -1738,8 +1727,9 @@ static bool mp2650_is_writeable_reg(struct device *dev, unsigned int reg)
 	unsigned int addr;
 
 	addr = reg;
-	if ((addr <= 0x12) || (addr == 0x31)
-		|| (addr == 0x33) || (addr == 0x36))
+	if ((addr >= 0x00 && addr <= 0x12)
+		|| (addr == 0x31) || (addr == 0x33)
+		|| (addr == 0x36))
 		return true;
 	return false;
 }

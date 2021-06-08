@@ -13,9 +13,6 @@
 #include <linux/irq.h>
 #include <linux/delay.h>
 #include <linux/scs.h>
-#ifdef CONFIG_UXCHAIN_V2
-#include <linux/rwsem.h>
-#endif
 
 #include <asm/switch_to.h>
 #include <asm/tlb.h>
@@ -27,7 +24,6 @@
 
 #include "pelt.h"
 #include "walt.h"
-/*2020-06-20 [OSP-5970] add for healthinfo*/
 #ifdef CONFIG_ONEPLUS_HEALTHINFO
 #include <linux/oem/oneplus_healthinfo.h>
 #endif/*CONFIG_ONEPLUS_HEALTHINFO*/
@@ -1216,8 +1212,17 @@ static void uclamp_fork(struct task_struct *p)
 		return;
 
 	for_each_clamp_id(clamp_id) {
-		uclamp_se_set(&p->uclamp_req[clamp_id],
-			      uclamp_none(clamp_id), false);
+		unsigned int clamp_value = uclamp_none(clamp_id);
+
+		/* By default, RT tasks always get 100% boost */
+		if (sched_feat(SUGOV_RT_MAX_FREQ) &&
+			       unlikely(rt_task(p) &&
+			       clamp_id == UCLAMP_MIN)) {
+
+			clamp_value = uclamp_none(UCLAMP_MAX);
+		}
+
+		uclamp_se_set(&p->uclamp_req[clamp_id], clamp_value, false);
 	}
 }
 
@@ -1485,14 +1490,6 @@ void check_preempt_curr(struct rq *rq, struct task_struct *p, int flags)
 		!(p->flags & PF_WQ_WORKER) && !task_has_rt_policy(p))
 		return;
 #endif
-#ifdef CONFIG_UXCHAIN_V2
-	if (sysctl_uxchain_v2 &&
-		wallclock - rq->curr->get_mmlock_ts < PREEMPT_DISABLE_RWSEM &&
-		rq->curr->get_mmlock &&
-		!(p->flags & PF_WQ_WORKER) && !task_has_rt_policy(p))
-		return;
-#endif
-
 	if (p->sched_class == rq->curr->sched_class) {
 		rq->curr->sched_class->check_preempt_curr(rq, p, flags);
 	} else {
@@ -2125,8 +2122,6 @@ static int select_fallback_rq(int cpu, struct task_struct *p, bool allow_iso)
 	int dest_cpu;
 	int isolated_candidate = -1;
 	bool is_rtg;
-	int backup_cpu = -1;
-	unsigned int max_nr = UINT_MAX;
 
 	is_rtg = task_in_related_thread_group(p);
 	if (sysctl_sched_skip_affinity && is_rtg &&
@@ -2146,18 +2141,9 @@ static int select_fallback_rq(int cpu, struct task_struct *p, bool allow_iso)
 				continue;
 			if (cpu_isolated(dest_cpu))
 				continue;
-			if (cpumask_test_cpu(dest_cpu, &p->cpus_allowed)) {
-				if (cpu_rq(dest_cpu)->nr_running < 32)
-					return dest_cpu;
-				if (cpu_rq(dest_cpu)->nr_running > max_nr)
-					continue;
-				backup_cpu = dest_cpu;
-				max_nr = cpu_rq(dest_cpu)->nr_running;
-			}
+			if (cpumask_test_cpu(dest_cpu, &p->cpus_allowed))
+				return dest_cpu;
 		}
-
-		if (backup_cpu != -1)
-			return backup_cpu;
 	}
 
 	for (;;) {
@@ -3150,11 +3136,6 @@ int sched_fork(unsigned long clone_flags, struct task_struct *p)
 #ifdef CONFIG_SMP
 	plist_node_init(&p->pushable_tasks, MAX_PRIO);
 	RB_CLEAR_NODE(&p->pushable_dl_tasks);
-#endif
-
-#ifdef CONFIG_UXCHAIN_V2
-	if (current->static_ux && sysctl_uxchain_v2 && sysctl_launcher_boost_enabled)
-		p->fork_by_static_ux = 1;
 #endif
 	return 0;
 }
@@ -4339,7 +4320,6 @@ static void __sched notrace __schedule(bool preempt)
 		 *   is a RELEASE barrier),
 		 */
 		++*switch_count;
-/*2020-06-20 [OSP-5970]  add for healthinfo*/
 #ifdef CONFIG_ONEPLUS_HEALTHINFO
 		if (prev->sched_class == &rt_sched_class && ohm_rtinfo_ctrl == true)
 			rt_thresh_times_record(prev, cpu);
@@ -5854,7 +5834,6 @@ out_put_task:
 	put_task_struct(p);
 	return retval;
 }
-EXPORT_SYMBOL_GPL(sched_setaffinity);
 
 char sched_lib_name[LIB_PATH_LENGTH];
 unsigned int sched_lib_mask_force;

@@ -114,18 +114,18 @@
 		wake-capable-sensor;
 		trips {
 			skin_therm_usr_trip0: skin_therm_usr_trip0 {
-				temperature = <52000>;
-				hysteresis = <6000>;
+				temperature = <58000>;
+				hysteresis = <7000>;
 				type = "passive";
 			};
 			skin_therm_usr_trip1: skin_therm_usr_trip1 {
-				temperature = <54000>;
-				hysteresis = <7000>;
+				temperature = <61000>;
+				hysteresis = <8000>;
 				type = "passive";
 			};
 			skin_therm_usr_trip3: skin_therm_usr_trip3 {
-				temperature = <58000>;
-				hysteresis = <7000>;
+				temperature = <65000>;
+				hysteresis = <8000>;
 				type = "passive";
 			};
 		};
@@ -163,7 +163,7 @@
 				type = "passive";
 			};
 			mmw_pa1_usr_trip2: mmw_pa1_usr_trip2 {
-				temperature = <52000>;
+				temperature = <100000>;
 				hysteresis = <5000>;
 				type = "passive";
 			};
@@ -202,7 +202,7 @@
 				type = "passive";
 			};
 			xo_therm_usr_trip2: xo_therm_usr_trip2 {
-				temperature = <60000>;
+				temperature = <100000>;
 				hysteresis = <5000>;
 				type = "passive";
 			};
@@ -242,7 +242,7 @@
 				type = "passive";
 			};
 			modem_mmw2_usr_trip2: modem_mmw2_usr_trip2{
-				temperature = <60000>;
+				temperature = <100000>;
 				hysteresis = <5000>;
 				type = "passive";
 			};

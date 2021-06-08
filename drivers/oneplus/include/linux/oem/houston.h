@@ -14,21 +14,9 @@
 #endif
 
 #define HT_CLUSTERS 3
-
-#ifndef CONFIG_ARCH_LITO
 #define HT_CPUS_PER_CLUS 4
-#else
-#define HT_CPUS_PER_CLUS 6
-#endif
-
 #define CLUS_0_IDX 0
-
-#ifndef CONFIG_ARCH_LITO
 #define CLUS_1_IDX 4
-#else
-#define CLUS_1_IDX 6
-#endif
-
 #define CLUS_2_IDX 7
 
 #define MIN_POLLING_VAL 5
@@ -57,7 +45,7 @@
 #define ht_loge(fmt...) pr_err(HT_TAG fmt)
 #define ht_logd(fmt...) pr_debug(HT_TAG fmt)
 
-#define FPS_COLS (5)
+#define FPS_COLS (9)
 #define FPS_LAYER_LEN (128)
 #define FPS_PROCESS_NAME_LEN (64)
 #define FPS_DATA_BUF_SIZE (256)
@@ -145,7 +133,6 @@ enum {
 	HT_MONITOR_SIZE
 };
 
-/* fps stabilizer related */
 struct ht_fps_stabilizer_buf {
 	char buf[PAGE_SIZE];
 };

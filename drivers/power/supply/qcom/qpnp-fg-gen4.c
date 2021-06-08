@@ -3864,12 +3864,12 @@ static struct fg_irq_info fg_irqs[FG_GEN4_IRQ_MAX] = {
 	[MSOC_DELTA_IRQ] = {
 		.name		= "msoc-delta",
 		.handler	= fg_delta_msoc_irq_handler,
-		.wakeable	= false,
+		.wakeable	= true,
 	},
 	[BSOC_DELTA_IRQ] = {
 		.name		= "bsoc-delta",
 		.handler	= fg_delta_bsoc_irq_handler,
-		.wakeable	= false,
+		.wakeable	= true,
 	},
 	[SOC_READY_IRQ] = {
 		.name		= "soc-ready",
@@ -3884,7 +3884,7 @@ static struct fg_irq_info fg_irqs[FG_GEN4_IRQ_MAX] = {
 	[ESR_DELTA_IRQ] = {
 		.name		= "esr-delta",
 		.handler	= fg_delta_esr_irq_handler,
-		.wakeable	= false,
+		.wakeable	= true,
 	},
 	[VBATT_LOW_IRQ] = {
 		.name		= "vbatt-low",
@@ -4608,6 +4608,28 @@ static int fg_psy_get_property(struct power_supply *psy,
 				pval->intval = (int)temp;
 		}
 		break;
+	case POWER_SUPPLY_PROP_FULL_AVAILABLE_CAPACITY:
+		if (!get_extern_fg_regist_done() && get_extern_bq_present())
+                        pval->intval = -EINVAL;
+                else if (fg->use_external_fg && external_fg && external_fg->get_batt_full_available_capacity)
+                        pval->intval = external_fg->get_batt_full_available_capacity();
+                else {
+                        rc = fg_gen4_get_learned_capacity(chip, &temp);
+                        if (!rc)
+                                pval->intval = (int)temp;
+                }
+		break;
+	case POWER_SUPPLY_PROP_CHARGE_FULL_CHARGE_CAPACITY_FILTERED:
+                if (!get_extern_fg_regist_done() && get_extern_bq_present())
+                        pval->intval = -EINVAL;
+                else if (fg->use_external_fg && external_fg && external_fg->get_batt_full_available_capacity_filtered)
+                        pval->intval = external_fg->get_batt_full_available_capacity_filtered();
+                else {
+                        rc = fg_gen4_get_learned_capacity(chip, &temp);
+                        if (!rc)
+                                pval->intval = (int)temp;
+                }
+		break;
 	case POWER_SUPPLY_PROP_REMAINING_CAPACITY:
 		if (!get_extern_fg_regist_done() && get_extern_bq_present())
 			pval->intval = DEFALUT_BATT_TEMP;
@@ -4920,6 +4942,8 @@ static enum power_supply_property fg_psy_props[] = {
 	POWER_SUPPLY_PROP_CHARGE_NOW_RAW,
 	POWER_SUPPLY_PROP_CHARGE_NOW,
 	POWER_SUPPLY_PROP_CHARGE_FULL,
+	POWER_SUPPLY_PROP_FULL_AVAILABLE_CAPACITY,
+	POWER_SUPPLY_PROP_CHARGE_FULL_CHARGE_CAPACITY_FILTERED,
 	POWER_SUPPLY_PROP_CHARGE_COUNTER,
 	POWER_SUPPLY_PROP_CHARGE_COUNTER_SHADOW,
 	POWER_SUPPLY_PROP_CYCLE_COUNTS,
@@ -5085,11 +5109,9 @@ static int fg_delta_bsoc_irq_en_cb(struct votable *votable, void *data,
 
 	if (enable) {
 		enable_irq(fg->irqs[BSOC_DELTA_IRQ].irq);
-		if (fg->irqs[BSOC_DELTA_IRQ].wakeable)
-			enable_irq_wake(fg->irqs[BSOC_DELTA_IRQ].irq);
+		enable_irq_wake(fg->irqs[BSOC_DELTA_IRQ].irq);
 	} else {
-		if (fg->irqs[BSOC_DELTA_IRQ].wakeable)
-			disable_irq_wake(fg->irqs[BSOC_DELTA_IRQ].irq);
+		disable_irq_wake(fg->irqs[BSOC_DELTA_IRQ].irq);
 		disable_irq_nosync(fg->irqs[BSOC_DELTA_IRQ].irq);
 	}
 
@@ -5106,11 +5128,9 @@ static int fg_gen4_delta_esr_irq_en_cb(struct votable *votable, void *data,
 
 	if (enable) {
 		enable_irq(fg->irqs[ESR_DELTA_IRQ].irq);
-		if (fg->irqs[ESR_DELTA_IRQ].wakeable)
-			enable_irq_wake(fg->irqs[ESR_DELTA_IRQ].irq);
+		enable_irq_wake(fg->irqs[ESR_DELTA_IRQ].irq);
 	} else {
-		if (fg->irqs[ESR_DELTA_IRQ].wakeable)
-			disable_irq_wake(fg->irqs[ESR_DELTA_IRQ].irq);
+		disable_irq_wake(fg->irqs[ESR_DELTA_IRQ].irq);
 		disable_irq_nosync(fg->irqs[ESR_DELTA_IRQ].irq);
 	}
 

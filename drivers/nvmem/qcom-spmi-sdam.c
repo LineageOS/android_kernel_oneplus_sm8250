@@ -159,7 +159,6 @@ static int sdam_probe(struct platform_device *pdev)
 
 	pr_info("SDAM base=0x%04x size=%d registered successfully\n",
 						sdam->base, sdam->size);
-	// Save SDAM register map if slave id is 0
 	if (to_spmi_device(dev->parent)->usid == 0)
 		op_sdram_regmap_register(sdam->regmap);
 	pr_info("SDAM base=0x%04x size=%d registered successfully\n",

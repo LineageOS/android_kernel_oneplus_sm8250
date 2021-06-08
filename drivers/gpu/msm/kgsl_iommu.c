@@ -776,7 +776,6 @@ static int kgsl_iommu_fault_handler(struct iommu_domain *domain,
 	unsigned int no_page_fault_log = 0;
 	char *fault_type = "unknown";
 	char *comm = "unknown";
-	bool fault_ret_flag = false;
 	struct kgsl_process_private *private;
 
 	static DEFINE_RATELIMIT_STATE(_rs,
@@ -804,6 +803,7 @@ static int kgsl_iommu_fault_handler(struct iommu_domain *domain,
 
 	ptbase = KGSL_IOMMU_GET_CTX_REG_Q(ctx, TTBR0);
 	private = kgsl_iommu_get_process(ptbase);
+
 	kgsl_send_uevent_iommu_notify(device, fault_type, ctx->name);
 
 	if (private) {
@@ -821,11 +821,9 @@ static int kgsl_iommu_fault_handler(struct iommu_domain *domain,
 		 * Turn off GPU IRQ so we don't get faults from it too.
 		 * The device mutex must be held to change power state
 		 */
-		if (mutex_trylock(&device->mutex)) {
-			kgsl_pwrctrl_change_state(device, KGSL_STATE_AWARE);
-			mutex_unlock(&device->mutex);
-		} else
-			fault_ret_flag = true;
+		mutex_lock(&device->mutex);
+		kgsl_pwrctrl_change_state(device, KGSL_STATE_AWARE);
+		mutex_unlock(&device->mutex);
 	}
 
 	contextidr = KGSL_IOMMU_GET_CTX_REG(ctx, CONTEXTIDR);
@@ -885,12 +883,13 @@ static int kgsl_iommu_fault_handler(struct iommu_domain *domain,
 		}
 	}
 
+
 	/*
 	 * We do not want the h/w to resume fetching data from an iommu
 	 * that has faulted, this is better for debugging as it will stall
 	 * the GPU and trigger a snapshot. Return EBUSY error.
 	 */
-	if (!fault_ret_flag && test_bit(KGSL_FT_PAGEFAULT_GPUHALT_ENABLE,
+	if (test_bit(KGSL_FT_PAGEFAULT_GPUHALT_ENABLE,
 		&adreno_dev->ft_pf_policy) &&
 		(flags & IOMMU_FAULT_TRANSACTION_STALLED)) {
 		uint32_t sctlr_val;
@@ -2458,13 +2457,13 @@ static bool iommu_addr_in_svm_ranges(struct kgsl_iommu_pt *pt,
 
 	return false;
 }
+
 static int kgsl_iommu_set_svm_region(struct kgsl_pagetable *pagetable,
 		uint64_t gpuaddr, uint64_t size)
 {
 	int ret = -ENOMEM;
 	struct kgsl_iommu_pt *pt = pagetable->priv;
 	struct rb_node *node;
-
 
 	if (!iommu_addr_in_svm_ranges(pt, gpuaddr, size))
 		return -ENOMEM;

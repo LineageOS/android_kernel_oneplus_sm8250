@@ -201,7 +201,6 @@
 	#include "OP-fg-batterydata-4320mah.dtsi"
 };
 
-
 &usb2_phy0 {
 	qcom,param-override-seq =
 		<0x67 0x6c/*Disconnection voltage +21.56%*/

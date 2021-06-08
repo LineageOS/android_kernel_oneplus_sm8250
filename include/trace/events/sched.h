@@ -115,9 +115,6 @@ DECLARE_EVENT_CLASS(sched_wakeup_template,
 		__field(	int,	prio			)
 		__field(	int,	success			)
 		__field(	int,	target_cpu		)
-#ifdef CONFIG_RATP
-		__field(unsigned long, cpus_suggested)
-#endif
 	),
 
 	TP_fast_assign(
@@ -126,20 +123,11 @@ DECLARE_EVENT_CLASS(sched_wakeup_template,
 		__entry->prio		= p->prio; /* XXX SCHED_DEADLINE */
 		__entry->success	= 1; /* rudiment, kill when possible */
 		__entry->target_cpu	= task_cpu(p);
-#ifdef CONFIG_RATP
-		__entry->cpus_suggested	= cpumask_bits(&p->cpus_suggested)[0];
-#endif
 	),
 
-#ifdef CONFIG_RATP
-	TP_printk("comm=%s pid=%d prio=%d target_cpu=%03d prefer=%x",
-		  __entry->comm, __entry->pid, __entry->prio,
-		  __entry->target_cpu, __entry->cpus_suggested)
-#else
 	TP_printk("comm=%s pid=%d prio=%d target_cpu=%03d",
 		  __entry->comm, __entry->pid, __entry->prio,
 		  __entry->target_cpu)
-#endif
 );
 
 /*
@@ -1157,7 +1145,6 @@ TRACE_EVENT(sched_cpu_util,
 		__field(int,		isolated)
 		__field(int,		reserved)
 		__field(int,		high_irq_load)
-		__field(unsigned int,	nr_rtg_high_prio_tasks)
 	),
 
 	TP_fast_assign(
@@ -1174,89 +1161,15 @@ TRACE_EVENT(sched_cpu_util,
 		__entry->isolated           = cpu_isolated(cpu);
 		__entry->reserved           = is_reserved(cpu);
 		__entry->high_irq_load      = sched_cpu_high_irqload(cpu);
-		__entry->nr_rtg_high_prio_tasks = walt_nr_rtg_high_prio(cpu);
 	),
 
-	TP_printk("cpu=%d nr_running=%d cpu_util=%ld cpu_util_cum=%ld capacity_curr=%u capacity=%u capacity_orig=%u idle_state=%d irqload=%llu online=%u, isolated=%u, reserved=%u, high_irq_load=%u nr_rtg_hp=%u",
+	TP_printk("cpu=%d nr_running=%d cpu_util=%ld cpu_util_cum=%ld capacity_curr=%u capacity=%u capacity_orig=%u idle_state=%d irqload=%llu online=%u, isolated=%u, reserved=%u, high_irq_load=%u",
 		__entry->cpu, __entry->nr_running, __entry->cpu_util,
 		__entry->cpu_util_cum, __entry->capacity_curr,
 		__entry->capacity, __entry->capacity_orig,
 		__entry->idle_state, __entry->irqload, __entry->online,
-		__entry->isolated, __entry->reserved, __entry->high_irq_load,
-		__entry->nr_rtg_high_prio_tasks)
+		__entry->isolated, __entry->reserved, __entry->high_irq_load)
 );
-
-#ifdef CONFIG_RATP
-
-TRACE_EVENT(sched_tune_group,
-
-	TP_PROTO(struct task_struct *tsk, int idx, bool ret),
-
-	TP_ARGS(tsk, idx, ret),
-
-	TP_STRUCT__entry(
-		__array(char,	comm,	TASK_COMM_LEN)
-		__field(pid_t,	pid)
-		__field(int,	idx)
-		__field(bool,	ret)
-	),
-
-	TP_fast_assign(
-		memcpy(__entry->comm, tsk->comm, TASK_COMM_LEN);
-		__entry->pid	=	tsk->pid;
-		__entry->idx	=	idx;
-		__entry->ret	=	ret;
-	),
-
-	TP_printk("pid=%d comm=%s idx=%d ret=%d",
-		__entry->pid, __entry->comm, __entry->idx, __entry->ret)
-);
-
-TRACE_EVENT(sched_cpu_sel,
-
-	TP_PROTO(struct task_struct *p, int task_boost, bool task_skip_min, bool boosted, int boost_pol,
-		bool fit_small, bool fit_mid, bool fit_max, int start_cpu, bool ratp),
-
-	TP_ARGS(p, task_boost, task_skip_min, boosted, boost_pol, fit_small, fit_mid, fit_max, start_cpu, ratp),
-
-	TP_STRUCT__entry(
-		__field(int,    pid)
-		__array(char,   comm, TASK_COMM_LEN)
-		__field(unsigned long,  task_util)
-		__field(int,    task_boost)
-		__field(bool,   task_skip_min)
-		__field(bool,   boosted)
-		__field(int,    boost_pol)
-		__field(bool,   fit_small)
-		__field(bool,   fit_mid)
-		__field(bool,   fit_max)
-		__field(int,    start_cpu)
-		__field(bool,	ratp)
-	),
-
-	TP_fast_assign(
-		__entry->pid                    = p ? p->pid : -1;
-		memcpy(__entry->comm, p ? p->comm:"NULL", TASK_COMM_LEN);
-		__entry->task_util              = task_util(p);
-		__entry->task_boost             = task_boost;
-		__entry->task_skip_min          = task_skip_min;
-		__entry->boosted                = boosted;
-		__entry->boost_pol              = boost_pol;
-		__entry->fit_small              = fit_small;
-		__entry->fit_mid                = fit_mid;
-		__entry->fit_max                = fit_max;
-		__entry->start_cpu              = start_cpu;
-		__entry->ratp			= ratp;
-	),
-
-	TP_printk("pid=%d comm=%s task_util=%lu task_boost=%d skip_min=%d boosted=%d boost_pol=%d fit_small=%d fit_mid=%d fit_max=%d start_cpu=%d ratp=%d",
-		__entry->pid, __entry->comm, __entry->task_util, __entry->task_boost,
-		__entry->task_skip_min, __entry->boosted,
-		__entry->boost_pol, __entry->fit_small,
-		__entry->fit_mid, __entry->fit_max, __entry->start_cpu, __entry->ratp)
-)
-
-#endif
 
 TRACE_EVENT(sched_compute_energy,
 
@@ -1351,7 +1264,7 @@ TRACE_EVENT(sched_task_util,
 		__entry->rtg_skip_min		= rtg_skip_min;
 #ifdef CONFIG_SCHED_WALT
 		__entry->unfilter		= p->unfilter;
-		__entry->low_latency		= walt_low_latency_task(p);
+		__entry->low_latency		= p->low_latency;
 #else
 		__entry->unfilter		= 0;
 		__entry->low_latency		= 0;

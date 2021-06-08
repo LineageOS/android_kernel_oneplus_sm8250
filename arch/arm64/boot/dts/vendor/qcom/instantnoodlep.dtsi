@@ -1,4 +1,4 @@
-/*this is for different project dtsi*/
+
 &op_wlchg {
 	status = "okay";
 	op,max-voltage-mv = <4550>;
@@ -62,7 +62,10 @@
 
 	/* fod parameter*/
 	op,fastchg-fod-enable;
+	op,fastchg-match-q-new = /bits/ 8 <0x56>;
 	op,fastchg-match-q = /bits/ 8 <0x44>;
+	op,fastchg-fod-parm-new = /bits/ 8 <0xac 0x32 0xac 0x28 0xa0 0xba
+					0x9a 0xd3 0x9a 0xce 0x9f 0xf6>;
 	op,fastchg-fod-parm = /bits/ 8 <0xac 0x32 0xac 0x28 0xa0 0x1e
 					0x9a 0x37 0x9a 0x32 0x9f 0xc4>;
 	op,fastchg-fod-parm-startup = /bits/ 8 <0xac 0x7f 0xac 0x28 0xa0 0x1e
@@ -103,6 +106,7 @@
 	otg_en-gpio = <&pm8150l_gpios 4 0x00>;
 	vbus-gpio = <&tlmm 172 0x00>;
 };
+
 &qupv3_se13_i2c {
 	status = "ok";
 	sec-s6sy761@48 {
@@ -121,6 +125,7 @@
 	};
 };
 
+/* @bsp, Battery & Charging config STRAT */
 &qupv3_se16_i2c {
 	oneplus_fastchg@26{
 		op,4510mAh_4p45_support;

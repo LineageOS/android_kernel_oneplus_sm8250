@@ -2152,7 +2152,6 @@ static int syna_tcm_set_glass_mode(struct syna_tcm_data *tcm_info, bool enable)
 {
 	int retval = 0;
 
-	/*this command may take too much time, if needed can add flag to skip this */
 	TPD_INFO("%s: enable(%d)\n", __func__, enable);
 
 	retval = syna_tcm_set_dynamic_config(tcm_info, DC_GLASS_MODE, enable);
@@ -2213,6 +2212,7 @@ static int syna_tcm_set_game_mode(struct syna_tcm_data *tcm_info, bool enable)
 			TPD_INFO("Failed to set dynamic noise length config\n");
 			return retval;
 		}
+		
 		retval = syna_tcm_set_dynamic_config(tcm_info, DC_SET_REPORT_FRE, tcm_info->display_refresh_rate == 90 ? 0x01 : 0x02);
 		if (retval < 0) {
 		TPD_INFO("Failed to set dynamic report frequence config\n");
@@ -4330,7 +4330,6 @@ static int syna_tp_delta_print(struct syna_tcm_data *tcm_info)
 	retval = syna_tcm_collect_reports(tcm_info, REPORT_DELTA, 1);
 	if (retval < 0) {
 		TPD_DEBUG("Failed to read delta data\n");
-		kfree(Pstr);
 		return retval;
 	}
 
@@ -4352,7 +4351,7 @@ static int syna_tp_delta_print(struct syna_tcm_data *tcm_info)
 	if (retval < 0) {
 		TPD_DEBUG("Failed to switch to normal\n");
 	}
-	kfree(Pstr);
+
 	return retval;
 }
 

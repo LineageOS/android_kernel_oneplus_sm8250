@@ -1818,14 +1818,12 @@ fetch_events:
 
 			spin_unlock_irq(&ep->wq.lock);
 #ifdef CONFIG_ONEPLUS_HEALTHINFO
-
 			current->in_epoll = 1;
 #endif /*CONFIG_ONEPLUS_HEALTHINFO*/
 			if (!freezable_schedule_hrtimeout_range(to, slack,
 								HRTIMER_MODE_ABS))
 				timed_out = 1;
 #ifdef CONFIG_ONEPLUS_HEALTHINFO
-
 			current->in_epoll = 0;
 #endif /*CONFIG_ONEPLUS_HEALTHINFO*/
 			spin_lock_irq(&ep->wq.lock);

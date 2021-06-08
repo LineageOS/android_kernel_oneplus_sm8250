@@ -9,7 +9,6 @@
 #include "kona-mtp.dtsi"
 #include "kona-oem.dtsi"
 #include "instantnoodle.dtsi"
-#include "instantnoodle_dvt.dtsi"
 #include "camera/kona-oem-camera-instantnoodle.dtsi" /* camera maybe use the same */
 / {
 	model = "Qualcomm Technologies, Inc. kona MTP dvt 19821 19855 14 15";

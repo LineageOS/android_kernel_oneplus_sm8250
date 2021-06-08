@@ -69,7 +69,8 @@ static const char * const power_supply_charge_type_text[] = {
 static const char * const power_supply_health_text[] = {
 	"Unknown", "Good", "Overheat", "Dead", "Over voltage",
 	"Unspecified failure", "Cold", "Watchdog timer expire",
-	"Safety timer expire", "Over current", "Warm", "Cool", "Hot"
+	"Safety timer expire",
+	"Warm", "Cool", "Hot"
 };
 
 static const char * const power_supply_technology_text[] = {
@@ -343,6 +344,8 @@ static struct device_attribute power_supply_attrs[] = {
 	POWER_SUPPLY_ATTR(charge_full_design),
 	POWER_SUPPLY_ATTR(charge_empty_design),
 	POWER_SUPPLY_ATTR(charge_full),
+	POWER_SUPPLY_ATTR(full_available_capacity),
+	POWER_SUPPLY_ATTR(full_charge_capacity_filtered),
 	POWER_SUPPLY_ATTR(charge_empty),
 	POWER_SUPPLY_ATTR(charge_now),
 	POWER_SUPPLY_ATTR(charge_avg),
@@ -541,7 +544,6 @@ static struct device_attribute power_supply_attrs[] = {
 	POWER_SUPPLY_ATTR(battery_type),
 	POWER_SUPPLY_ATTR(cycle_counts),
 	POWER_SUPPLY_ATTR(serial_number),
-	POWER_SUPPLY_ATTR(cool_down),
 	POWER_SUPPLY_ATTR(adapter_sid),
 };
 
