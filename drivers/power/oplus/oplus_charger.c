@@ -77,7 +77,6 @@
 #else
 #include "oplus_wlchg_policy.h"
 #endif
-#include "wireless_ic/oplus_chargepump.h"
 #else
 #include "oplus_wireless.h"
 #endif

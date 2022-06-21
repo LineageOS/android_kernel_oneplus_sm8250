@@ -23,7 +23,6 @@
 #include "oplus_debug_info.h"
 #include "oplus_chg_track.h"
 #include "op_wlchg_v2/oplus_chg_wls.h"
-#include "wireless_ic/oplus_nu1619.h"
 #include "voocphy/oplus_voocphy.h"
 #include "oplus_ufcs.h"
 #include "oplus_quirks.h"
