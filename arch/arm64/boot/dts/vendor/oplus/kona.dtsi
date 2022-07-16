@@ -2,6 +2,7 @@
 / {
 	aliases {
 		i2c2 = &qupv3_se15_i2c;
+		i2c6 = &qupv3_se11_i2c; /* for aw8697 */
 	};
 
 	// kona-thermal.dtsi
