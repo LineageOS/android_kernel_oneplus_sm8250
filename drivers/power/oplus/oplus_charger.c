@@ -611,7 +611,7 @@ int oplus_battery_get_property(struct power_supply *psy,
 			} else {
 #endif
 				if (!chip->authenticate) {
-					val->intval = POWER_SUPPLY_STATUS_NOT_CHARGING;
+					val->intval = POWER_SUPPLY_STATUS_DISCHARGING;
 				} else {
 					val->intval = chip->prop_status;
 				}
