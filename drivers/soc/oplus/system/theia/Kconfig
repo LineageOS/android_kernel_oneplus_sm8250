@@ -2,7 +2,7 @@
 # Copyright (C) 2018-2020 Oplus. All rights reserved.
 #change 'y' to 'n', if you want fo close theia feature
 config OPLUS_FEATURE_THEIA
-    tristate "theia project"
-    default n
-    help
-      define this config to init theia project.
+	tristate "theia project"
+	default n
+	help
+	  define this config to init theia project.

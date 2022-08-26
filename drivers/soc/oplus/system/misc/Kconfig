@@ -5,14 +5,14 @@ config OPLUS_FEATURE_MISC
 	default n
 	depends on OPLUS_SYSTEM_KERNEL
 	help
-      oplus misc feature(trigger dump when user press power key for 4s) .
+	  oplus misc feature(trigger dump when user press power key for 4s) .
 
 config PARAM_READ_WRITE
 	bool "Param partition read/write support"
 	default n
 	help
-	if you want to read/write the param partition in kernel,
-	then you must say Y here.
+	  if you want to read/write the param partition in kernel,
+	  then you must say Y here.
 
 config BOOTLOADER_LOG
 	tristate "show bootloader log"
@@ -23,5 +23,5 @@ config BOOTLOADER_LOG
 config WB_KERNEL_LOG
 	tristate "reserve kernel log to partition driver"
 	default n
-
-
+	help
+	  lorem ipsum

@@ -6,7 +6,7 @@ config OPLUS_FEATURE_HUNG_TASK_ENHANCE
 	depends on DETECT_HUNG_TASK
 	depends on OPLUS_SYSTEM_KERNEL
 	help
-      define this config to enable QCOM platform uboot log .
+	  define this config to enable QCOM platform uboot log.
 
 config OPLUS_FEATURE_DEATH_HEALER
 	bool "Enable DeathHealer"
@@ -14,4 +14,4 @@ config OPLUS_FEATURE_DEATH_HEALER
 	depends on OPLUS_FEATURE_HUNG_TASK_ENHANCE
 	default y
 	help
-	  define this config to enable DEATH_HEALER .
+	  define this config to enable DEATH_HEALER.
