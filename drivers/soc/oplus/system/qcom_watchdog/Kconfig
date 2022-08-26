@@ -5,4 +5,4 @@ config OPLUS_FEATURE_QCOM_WATCHDOG
 	default n
 	depends on OPLUS_SYSTEM_KERNEL
 	help
-            enhance the qcom watchdog.
+	  enhance the qcom watchdog.

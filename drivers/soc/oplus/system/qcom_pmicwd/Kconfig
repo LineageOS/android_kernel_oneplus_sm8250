@@ -5,5 +5,5 @@ config OPLUS_FEATURE_QCOM_PMICWD
 	default n
 	depends on OPLUS_SYSTEM_KERNEL
 	help
-            define this config to enable qcom pmic watchdog.
-			export pwk dump interface to android for control pwkdump.
+	  define this config to enable qcom pmic watchdog.
+	  export pwk dump interface to android for control pwkdump.
