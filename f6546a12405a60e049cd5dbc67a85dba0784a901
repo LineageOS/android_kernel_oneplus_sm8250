@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "7e8231d3_563c2d55",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 3
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 7202
+      },
+      "writtenOn": "2022-10-15T10:12:58Z",
+      "side": 1,
+      "message": "op8Pro here. all good.",
+      "revId": "f6546a12405a60e049cd5dbc67a85dba0784a901",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    }
+  ]
+}
