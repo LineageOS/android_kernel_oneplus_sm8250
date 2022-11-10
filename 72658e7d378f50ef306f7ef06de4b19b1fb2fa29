@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "d561af35_9dc3e9ef",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 2
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 7202
+      },
+      "writtenOn": "2022-11-10T17:40:32Z",
+      "side": 1,
+      "message": "Works great with hw_oplus commit.",
+      "revId": "72658e7d378f50ef306f7ef06de4b19b1fb2fa29",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    }
+  ]
+}
