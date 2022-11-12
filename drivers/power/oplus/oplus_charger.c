@@ -4275,8 +4275,16 @@ void oplus_chg_set_input_current_limit(struct oplus_chg_chip *chip)
 					current_limit = chip->limits.input_current_led_ma_warm;
 				}
 			} else {
-				if (current_limit > chip->limits.input_current_led_ma_normal){
-					current_limit = chip->limits.input_current_led_ma_normal;
+				if (chip->pd_chging) {
+					// treat pd_input_current_charger_ma as the USB-PD equivalent of
+					// input_current_led_ma_normal
+					if (current_limit > chip->limits.pd_input_current_charger_ma){
+						current_limit = chip->limits.pd_input_current_charger_ma;
+					}
+				} else {
+					if (current_limit > chip->limits.input_current_led_ma_normal){
+						current_limit = chip->limits.input_current_led_ma_normal;
+					}
 				}
 			}
 			charger_xlog_printk(CHG_LOG_CRTI, "[BATTERY]LED STATUS CHANGED, IS ON\n");
