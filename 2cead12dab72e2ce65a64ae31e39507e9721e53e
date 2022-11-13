@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "e6d3efac_0d872c51",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 19665
+      },
+      "writtenOn": "2022-11-13T21:16:26Z",
+      "side": 1,
+      "message": "pre-emptive v-1 because I need more info about USB-PD on kebab.\n\nAs of now, this lets instantnoodle charge at 5V 2.4A max when charging from 20%. I\u0027m not sure if instantnoodle ever reached 5V 3A on OOS 11 kernel and earlier.",
+      "revId": "2cead12dab72e2ce65a64ae31e39507e9721e53e",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    }
+  ]
+}
