@@ -50,6 +50,23 @@
       "message": "Ignore my previous comment about my instantnoodle charging at 5V 2.4A max. It turned out that the Apple 87W USB-PD charger I was using only supported outputting 2.4A if running at 5V.\n\nTested with another USB-PD charger that actually supports 5V 3A, and instantnoodle charges at 5V 2.7A when screen is on, and 5V 2.9 A when screen is off. This is while the phone is at 65% remaining battery capacity.\n\nNow I just need info about USB-PD on kebab.",
       "revId": "2cead12dab72e2ce65a64ae31e39507e9721e53e",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "32624ddf_923476e5",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 19665
+      },
+      "writtenOn": "2022-11-17T23:56:17Z",
+      "side": 1,
+      "message": "I think I found the actual issue, where led_on isn\u0027t being set to true/false properly. The 2A cap is likely intentional, but was only for when led_on was set to true. I\u0027ll abandon this change and upload a new one soon.",
+      "revId": "2cead12dab72e2ce65a64ae31e39507e9721e53e",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
     }
   ]
 }
