@@ -122,12 +122,15 @@
 
 #ifdef CONFIG_HAS_EARLYSUSPEND
 #include <linux/earlysuspend.h>
-#elif IS_ENABLED(CONFIG_FB)
-#include <linux/notifier.h>
-#include <linux/fb.h>
-#elif IS_ENABLED(CONFIG_DRM_MSM) || IS_ENABLED(CONFIG_DRM_OPLUS_NOTIFY)
+#else
+#if IS_ENABLED(CONFIG_DRM_MSM) || IS_ENABLED(CONFIG_DRM_OPLUS_NOTIFY)
 #include <linux/msm_drm_notify.h>
 #endif
+#if IS_ENABLED(CONFIG_FB)
+#include <linux/notifier.h>
+#include <linux/fb.h>
+#endif
+#endif /* CONFIG_HAS_EARLYSUSPEND */
 
 #define CHG_LOG_CRTI 1
 #define CHG_LOG_FULL 2
@@ -838,8 +841,11 @@ struct oplus_chg_chip {
 	bool fg_bcl_poll;
 	bool chg_powersave;
 	bool healthd_ready;
-#if IS_ENABLED(CONFIG_FB) || IS_ENABLED(CONFIG_DRM_MSM) || IS_ENABLED(CONFIG_DRM_OPLUS_NOTIFY)
+#if IS_ENABLED(CONFIG_FB)
 	struct notifier_block chg_fb_notify;
+#endif
+#if IS_ENABLED(CONFIG_DRM_MSM) || IS_ENABLED(CONFIG_DRM_OPLUS_NOTIFY)
+	struct notifier_block chg_msm_notify;
 #endif
 	struct normalchg_gpio_pinctrl normalchg_gpio;
 	int flash_screen_ctrl_status;
