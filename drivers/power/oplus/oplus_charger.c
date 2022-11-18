@@ -151,8 +151,11 @@ static void oplus_chg_voter_charging_start(struct oplus_chg_chip *chip,
 extern void oplus_start_svooc_reset(void);
 extern void oplus_start_pps_reset(void);
 static void oplus_chg_check_abnormal_adapter(int vbus_rising);
-#if IS_ENABLED(CONFIG_FB) || IS_ENABLED(CONFIG_DRM_MSM) || IS_ENABLED(CONFIG_DRM_OPLUS_NOTIFY)
+#if IS_ENABLED(CONFIG_FB)
 static int fb_notifier_callback(struct notifier_block *nb, unsigned long event, void *data);
+#endif
+#if IS_ENABLED(CONFIG_DRM_MSM) || IS_ENABLED(CONFIG_DRM_OPLUS_NOTIFY)
+static int drm_notifier_callback(struct notifier_block *nb, unsigned long event, void *data);
 #endif
 void oplus_chg_ui_soc_decimal_init(void);
 void oplus_chg_ui_soc_decimal_deinit(void);
@@ -2533,13 +2536,17 @@ int oplus_chg_init(struct oplus_chg_chip *chip)
 #if IS_ENABLED(CONFIG_FB)
 	chip->chg_fb_notify.notifier_call = fb_notifier_callback;
 	rc = fb_register_client(&chip->chg_fb_notify);
-#elif IS_ENABLED(CONFIG_DRM_MSM) || IS_ENABLED(CONFIG_DRM_OPLUS_NOTIFY)
-	chip->chg_fb_notify.notifier_call = fb_notifier_callback;
-	rc = msm_drm_register_client(&chip->chg_fb_notify);
-#endif /* CONFIG_FB */
 	if (rc) {
 		pr_err("Unable to register chg_fb_notify: %d\n", rc);
 	}
+#endif
+#if IS_ENABLED(CONFIG_DRM_MSM) || IS_ENABLED(CONFIG_DRM_OPLUS_NOTIFY)
+	chip->chg_drm_notify.notifier_call = drm_notifier_callback;
+	rc = msm_drm_register_client(&chip->chg_drm_notify);
+	if (rc) {
+		pr_err("Unable to register chg_drm_notify: %d\n", rc);
+	}
+#endif
 	oplus_chg_debug_info_init(chip);
 	init_proc_chg_log();
 	init_proc_chg_cycle();
@@ -5445,13 +5452,10 @@ static int fb_notifier_callback(struct notifier_block *nb,
 	}
 	return 0;
 }
+#endif
 
-void oplus_chg_set_led_status(bool val)
-{
-	/*Do nothing*/
-}
-#elif IS_ENABLED(CONFIG_DRM_MSM) || IS_ENABLED(CONFIG_DRM_OPLUS_NOTIFY)
-static int fb_notifier_callback(struct notifier_block *nb,
+#if IS_ENABLED(CONFIG_DRM_MSM) || IS_ENABLED(CONFIG_DRM_OPLUS_NOTIFY)
+static int drm_notifier_callback(struct notifier_block *nb,
 		unsigned long event, void *data)
 {
 	int blank;
@@ -5488,7 +5492,9 @@ static int fb_notifier_callback(struct notifier_block *nb,
 	}
 	return 0;
 }
+#endif
 
+#if IS_ENABLED(CONFIG_FB) || IS_ENABLED(CONFIG_DRM_MSM) || IS_ENABLED(CONFIG_DRM_OPLUS_NOTIFY)
 void oplus_chg_set_led_status(bool val)
 {
 	/*Do nothing*/
