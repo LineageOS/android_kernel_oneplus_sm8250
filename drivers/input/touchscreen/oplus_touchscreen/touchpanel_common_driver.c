@@ -99,7 +99,7 @@ void esd_handle_switch(struct esd_information *esd_info, bool flag);
 static irqreturn_t tp_irq_thread_fn(int irq, void *dev_id);
 #endif
 
-#if defined(CONFIG_FB) || defined(CONFIG_DRM_MSM)
+#if defined(CONFIG_FB) || defined(CONFIG_DRM_MSM) || defined(CONFIG_DRM_OPLUS_NOTIFY)
 static int fb_notifier_callback(struct notifier_block *self, unsigned long event, void *data);
 #endif
 static void set_smooth_level(struct touchpanel_data *ts, int value);
@@ -7846,7 +7846,11 @@ static int fb_notifier_callback(struct notifier_block *self, unsigned long event
 {
     int *blank;
     int timed_out = -1;
+#ifdef CONFIG_DRM_MSM
+    struct msm_drm_notifier *evdata = data;
+#else
     struct fb_event *evdata = data;
+#endif
     struct touchpanel_data *ts = container_of(self, struct touchpanel_data, fb_notif);
 
     //to aviod some kernel bug (at fbmem.c some local veriable are not initialized)
