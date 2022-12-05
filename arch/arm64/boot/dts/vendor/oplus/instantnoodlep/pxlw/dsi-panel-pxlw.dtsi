@@ -11,5 +11,5 @@
 };
 
 &mdss_mdp {
-	pxlw,dsi-display-primary-active = "qcom,mdss_dsi_oplus19811_samsung_1440_3168_dsc_cmd";
+	pxlw,dsi-display-primary-active = "qcom,mdss_dsi_oppo19811_samsung_1440_3168_dsc_cmd";
 };
