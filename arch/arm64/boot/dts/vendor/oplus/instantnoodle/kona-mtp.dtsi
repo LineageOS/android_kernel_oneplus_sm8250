@@ -257,7 +257,6 @@
 		pressure_report_support;
 		irq_need_dev_resume_ok;
 		old_firmware_flag_check; /* for old lsi project */
-		exception_upload_support;
 
 		/*
 		 * Virtual Key Config:
