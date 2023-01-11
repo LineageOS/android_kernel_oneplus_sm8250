@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "b1800c9d_36bf0ffa",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 19665
+      },
+      "writtenOn": "2023-01-11T05:42:35Z",
+      "side": 1,
+      "message": "An alternative to https://review.lineageos.org/c/LineageOS/android_kernel_oneplus_sm8250/+/347212 that changes fewer functions.",
+      "revId": "e110f5a1c8f15550af59c3e0bf89096c03e61361",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    }
+  ]
+}
