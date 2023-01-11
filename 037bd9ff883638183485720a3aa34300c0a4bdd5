@@ -16,6 +16,23 @@
       "message": "This works for my instantnoodle, allowing for Wi-Fi Calling to be enabled without triggering this race condition. Seeking for code review now, as I need guidance on what the \"correct\" way is for dealing with a context that I pass around.",
       "revId": "037bd9ff883638183485720a3aa34300c0a4bdd5",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "4a264073_718ad4f5",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 3
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 19665
+      },
+      "writtenOn": "2023-01-11T05:43:22Z",
+      "side": 1,
+      "message": "An alternative with fewer code changes is available here: https://review.lineageos.org/c/LineageOS/android_kernel_oneplus_sm8250/+/347273",
+      "revId": "037bd9ff883638183485720a3aa34300c0a4bdd5",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
     }
   ]
 }
