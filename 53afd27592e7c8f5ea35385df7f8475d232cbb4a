@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "31b4c46a_ce79bf9f",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 6
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 19665
+      },
+      "writtenOn": "2023-01-15T04:24:41Z",
+      "side": 1,
+      "message": "Had to fix a capitalization inconsistency in my commit message.",
+      "revId": "53afd27592e7c8f5ea35385df7f8475d232cbb4a",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    }
+  ]
+}
