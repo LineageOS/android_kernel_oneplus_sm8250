@@ -16,7 +16,7 @@
 #include "oplus_onscreenfingerprint.h"
 #include "oplus_display_private_api.h"
 
-int aod_light_mode = 0;
+int aod_light_mode = 2;
 DEFINE_MUTEX(oplus_aod_light_mode_lock);
 #ifdef OPLUS_FEATURE_AOD_RAMLESS
 int oplus_display_mode = 1;
@@ -53,10 +53,19 @@ int oplus_update_aod_light_mode_unlock(struct dsi_panel *panel)
 	int rc = 0;
 	enum dsi_cmd_set_type type;
 
-	if (aod_light_mode == 1)
-		type = DSI_CMD_AOD_LOW_LIGHT_MODE;
-	else
-		type = DSI_CMD_AOD_HIGH_LIGHT_MODE;
+	switch (aod_light_mode) {
+		case 2:
+			if (panel->bl_config.bl_level >= 128)
+				type = DSI_CMD_AOD_HIGH_LIGHT_MODE;
+			else
+				type = DSI_CMD_AOD_LOW_LIGHT_MODE;
+			break;
+		case 1:
+			type = DSI_CMD_AOD_LOW_LIGHT_MODE;
+			break;
+		default:
+			type = DSI_CMD_AOD_HIGH_LIGHT_MODE;
+	}
 
 	rc = dsi_panel_tx_cmd_set(panel, type);
 	if (rc) {
