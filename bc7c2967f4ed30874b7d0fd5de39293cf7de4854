@@ -16,6 +16,24 @@
       "message": "unrelated?",
       "revId": "bc7c2967f4ed30874b7d0fd5de39293cf7de4854",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "2c7178f9_b187e4d2",
+        "filename": "techpack/display/msm/dsi/dsi_panel.h",
+        "patchSetId": 1
+      },
+      "lineNbr": 414,
+      "author": {
+        "id": 19665
+      },
+      "writtenOn": "2023-01-29T09:51:48Z",
+      "side": 1,
+      "message": "yep, unrelated, thanks for catching.",
+      "parentUuid": "1e6c8d44_2eed3ed5",
+      "revId": "bc7c2967f4ed30874b7d0fd5de39293cf7de4854",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
     }
   ]
 }
