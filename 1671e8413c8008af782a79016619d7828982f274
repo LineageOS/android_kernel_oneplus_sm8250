@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "89511d0a_1dea5967",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 2
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 19665
+      },
+      "writtenOn": "2023-01-29T09:54:16Z",
+      "side": 1,
+      "message": "leaving -2 for now until I find out an alternative to hard-coding 128 as the threshold, since each of the OnePlus sm8250 devices has a different max allowed bl_level while in Ambient Display. I need to figure out how that\u0027s determined.",
+      "revId": "1671e8413c8008af782a79016619d7828982f274",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    }
+  ]
+}
