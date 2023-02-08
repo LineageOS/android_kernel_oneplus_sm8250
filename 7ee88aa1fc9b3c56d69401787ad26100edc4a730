@@ -34,6 +34,23 @@
       "parentUuid": "94afe017_d6d2547e",
       "revId": "7ee88aa1fc9b3c56d69401787ad26100edc4a730",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "d52e5d60_88c3f64a",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 4550
+      },
+      "writtenOn": "2023-02-08T18:38:54Z",
+      "side": 1,
+      "message": "I don\u0027t see any errors while building lineage, why is this needed?",
+      "revId": "7ee88aa1fc9b3c56d69401787ad26100edc4a730",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
     }
   ]
 }
