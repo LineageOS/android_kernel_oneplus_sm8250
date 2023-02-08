@@ -51,6 +51,24 @@
       "message": "I don\u0027t see any errors while building lineage, why is this needed?",
       "revId": "7ee88aa1fc9b3c56d69401787ad26100edc4a730",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "cc7ad289_f087df57",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 32370
+      },
+      "writtenOn": "2023-02-08T18:54:32Z",
+      "side": 1,
+      "message": "Actually it is not \"needed\"\n\nI am probably making a fool of myself, but my thought process was like \"merging this is harmless and allows the kernel to be built with newer clang versions (clang 16 for example) which would save time down the road.\"",
+      "parentUuid": "d52e5d60_88c3f64a",
+      "revId": "7ee88aa1fc9b3c56d69401787ad26100edc4a730",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
     }
   ]
 }
