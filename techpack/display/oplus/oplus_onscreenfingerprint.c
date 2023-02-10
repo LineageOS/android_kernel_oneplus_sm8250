@@ -875,6 +875,17 @@ int oplus_display_panel_set_dimlayer_hbm(void *data)
 	return 0;
 }
 
+void oplus_dimlayer_vblank(struct drm_crtc *crtc) {
+	int err = drm_crtc_vblank_get(crtc);
+	if (err) {
+		pr_err("failed to get crtc vblank, error=%d\n", err);
+	} else {
+		/* do vblank put after 5 frames */
+		oplus_dimlayer_hbm_vblank_count = 5;
+		atomic_inc(&oplus_dimlayer_hbm_vblank_ref);
+	}
+}
+
 int oplus_display_panel_notify_fp_press(void *data)
 {
 	struct dsi_display *display = get_main_display();
