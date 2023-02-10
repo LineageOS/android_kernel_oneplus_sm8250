@@ -2313,6 +2313,9 @@ int dsi_display_oplus_set_power(struct drm_connector *connector,
 		switch(get_oplus_display_scene()) {
 		case OPLUS_DISPLAY_NORMAL_SCENE:
 		case OPLUS_DISPLAY_NORMAL_HBM_SCENE:
+			if (sde_crtc_get_fingerprint_mode(connector->state->crtc->state)) {
+				oplus_dimlayer_vblank(connector->state->crtc);
+			}
 			rc = dsi_panel_set_lp1(display->panel);
 			rc = dsi_panel_set_lp2(display->panel);
 			set_oplus_display_scene(OPLUS_DISPLAY_AOD_SCENE);
@@ -2346,6 +2349,9 @@ int dsi_display_oplus_set_power(struct drm_connector *connector,
 #endif /* OPLUS_FEATURE_ADFR */
 			if (!strcmp(display->panel->oplus_priv.vendor_name, "AMS644VK04")) {
 				display->panel->need_power_on_backlight = true;
+			}
+			if (sde_crtc_get_fingerprint_mode(connector->state->crtc->state)) {
+				oplus_dimlayer_vblank(connector->state->crtc);
 			}
 			rc = dsi_panel_set_nolp(display->panel);
 			set_oplus_display_scene(OPLUS_DISPLAY_NORMAL_SCENE);
