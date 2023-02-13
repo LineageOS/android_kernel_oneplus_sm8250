@@ -711,6 +711,24 @@
 				<1600 64>,
 				<2047 43>,
 				<2047 43>;
+
+	oplus,dsi-aod-high-brightness = <4 180>,
+				<13 168>,
+				<21 152>,
+				<29 135>,
+				<37 122>,
+				<53 104>,
+				<69 90>,
+				<85 76>,
+				<101 66>,
+				<117 55>,
+				<133 44>;
+
+	oplus,dsi-aod-low-brightness = <4 108>,
+				<13 70>,
+				<21 54>;
+
+	oplus,dsi-aod-low-brightness-threshold = <21>;
 };
 
 &soc {
