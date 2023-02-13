@@ -4728,6 +4728,7 @@ extern bool oplus_ffl_trigger_finish;
 extern int oplus_dimlayer_bl;
 extern ktime_t oplus_backlight_time;
 extern u32 oplus_backlight_delta;
+extern int oplus_dimlayer_alpha_override;
 
 static int sde_crtc_onscreenfinger_atomic_check(struct sde_crtc_state *cstate,
 		struct plane_state *pstates, int cnt)
@@ -4793,6 +4794,8 @@ static int sde_crtc_onscreenfinger_atomic_check(struct sde_crtc_state *cstate,
 	cstate->fingerprint_mode = false;
 	cstate->fingerprint_pressed = false;
 
+	panel_power_mode = oplus_get_panel_power_mode();
+
 	/* initalize dim layer */
 	if (dimlayer_hbm || dimlayer_bl) {
 		if (fp_index >= 0 && fppressed_index >= 0) {
@@ -4830,7 +4833,6 @@ static int sde_crtc_onscreenfinger_atomic_check(struct sde_crtc_state *cstate,
 			cstate->fingerprint_mode = false;
 
 		SDE_DEBUG("debug for get cstate->fingerprint_mode = %d\n", cstate->fingerprint_mode);
-		panel_power_mode = oplus_get_panel_power_mode();
 
 		/* when aod layer is present */
 		if (aod_index >= 0) {
@@ -4902,6 +4904,19 @@ static int sde_crtc_onscreenfinger_atomic_check(struct sde_crtc_state *cstate,
 			cstate->fingerprint_pressed = false;
 
 		SDE_DEBUG("debug for get cstate->fingerprint_pressed = %d\n", cstate->fingerprint_pressed);
+	} else if ((oplus_dimlayer_alpha_override > -1) && (
+		(panel_power_mode == SDE_MODE_DPMS_LP1) || (panel_power_mode == SDE_MODE_DPMS_LP2))) {
+		/* when no aod_index/fppressed_index/fp_index layer, dim layer's zpos is the most stage */
+		zpos = 0;
+		for (i = 0; i < cnt; i++) {
+			if (pstates[i].stage > zpos)
+				zpos = pstates[i].stage;
+		}
+		zpos++;
+		if (sde_crtc_config_fingerprint_dim_layer(&cstate->base, zpos)) {
+			SDE_EVT32(zpos, fp_index, aod_index, fppressed_index, cstate->num_dim_layers);
+			return -EINVAL;
+		}
 	} else {
 		oplus_underbrightness_alpha = 0;
 		oplus_set_aod_dim_alpha(CUST_A_NO);
