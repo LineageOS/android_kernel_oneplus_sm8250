@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "08b70fb9_25f21f56",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 19665
+      },
+      "writtenOn": "2023-02-13T11:19:57Z",
+      "side": 1,
+      "message": "helper code to make writing a config like in 348992 easier",
+      "revId": "3b0b58b29bc0c20942416ee0ea70c58800dcadc3",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    }
+  ]
+}
