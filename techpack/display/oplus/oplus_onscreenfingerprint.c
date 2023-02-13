@@ -38,6 +38,7 @@ extern bool oplus_ffl_trigger_finish;
 extern int dynamic_osc_clock;
 extern ktime_t oplus_onscreenfp_pressed_time;
 extern u32 oplus_onscreenfp_vblank_count;
+extern int oplus_dimlayer_alpha_override;
 int oplus_onscreenfp_status = 0;
 int oplus_dimlayer_hbm_vblank_count = 0;
 atomic_t oplus_dimlayer_hbm_vblank_ref = ATOMIC_INIT(0);
@@ -660,9 +661,15 @@ int sde_crtc_config_fingerprint_dim_layer(struct drm_crtc_state *crtc_state, int
 	struct sde_crtc_state *cstate;
 	struct drm_display_mode *mode = &crtc_state->adjusted_mode;
 	struct sde_hw_dim_layer *fingerprint_dim_layer;
-	int alpha = oplus_get_panel_brightness_to_alpha();
+	int alpha;
 	struct sde_kms *kms;
 	struct dsi_display *display = get_main_display();
+
+	if (oplus_dimlayer_alpha_override > -1) {
+		alpha = oplus_dimlayer_alpha_override;
+	} else {
+		alpha = oplus_get_panel_brightness_to_alpha();
+	}
 
 	kms = _sde_crtc_get_kms_(crtc_state->crtc);
 	if (!kms || !kms->catalog) {

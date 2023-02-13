@@ -68,6 +68,7 @@ int oplus_boe_dc_min_backlight = 175;
 int oplus_boe_dc_max_backlight = 3350;
 int oplus_boe_max_backlight = 2050;
 int oplus_dimlayer_bl_enable_v3_real;
+int oplus_dimlayer_alpha_override = -1;
 
 int oplus_dimlayer_bl_enable_v2_real = 0;
 bool oplus_skip_datadimming_sync = false;
@@ -3602,6 +3603,40 @@ static ssize_t oplus_display_get_fp_state(struct device *obj,
 	return sprintf(buf, "%d,%d,%d\n", fp_state.x, fp_state.y, fp_state.touch_state);
 }
 
+static ssize_t oplus_display_get_dimlayer_alpha_override(struct device *obj,
+	struct device_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%d\n", oplus_dimlayer_alpha_override);
+}
+
+static ssize_t oplus_display_set_dimlayer_alpha_override(struct device *obj,
+	struct device_attribute *attr, const char *buf, size_t count)
+{
+	struct dsi_display *display = get_main_display();
+	struct drm_connector *dsi_connector = display->drm_conn;
+	int err = 0;
+	int value = 0;
+
+	sscanf(buf, "%d", &value);
+	if ((value < -1) || (value > 255))
+		return -EINVAL;
+	oplus_dimlayer_alpha_override = value;
+
+	if (!dsi_connector || !dsi_connector->state || !dsi_connector->state->crtc) {
+		pr_err("[%s]: display not ready\n", __func__);
+	} else {
+		err = drm_crtc_vblank_get(dsi_connector->state->crtc);
+		if (err) {
+			pr_err("failed to get crtc vblank, error=%d\n", err);
+		} else {
+			/* do vblank put after 5 frames */
+			oplus_dimlayer_hbm_vblank_count = 5;
+			atomic_inc(&oplus_dimlayer_hbm_vblank_ref);
+		}
+	}
+	return count;
+}
+
 static struct kobject *oplus_display_kobj;
 
 static DEVICE_ATTR(hbm, S_IRUGO|S_IWUSR, oplus_display_get_hbm, oplus_display_set_hbm);
@@ -3638,6 +3673,7 @@ static DEVICE_ATTR(panel_pwr, S_IRUGO|S_IWUSR, oplus_display_get_panel_pwr, oplu
 static DEVICE_ATTR(mca_state, S_IRUGO|S_IWUSR, oplus_display_get_mca, oplus_display_set_mca);
 static DEVICE_ATTR(failsafe, S_IRUGO|S_IWUSR, NULL, oplus_display_set_failsafe);
 static DEVICE_ATTR(mipi_clk_rate_hz, S_IRUGO|S_IWUSR, oplus_display_get_mipi_clk_rate_hz, NULL);
+static DEVICE_ATTR(dimlayer_alpha_override, S_IRUGO|S_IWUSR, oplus_display_get_dimlayer_alpha_override, oplus_display_set_dimlayer_alpha_override);
 #ifdef OPLUS_FEATURE_AOD_RAMLESS
 static DEVICE_ATTR(aod_area, S_IRUGO|S_IWUSR, oplus_display_get_aod_area, oplus_display_set_aod_area);
 static DEVICE_ATTR(video, S_IRUGO|S_IWUSR, oplus_display_get_video, oplus_display_set_video);
@@ -3694,6 +3730,7 @@ static struct attribute *oplus_display_attrs[] = {
 	&dev_attr_mca_state.attr,
 	&dev_attr_failsafe.attr,
 	&dev_attr_mipi_clk_rate_hz.attr,
+	&dev_attr_dimlayer_alpha_override.attr,
 #ifdef OPLUS_FEATURE_AOD_RAMLESS
 	&dev_attr_aod_area.attr,
 	&dev_attr_video.attr,
