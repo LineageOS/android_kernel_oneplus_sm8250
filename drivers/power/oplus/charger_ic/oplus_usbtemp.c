@@ -176,7 +176,9 @@ int oplus_usbtemp_dischg_action(struct oplus_chg_chip *chip)
 #endif
 		oplus_set_usb_temp_high(chip);
 		if (oplus_vooc_get_fastchg_started() == true) {
-			oplus_vooc_turn_off_fastchg();
+			oplus_chg_set_chargerid_switch_val(0);
+			oplus_vooc_switch_mode(NORMAL_CHARGER_MODE);
+			oplus_vooc_reset_mcu();
 			if (oplus_pps_get_support_type() == PPS_SUPPORT_2CP) {
 				oplus_pps_set_pps_mos_enable(false);
 			}

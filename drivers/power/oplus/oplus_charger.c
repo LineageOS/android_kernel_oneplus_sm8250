@@ -830,7 +830,8 @@ int oplus_battery_get_property(struct power_supply *psy,
 						val->intval = chip->prop_status;
 					}
 					if (chip->tbatt_status == BATTERY_STATUS__HIGH_TEMP ||
-					    chip->tbatt_status == BATTERY_STATUS__LOW_TEMP)
+					    chip->tbatt_status == BATTERY_STATUS__LOW_TEMP ||
+				    	chip->tbatt_status == BATTERY_STATUS__REMOVED)
 						val->intval = chip->prop_status;
 				} else if (!chip->authenticate) {
 					val->intval = POWER_SUPPLY_STATUS_NOT_CHARGING;
@@ -5362,6 +5363,13 @@ int oplus_chg_parse_charger_dt(struct oplus_chg_chip *chip)
 
 	}
 
+	chip->full_pre_ffc_judge = of_property_read_bool(node, "full_pre_ffc_judge");
+	rc = of_property_read_u32(node, "full-pre-ffc-mv", &chip->full_pre_ffc_mv);
+	if (rc < 0) {
+		chg_err("get full-pre-ffc-mv property error, rc=%d\n", rc);
+		chip->full_pre_ffc_mv = 4455;
+	}
+	chg_err("full-pre-ffc-mv=%d, full_pre_ffc_judge:%d\n", chip->full_pre_ffc_mv, chip->full_pre_ffc_judge);
 	chip->support_subboard_ntc = of_property_read_bool(node, "qcom,support_subboard_ntc");
 	if (of_property_read_bool(node, "qcom,support_tbatt_shell"))
 		chip->support_tbatt_shell = true;
@@ -7429,6 +7437,13 @@ void oplus_chg_variables_reset(struct oplus_chg_chip *chip, bool in)
 			chip->start_time = chip->quick_mode_time.tv_sec;
 			chip->quick_mode_gain_time_ms = 0;
 			chip->start_cap = chip->batt_rm;
+			if (chip->decimal_control) {
+				cancel_delayed_work_sync(&g_charger_chip->ui_soc_decimal_work);
+				chip->last_decimal_ui_soc = (chip->ui_soc_integer + chip->ui_soc_decimal);
+				oplus_chg_ui_soc_decimal_deinit();
+				chg_err("plugin cancel last_decimal_ui_soc:%d", chip->last_decimal_ui_soc);
+			}
+			chip->calculate_decimal_time = 0;
 		}
 		if (chip->balancing_bat_status !=  PARALLEL_BAT_BALANCE_ERROR_STATUS8 &&
 		    chip->balancing_bat_status !=  PARALLEL_BAT_BALANCE_ERROR_STATUS9) {
@@ -10486,6 +10501,24 @@ static bool oplus_chg_check_vbatt_is_full_by_sw(struct oplus_chg_chip *chip)
 	}
 }
 
+static int oplus_chg_allow_skip_ffc(struct oplus_chg_chip *chip) {
+	if (!chip) {
+		return false;
+	}
+	if (!chip->full_pre_ffc_judge) {
+		return false;
+	}
+	if (chip->batt_volt >= chip->full_pre_ffc_mv && chip->soc == 100) {
+		chg_err("skip ffc, batt_volt = %d, full_pre_ffc_mv = %d, soc:%d\n",
+				chip->batt_volt, chip->full_pre_ffc_mv, chip->soc);
+		return true;
+	} else {
+		chg_err("skip ffc, batt_volt = %d, full_pre_ffc_mv = %d, soc:%d\n",
+				chip->batt_volt, chip->full_pre_ffc_mv, chip->soc);
+	}
+	return false;
+}
+
 #define FULL_DELAY_COUNTS		4
 #define DOD0_COUNTS		(8 * 60 / 5)
 
@@ -10532,8 +10565,8 @@ static void oplus_chg_check_status_full(struct oplus_chg_chip *chip)
 			if (fastchg_present_wait_count == FULL_DELAY_COUNTS)
 				chip->waiting_for_ffc = false;
 
-			if((oplus_pps_get_ffc_started() == true) && (chip->fastchg_to_ffc == false)) {
-				if(chip->batt_volt >= oplus_pps_get_ffc_vth())
+			if((oplus_pps_get_ffc_started() == true || chip->full_pre_ffc_judge) && (chip->fastchg_to_ffc == false)) {
+				if((oplus_is_pps_charging() == true && chip->batt_volt >= oplus_pps_get_ffc_vth()) || oplus_chg_allow_skip_ffc(chip))
 					pps_to_ffc_full_count++;
 				if ((fastchg_present_wait_count == FULL_DELAY_COUNTS) && (pps_to_ffc_full_count == FULL_DELAY_COUNTS)) {
 					oplus_chg_ffc_variable_reset(chip);
@@ -12730,7 +12763,7 @@ int oplus_smart_charge_by_bcc(struct oplus_chg_chip *chip, int val)
 	int subtype = 0;
 	int ret = 0;
 
-	if (!(oplus_vooc_get_bcc_support() || chip->smart_chg_bcc_support)) {
+	if (!(oplus_vooc_get_bcc_support() || chip->smart_chg_bcc_support) || (val < 0)) {
 		charger_xlog_printk(CHG_LOG_CRTI, "not support smart chg bcc mode\n");
 		return 0;
 	}

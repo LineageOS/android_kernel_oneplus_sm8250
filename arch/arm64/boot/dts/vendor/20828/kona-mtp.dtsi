@@ -460,6 +460,7 @@
 		report_flow_unlock_support;
 		screenoff_fingerprint_info_support;
 		lcd_tp_refresh_support;
+		exception_upload_support;
 		/*
 		 *Virtual Key Config:
 		 *1:touchpanel,button-type: <virtualkey_type  supportted_button-map>

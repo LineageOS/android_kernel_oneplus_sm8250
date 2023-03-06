@@ -1324,6 +1324,8 @@ struct oplus_chg_chip {
 	int parallel_error_flag;
 	bool soc_not_full_report;
 	bool support_subboard_ntc;
+	bool full_pre_ffc_judge;
+	int full_pre_ffc_mv;
 };
 
 
