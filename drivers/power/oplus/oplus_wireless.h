@@ -148,12 +148,14 @@
 #define DOCK_OAWV07										7
 #define DOCK_OAWV08										8
 #define DOCK_OAWV15										15
+#define DOCK_THIRD										0x1f
 
 #define DOCK_VERIFY_UNKOWN								0
 #define DOCK_VERIFY_OK										1
 #define DOCK_VERIFY_FAIL									2
 #define DOCK_VERIFY_RETRY_TIMES							5
 #define DOCK_VERIFY_TIMEOUT								40
+#define DOCK_SEND_TEMP_SOC_TIMEOUT						8
 
 #define BPP_CURRENT_INCREASE_TIME							20
 
@@ -166,7 +168,8 @@
 #define ADAPTER_TYPE_NORMAL_CHARGE							4
 #define ADAPTER_TYPE_EPP									5
 #define ADAPTER_TYPE_SVOOC_50W								6
-#define ADAPTER_TYPE_PD_65W								7
+#define ADAPTER_TYPE_PD_65W									7
+#define ADAPTER_TYPE_THIRD_PARTY 							8
 
 #define WPC_CHARGE_TYPE_DEFAULT								0
 #define WPC_CHARGE_TYPE_FAST								1
@@ -174,7 +177,12 @@
 #define WPC_CHARGE_TYPE_NORMAL								3
 #define WPC_CHARGE_TYPE_EPP									4
 
+
+
+#define WLS_AUTH_AES_DATA_LEN 							16
 #define WPC_TRX_ERR_REASON_LEN	16
+#define WLS_AUTH_AES_RANDOM_LEN 							16
+#define WLS_AUTH_AES_ENCODE_LEN 							16
 
 enum {
 WPC_CHG_STATUS_DEFAULT,
@@ -251,6 +259,16 @@ ADAPTER_POWER_50W,
 ADAPTER_POWER_65W,
 ADAPTER_POWER_MAX = ADAPTER_POWER_65W,
 }E_ADAPTER_POWER;
+
+typedef enum {
+	ADAPTER_POWER_THIRD_NUKNOW,
+	ADAPTER_POWER_THIRD_20W,
+	ADAPTER_POWER_THIRD_30W,
+	ADAPTER_POWER_THIRD_40W,
+	ADAPTER_POWER_THIRD_50W,
+	ADAPTER_POWER_THIRD_MAX = ADAPTER_POWER_THIRD_50W,
+}E_ADAPTER_THIRD_POWER;
+
 
 typedef enum {
     WPC_DISCHG_STATUS_OFF,
@@ -337,6 +355,7 @@ struct wpc_chg_param_t{
 	int svooc_input_ma;
 	int svooc_65w_iout_ma;
 	int svooc_50w_iout_ma;
+	int svooc_40w_iout_ma;
 	int bpp_temp_cold_fastchg_ma;						// -2
 	int vooc_temp_little_cold_fastchg_ma;		// 0
 	int svooc_temp_little_cold_iout_ma;
@@ -404,8 +423,26 @@ struct wpc_chg_param_t{
 	int wireless_svooc_max_temp;
 };
 
+typedef struct {
+	int effc_key_index;
+	u8 aes_random_num[WLS_AUTH_AES_RANDOM_LEN];
+	u8 aes_encode_num[WLS_AUTH_AES_ENCODE_LEN];
+} wls_third_part_auth_result_v1;
+
 struct wpc_data{
 	char charge_status;
+	bool aes_verify_data_ok;
+	int vendor_id;
+	bool tx_extern_cmd_done;
+	u32 product_id;
+	u32 extern_cmd;
+	u8 aes_key_num;
+	bool verify_by_aes;
+	bool tx_product_id_done;
+
+	wls_third_part_auth_result_v1 aes_verfith_data;
+	u8 aes_encrypt_data[WLS_AUTH_AES_RANDOM_LEN];
+
 	E_WPC_DISCHG_STATUS wpc_dischg_status;
 	int wpc_chg_err;
 	enum FASTCHG_STARTUP_STEP fastchg_startup_step;
@@ -524,6 +561,8 @@ struct wpc_data{
 	int rerun_wls_aicl_count;
 	int target_iin;
 	int support_airsvooc;
+	int phone_id;
+	unsigned long send_soc_temp_start;
 #ifdef SUPPORT_OPLUS_WPC_VERIFY
 	char random_num[8];
 	char noise_num[9];

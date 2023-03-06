@@ -16702,6 +16702,7 @@ int oplus_chg_set_pd_config(void)
 {
 	int ret = 0;
 	struct oplus_chg_chip *chip = g_oplus_chip;
+	int cnt_pd_retry = 0;
 	
 	if (!chip) {
 		return -1;
@@ -16733,6 +16734,12 @@ int oplus_chg_set_pd_config(void)
 		oplus_chg_enable_burst_mode(false);
 		ret = oplus_pdo_select(9000, 2000);
 		printk(KERN_ERR "%s: vbus[%d], ibus[%d], ret[%d]\n", __func__, 9000, 2000, ret);
+		while ((ret != 0) && (cnt_pd_retry < 5)) {
+			msleep(200);
+			ret = oplus_pdo_select(9000, 2000);
+			cnt_pd_retry++;
+			printk(KERN_ERR "%s: vbus[%d], ibus[%d], ret[%d], retry_cnt[%d]\n", __func__, 9000, 2000, ret, cnt_pd_retry);
+		}
 		msleep(300);
 		oplus_chg_unsuspend_charger();
 	}

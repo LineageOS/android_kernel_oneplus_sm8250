@@ -22,6 +22,7 @@
 #include <linux/kdev_t.h>
 #include <linux/uio.h>
 #include <soc/oplus/system/boot_mode.h>
+#include <linux/version.h>
 
 #define oprkl_info_print(fmt,arg...) \
 pr_err("[op_kernel_log] "fmt, ##arg)
@@ -111,7 +112,11 @@ int wb_log(struct block_device *bdev, char *buf, char *line_buf) {
 				total_write_times++; // count real write back times(debug use)
 				iov.iov_base = (void *)buf;
 				iov.iov_len = WB_BLOCK_SIZE;
+				#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0))
+				iov_iter_kvec(&iter, WRITE | ITER_KVEC, &iov, 0, WB_BLOCK_SIZE);
+				#else
 				iov_iter_kvec(&iter, WRITE, &iov, 0, WB_BLOCK_SIZE);
+				#endif
 				ret = generic_write_checks(&kiocb, &iter);
 				if (likely(ret > 0))
 					ret = generic_perform_write(&dev_map_file, &iter, kiocb.ki_pos);
@@ -190,7 +195,11 @@ int read_header(struct block_device *bdev, void *head, int len, int pos) {
 	kiocb.ki_pos = pos; //start header offset
 	iov.iov_base = head;
 	iov.iov_len = len;
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0))
+	iov_iter_kvec(&iter, READ | ITER_KVEC, &iov, 1, len);
+#else
 	iov_iter_kvec(&iter, READ, &iov, 1, len);
+#endif
 
 	read_size = generic_file_read_iter(&kiocb, &iter);
 	oprkl_info_print("read_header read_size %d\n", read_size);
@@ -220,7 +229,11 @@ int write_header(struct block_device *bdev, void *head, int len, int pos) {
 	kiocb.ki_pos = pos; //start header offset
 	iov.iov_base = head;
 	iov.iov_len = len;
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0))
+	iov_iter_kvec(&iter, WRITE | ITER_KVEC, &iov, 1, len);
+#else
 	iov_iter_kvec(&iter, WRITE, &iov, 1, len);
+#endif
 
 	ret = generic_write_checks(&kiocb, &iter);
 	if (ret > 0)

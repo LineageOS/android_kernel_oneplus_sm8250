@@ -23,6 +23,7 @@
 #include "oplus_debug_info.h"
 #include "op_wlchg_v2/oplus_chg_wls.h"
 //#include "wireless_ic/oplus_p922x.h"
+#include "wireless_ic/oplus_nu1619.h"
 #include "voocphy/oplus_voocphy.h"
 
 static struct class *oplus_chg_class;
@@ -1990,6 +1991,14 @@ ssize_t  __attribute__((weak)) oplus_chg_comm_response_mutual_cmd(struct oplus_c
 {
 	return -EINVAL;
 }
+ssize_t  __attribute__((weak)) oplus_chg_send_mutual_cmd(char *buf)
+{
+	return -EINVAL;
+}
+ssize_t  __attribute__((weak)) oplus_chg_response_mutual_cmd(const char *buf, size_t count)
+{
+	return -EINVAL;
+}
 static ssize_t mutual_cmd_show(struct device *dev, struct device_attribute *attr,
 		char *buf)
 {
@@ -2004,6 +2013,8 @@ static ssize_t mutual_cmd_show(struct device *dev, struct device_attribute *attr
 
 	if (is_comm_ocm_available(chip))
 		ret = oplus_chg_comm_send_mutual_cmd(chip->comm_ocm, buf);
+	else
+		ret = oplus_chg_send_mutual_cmd(buf);
 
 	return ret;
 }
@@ -2021,6 +2032,8 @@ static ssize_t mutual_cmd_store(struct device *dev, struct device_attribute *att
 
 	if (is_comm_ocm_available(chip))
 		oplus_chg_comm_response_mutual_cmd(chip->comm_ocm, buf, count);
+	else
+		oplus_chg_response_mutual_cmd(buf, count);
 
 	return count;
 }
