@@ -3547,7 +3547,7 @@ static int msm_vidc_load_resources(int flipped_state,
 			"H/W is overloaded. needed: %d max: %d\n",
 			video_load, max_video_load);
 		msm_vidc_print_running_insts(inst->core);
-		return -EBUSY;
+		return -ENOMEM;
 	}
 
 	if (video_load + image_load > max_video_load + max_image_load) {
@@ -3555,7 +3555,7 @@ static int msm_vidc_load_resources(int flipped_state,
 			"H/W is overloaded. needed: [video + image][%d + %d], max: [video + image][%d + %d]\n",
 			video_load, image_load, max_video_load, max_image_load);
 		msm_vidc_print_running_insts(inst->core);
-		return -EBUSY;
+		return -ENOMEM;
 	}
 
 	hdev = core->device;
