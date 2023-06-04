@@ -77,10 +77,6 @@
 #include <linux/reserve_area.h>
 #endif
 
-#ifdef CONFIG_OPLUS_FEATURE_TPD
-#include <linux/tpd/tpd.h>
-#endif
-
 #ifdef CONFIG_OPLUS_FEATURE_UID_PERF
 extern void uid_check_out_pevent(struct task_struct *task);
 #endif
@@ -238,10 +234,6 @@ static void __exit_signal(struct task_struct *tsk)
 static void delayed_put_task_struct(struct rcu_head *rhp)
 {
 	struct task_struct *tsk = container_of(rhp, struct task_struct, rcu);
-
-#ifdef CONFIG_OPLUS_FEATURE_TPD
-	tpd_tglist_del(tsk);
-#endif
 
 	perf_event_delayed_put(tsk);
 	trace_sched_process_free(tsk);
