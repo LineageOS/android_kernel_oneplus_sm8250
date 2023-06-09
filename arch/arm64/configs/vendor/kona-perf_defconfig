@@ -998,11 +998,6 @@ CONFIG_OPLUS_FEATURE_SAUPWK=y
 CONFIG_OPLUS_FEATURE_RT_INFO=n
 #endif
 
-#ifdef OPLUS_FEATURE_TPP
-#jacky.ho@optimization add for tpp module
-CONFIG_OPLUS_FEATURE_TPP=y
-#endif /* OPLUS_FEATURE_TPP */
-
 #ifdef OPLUS_FEATURE_IM
 #ted.lin@optimization add for im module
 CONFIG_OPLUS_FEATURE_IM=y
