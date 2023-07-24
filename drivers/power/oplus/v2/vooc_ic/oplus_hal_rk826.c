@@ -24,11 +24,8 @@
 #include <linux/platform_device.h>
 #include <asm/atomic.h>
 #include <linux/dma-mapping.h>
-
-/* #include <mt-plat/battery_meter.h> */
 #include <linux/module.h>
 #include <soc/oplus/device_info.h>
-
 #else
 #include <linux/i2c.h>
 #include <linux/debugfs.h>

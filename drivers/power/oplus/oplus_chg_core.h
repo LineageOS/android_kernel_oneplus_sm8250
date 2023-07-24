@@ -71,11 +71,11 @@ enum {
 enum {
 	OPLUS_CHG_CHARGE_TYPE_UNKNOWN = 0,
 	OPLUS_CHG_CHARGE_TYPE_NONE,
-	OPLUS_CHG_CHARGE_TYPE_TRICKLE,	/* slow speed */
-	OPLUS_CHG_CHARGE_TYPE_FAST,		/* fast speed */
-	OPLUS_CHG_CHARGE_TYPE_STANDARD,	/* normal speed */
-	OPLUS_CHG_CHARGE_TYPE_ADAPTIVE,	/* dynamically adjusted speed */
-	OPLUS_CHG_CHARGE_TYPE_CUSTOM,	/* use CHARGE_CONTROL_* props */
+	OPLUS_CHG_CHARGE_TYPE_TRICKLE, /* slow speed */
+	OPLUS_CHG_CHARGE_TYPE_FAST, /* fast speed */
+	OPLUS_CHG_CHARGE_TYPE_STANDARD, /* normal speed */
+	OPLUS_CHG_CHARGE_TYPE_ADAPTIVE, /* dynamically adjusted speed */
+	OPLUS_CHG_CHARGE_TYPE_CUSTOM, /* use CHARGE_CONTROL_* props */
 };
 
 enum {
@@ -306,6 +306,11 @@ enum oplus_chg_mod_property {
 #endif /* CONFIG_OPLUS_CHG_OOS */
 	OPLUS_CHG_PROP_RX_VOUT_UVP,
 	OPLUS_CHG_PROP_FW_UPGRADING,
+	OPLUS_CHG_PROP_BCC_SUPPORT,
+	OPLUS_CHG_PROP_BCC_CURRENT,
+	OPLUS_CHG_PROP_WLS_BCC_MAX,
+	OPLUS_CHG_PROP_WLS_BCC_MIN,
+	OPLUS_CHG_PROP_WLS_BCC_STOP,
 	OPLUS_CHG_PROP_MAX,
 	/* extended property */
 	OPLUS_CHG_EXTERN_PROP_UPGRADE_FW = OPLUS_CHG_PROP_MAX,
@@ -394,7 +399,7 @@ struct oplus_chg_mod {
 {						\
 	.exten_prop = __prop,			\
 	.show = __name##_show,			\
-	.store = __name##_store,			\
+	.store = __name##_store,		\
 }
 
 #define OPLUS_CHG_EXTEN_ROATTR(__prop, __name)	\
@@ -408,7 +413,7 @@ struct oplus_chg_mod {
 {						\
 	.exten_prop = __prop,			\
 	.show = NULL,				\
-	.store = __name##_store,			\
+	.store = __name##_store,		\
 }
 
 extern struct atomic_notifier_head oplus_chg_event_notifier;
@@ -417,44 +422,42 @@ extern void oplus_chg_mod_changed(struct oplus_chg_mod *ocm);
 extern struct oplus_chg_mod *oplus_chg_mod_get_by_name(const char *name);
 extern void oplus_chg_mod_put(struct oplus_chg_mod *ocm);
 extern int oplus_chg_mod_get_property(struct oplus_chg_mod *ocm,
-			       enum oplus_chg_mod_property ocm_prop,
-			       union oplus_chg_mod_propval *val);
+				      enum oplus_chg_mod_property ocm_prop,
+				      union oplus_chg_mod_propval *val);
 extern int oplus_chg_mod_set_property(struct oplus_chg_mod *ocm,
-			    enum oplus_chg_mod_property ocm_prop,
-			    const union oplus_chg_mod_propval *val);
-extern int oplus_chg_mod_property_is_writeable(struct oplus_chg_mod *ocm,
-					enum oplus_chg_mod_property ocm_prop);
+				      enum oplus_chg_mod_property ocm_prop,
+				      const union oplus_chg_mod_propval *val);
+extern int
+oplus_chg_mod_property_is_writeable(struct oplus_chg_mod *ocm,
+				    enum oplus_chg_mod_property ocm_prop);
 extern int oplus_chg_mod_powers(struct oplus_chg_mod *ocm, struct device *dev);
 extern int oplus_chg_reg_changed_notifier(struct notifier_block *nb);
 extern void oplus_chg_unreg_changed_notifier(struct notifier_block *nb);
 extern int oplus_chg_reg_event_notifier(struct notifier_block *nb);
 extern void oplus_chg_unreg_event_notifier(struct notifier_block *nb);
 extern int oplus_chg_reg_mod_notifier(struct oplus_chg_mod *ocm,
-			       struct notifier_block *nb);
+				      struct notifier_block *nb);
 extern void oplus_chg_unreg_mod_notifier(struct oplus_chg_mod *ocm,
-				  struct notifier_block *nb);
+					 struct notifier_block *nb);
 extern void oplus_chg_global_event(struct oplus_chg_mod *owner_ocm,
-				enum oplus_chg_event events);
+				   enum oplus_chg_event events);
 extern int oplus_chg_mod_event(struct oplus_chg_mod *ocm_receive,
-			struct oplus_chg_mod *ocm_send,
-			enum oplus_chg_event events);
+			       struct oplus_chg_mod *ocm_send,
+			       enum oplus_chg_event events);
 extern int oplus_chg_anon_mod_event(struct oplus_chg_mod *ocm_receive,
-			enum oplus_chg_event events);
-extern struct oplus_chg_mod *__must_check oplus_chg_mod_register(struct device *parent,
-		const struct oplus_chg_mod_desc *desc,
-		const struct oplus_chg_mod_config *cfg);
-extern struct oplus_chg_mod *__must_check
-oplus_chg_mod_register_no_ws(struct device *parent,
-		const struct oplus_chg_mod_desc *desc,
-		const struct oplus_chg_mod_config *cfg);
-extern struct oplus_chg_mod *__must_check
-devm_oplus_chg_mod_register(struct device *parent,
-		const struct oplus_chg_mod_desc *desc,
-		const struct oplus_chg_mod_config *cfg);
-extern struct oplus_chg_mod *__must_check
-devm_oplus_chg_mod_register_no_ws(struct device *parent,
-		const struct oplus_chg_mod_desc *desc,
-		const struct oplus_chg_mod_config *cfg);
+				    enum oplus_chg_event events);
+extern struct oplus_chg_mod *__must_check oplus_chg_mod_register(
+	struct device *parent, const struct oplus_chg_mod_desc *desc,
+	const struct oplus_chg_mod_config *cfg);
+extern struct oplus_chg_mod *__must_check oplus_chg_mod_register_no_ws(
+	struct device *parent, const struct oplus_chg_mod_desc *desc,
+	const struct oplus_chg_mod_config *cfg);
+extern struct oplus_chg_mod *__must_check devm_oplus_chg_mod_register(
+	struct device *parent, const struct oplus_chg_mod_desc *desc,
+	const struct oplus_chg_mod_config *cfg);
+extern struct oplus_chg_mod *__must_check devm_oplus_chg_mod_register_no_ws(
+	struct device *parent, const struct oplus_chg_mod_desc *desc,
+	const struct oplus_chg_mod_config *cfg);
 extern void oplus_chg_mod_unregister(struct oplus_chg_mod *ocm);
 extern void *oplus_chg_mod_get_drvdata(struct oplus_chg_mod *ocm);
 
@@ -473,7 +476,9 @@ extern int oplus_chg_uevent(struct device *dev, struct kobj_uevent_env *env);
 
 #else
 
-static inline void oplus_chg_mod_init_attrs(struct device_type *dev_type) {}
+static inline void oplus_chg_mod_init_attrs(struct device_type *dev_type)
+{
+}
 #define oplus_chg_uevent NULL
 
 #endif /* CONFIG_SYSFS */

@@ -489,6 +489,14 @@
 		cpu-id = <7>;
 		key-id = <1>;
 	};
+	oplus,track-charge {
+		compatible = "oplus,track-charge";
+		track,fast_chg_break_t_thd = <1000>;
+		track,general_chg_break_t_thd = <200>;
+		track,voocphy_type = <4>;
+		track,wired_max_power = <30000>;
+		track,wired_fast_chg_scheme = <4>;
+	};
 };
 
 

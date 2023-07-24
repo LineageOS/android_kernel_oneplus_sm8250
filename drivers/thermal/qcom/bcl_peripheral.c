@@ -763,7 +763,11 @@ static int bcl_probe(struct platform_device *pdev)
 	bcl_configure_lmh_peripheral();
 
 	dev_set_drvdata(&pdev->dev, bcl_perph);
+#ifdef OPLUS_FEATURE_CHG_BASIC
+	ret = bcl_write_register(BCL_MONITOR_EN, 0x0);
+#else
 	ret = bcl_write_register(BCL_MONITOR_EN, BIT(7));
+#endif
 	if (ret) {
 		pr_err("Error accessing BCL peripheral. err:%d\n", ret);
 		goto bcl_probe_exit;

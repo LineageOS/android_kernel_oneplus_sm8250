@@ -45,6 +45,7 @@ static u32 dither_depth_map[DITHER_DEPTH_MAP_INDEX] = {
 
 #ifdef OPLUS_BUG_STABILITY
 extern int oplus_dither_enable;
+extern int dc_apollo_enable;
 #endif
 
 static struct sde_merge_3d_cfg *_merge_3d_offset(enum sde_merge_3d idx,
@@ -389,8 +390,8 @@ static int sde_hw_pp_setup_dither_v1(struct sde_hw_pingpong *pp,
 		SDE_REG_WRITE(c, base + offset, data);
 	}
 #ifdef OPLUS_BUG_STABILITY
-	if(is_oplus_project) {
-		if(oplus_dither_enable) {
+	if(is_oplus_project || (!strcmp(display->panel->name, "samsung ams662zs01 dsc cmd 21623"))) {
+		if(oplus_dither_enable || dc_apollo_enable) {
 			SDE_REG_WRITE(c, base, 1);
 		}
 		else {

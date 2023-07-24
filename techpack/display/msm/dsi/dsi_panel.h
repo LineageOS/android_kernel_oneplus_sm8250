@@ -141,6 +141,7 @@ struct dsi_backlight_config {
 	bool bl_inverted_dbv;
 #ifdef OPLUS_BUG_STABILITY
 	u32 bl_lvl_backup;
+	u32 bl_dc_real;
 #endif /* OPLUS_BUG_STABILITY */
 	u32 bl_dcs_subtype;
 
@@ -182,6 +183,10 @@ enum esd_check_status_mode {
 	ESD_MODE_PANEL_TE,
 	ESD_MODE_SW_SIM_SUCCESS,
 	ESD_MODE_SW_SIM_FAILURE,
+#ifdef OPLUS_BUG_STABILITY
+	/* A tablet Pad, modify esd */
+	ESD_MODE_PANEL_ERROR_FLAG,
+#endif /* OPLUS_BUG_STABILITY */
 	ESD_MODE_MAX
 };
 
@@ -196,6 +201,11 @@ struct drm_panel_esd_config {
 	u8 *return_buf;
 	u8 *status_buf;
 	u32 groups;
+#ifdef OPLUS_BUG_STABILITY
+	/* A tablet Pad, modify esd */
+	int esd_error_flag_gpio;
+	int esd_error_flag_gpio_slave;
+#endif /* OPLUS_BUG_STABILITY */
 };
 
 #ifdef OPLUS_BUG_STABILITY
@@ -246,6 +256,13 @@ struct dsi_panel_oplus_privite {
 	bit(7):ultra low power aod
 ********************************************/
 	u32 fp_type;
+	// Add for apollo support
+	bool is_apollo_support;
+	u32 sync_brightness_level;
+	bool dc_apollo_sync_enable;
+	u32 dc_apollo_sync_brightness_level;
+	u32 dc_apollo_sync_brightness_level_pcc;
+	u32 dc_apollo_sync_brightness_level_pcc_min;
 	u32 aod_low_brightness_threshold;
 };
 #endif /* OPLUS_BUG_STABILITY */
@@ -317,6 +334,8 @@ struct dsi_panel {
 	atomic_t esd_pending;
 	bool is_dc_set_color_mode;
 	bool nt36523w_ktz8866;
+	/* A tablet Pad, add for FPC cause splash screen issue */
+	bool nt36523w_old_fpc;
 #endif
 	int vddr_gpio;
 	int panel_test_gpio;

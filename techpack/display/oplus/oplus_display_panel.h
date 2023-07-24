@@ -141,7 +141,8 @@ struct softiris_color
 #define PANEL_IOCTL_SET_LCM_CABC              PANEL_IOW(0x2C, unsigned int)
 #define PANEL_IOCTL_GET_LCM_CABC              PANEL_IOWR(0x2D, unsigned int)
 #define PANEL_IOCTL_SET_AOD_AREA              PANEL_IOW(0x2E, struct panel_aod_area_para)
-
+/* Apollo DC backlight */
+#define PANEL_IOCTL_SET_DC_REAL_BACKLIGHT     PANEL_IOWR(0x37, unsigned int)
 #define PANEL_IOCTL_SET_APOLLO_BACKLIGHT      PANEL_IOW(0x51, struct apollo_backlight_map_value)
 #define PANEL_IOCTL_GET_SOFTIRIS_COLOR        PANEL_IOWR(0x53, struct softiris_color)
 #define PANEL_IOCTL_SET_DITHER_STATUS        PANEL_IOWR(0x54, unsigned int)

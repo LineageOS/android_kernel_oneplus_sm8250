@@ -211,8 +211,10 @@ static void s2asl01_set_dischg_mode(struct s2asl01_switching_data *switching, in
 
 	switch (chg_mode) {
 	case CURRENT_REGULATION:
+		val = DIS_CHG_MODE_CURRENT__REGULATION_ONLY;
+		break;
 	case NO_REGULATION_FULLY_ON:
-		val = chg_mode;
+		val = DIS_CHG_MODE_NO_REGULATION_FULLY_ON;
 		break;
 	default:
 		pr_info("%s: wrong input(%d)\n", __func__, chg_mode);
@@ -224,7 +226,7 @@ static void s2asl01_set_dischg_mode(struct s2asl01_switching_data *switching, in
 	if (ret < 0)
 		pr_err("%s, i2c read fail\n", __func__);
 
-	pr_info("%s: set discharge mode (%d)\n", __func__, chg_mode);
+	pr_info("%s: set discharge mode (%d) val:%d\n", __func__, chg_mode, val);
 }
 
 static int s2asl01_get_dischg_mode(struct s2asl01_switching_data *switching)
@@ -1412,7 +1414,6 @@ int s2asl01_switching_set_discharge_current(int discharge_current_ma)
 		chg_err("discharge_current_ma:%d\n", discharge_current_ma);
 		s2asl01_set_dischg_charging_current_limit(g_switching, discharge_current_ma);
 		s2asl01_set_supllement_mode(g_switching, false);
-		s2asl01_set_dischg_mode(g_switching, 0x0);
 		return 0;
 	}
 }
@@ -1457,6 +1458,11 @@ int s2asl01_switching_get_discharge_curr(void) {
 	return curr_ma;
 }
 
+int s2asl01_switching_set_discharge_mode(int mode) {
+	s2asl01_set_dischg_mode(g_switching, mode);
+	chg_err("s2asl01_switching_set_discharge_mode:%d\n", mode);
+	return 0;
+}
 static DEVICE_ATTR(powermeter_en, 0644, powermeter_en_show, powermeter_en_store);
 static DEVICE_ATTR(v_referesh_time, 0644, v_referesh_time_show, v_referesh_time_store);
 static DEVICE_ATTR(v_avg1, 0644, v_avg1_show, v_avg1_store);
@@ -1533,6 +1539,7 @@ struct oplus_switch_operations s2asl01_switching_ops = {
 	.switching_get_fastcharge_current = s2asl01_switching_get_fastchg_curr,
 	.switching_get_discharge_current = s2asl01_switching_get_discharge_curr,
 	.switching_get_charge_enable = get_switching_charge_enable,
+	.switching_set_discharge_mode = s2asl01_switching_set_discharge_mode,
 };
 static int s2asl01_switching_probe(struct i2c_client *client,
 				const struct i2c_device_id *id)
@@ -1548,6 +1555,7 @@ static int s2asl01_switching_probe(struct i2c_client *client,
 	bool sub_batt_authenticate;
 	int error_status = 0;
 	int gauge_statue = 0;
+	int balance_status = 0;
 	gauge_statue = oplus_gauge_get_batt_soc();
 	if (gauge_statue == -1) {
 		chg_err("gauge0 not ready, will do after gauge0 init\n");
@@ -1575,6 +1583,9 @@ static int s2asl01_switching_probe(struct i2c_client *client,
 		error_status = SWITCH_ERROR_OVER_VOLTAGE;
 	}
 
+	if (sub_batt_volt - batt_volt > SINGLE_BATT_VOLT_MV) {
+		balance_status = PARALLEL_NEED_BALANCE_BAT_STATUS7__START_CHARGE;
+	}
 	if (of_node) {
 		pdata = devm_kzalloc(&client->dev, sizeof(*pdata), GFP_KERNEL);
 		if (!pdata)
@@ -1623,7 +1634,7 @@ static int s2asl01_switching_probe(struct i2c_client *client,
 		pr_err("%s sysfs_create_group failed\n", __func__);
 		goto err_irq;
 	}
-	if (error_status == 0) {
+	if (error_status == 0 && balance_status != PARALLEL_NEED_BALANCE_BAT_STATUS7__START_CHARGE) {
 		s2asl01_switch_enable(pdata, 1);
 		ret = s2asl01_get_rev_id(switching);
 		if (ret) {
@@ -1659,7 +1670,7 @@ static int s2asl01_switching_probe(struct i2c_client *client,
 #ifdef CONFIG_OPLUS_CHARGER_MTK
 	if(s2asl01_boot_mode == ATE_FACTORY_BOOT || s2asl01_boot_mode == FACTORY_BOOT) {
 #else
-	if(s2asl01_boot_mode == MSM_BOOT_MODE__FACTORY) {
+	if(s2asl01_boot_mode == MSM_BOOT_MODE__FACTORY  || balance_status == PARALLEL_NEED_BALANCE_BAT_STATUS7__START_CHARGE) {
 #endif
 		chg_err(" boot_mode:%d, disabled switch\n",s2asl01_boot_mode);
 		s2asl01_switch_enable(pdata,0);

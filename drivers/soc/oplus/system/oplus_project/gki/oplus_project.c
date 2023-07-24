@@ -26,8 +26,7 @@
 #define RF_INFO                    (0x3)
 #define MODEM_TYPE                (0x4)
 #define OPLUS_BOOTMODE            (0x5)
-#define SECURE_TYPE                (0x6)
-#define SECURE_STAGE            (0x7)
+
 #define OCP_NUMBER                (0x8)
 #define SERIAL_NUMBER            (0x9)
 #define ENG_VERSION                (0xA)
@@ -89,8 +88,9 @@ extern char build_variant[];
 extern char sim_card_num[];
 extern char cdt[];
 extern char serial_no[];
+extern char prj_name[];
 
-static void init_project_version(void)
+static int init_project_version(void)
 {
     /*for qcom's smem*/
     size_t smem_size;
@@ -99,7 +99,7 @@ static void init_project_version(void)
     uint16_t index = 0;
 
     if (g_project) {
-        return;
+        return 0;
 	}
     /*get project info from smem*/
     else {
@@ -108,13 +108,13 @@ static void init_project_version(void)
         &smem_size);
         if (IS_ERR(smem_addr)) {
             pr_err("unable to acquire smem SMEM_PROJECT entry\n");
-            return;
+            return -1;
         }
 
         g_project = (ProjectInfoOCDT *)smem_addr;
         if (g_project == ERR_PTR(-EPROBE_DEFER)) {
             g_project = NULL;
-            return;
+            return 0;
         }
 
         do {
@@ -173,6 +173,7 @@ static void init_project_version(void)
             get_dtsiNo(),
             get_audio());
     pr_err("oplus project info loading finished\n");
+    return 0;
 
 }
 
@@ -188,9 +189,15 @@ static int __init cdt_setup(char *str)
 
 unsigned int get_project(void)
 {
-    init_project_version();
+    int prjno = 0;
 
-    return g_project? g_project->nDataBCDT.ProjectNo : 0;
+    if ( -1 == init_project_version()) {
+        sscanf(prj_name, "%d", &prjno);
+        pr_err("smem is not ready! prjno = %d", prjno);
+        return prjno;
+    }
+    else
+        return g_project? g_project->nDataBCDT.ProjectNo : 0;
 }
 EXPORT_SYMBOL(get_project);
 
@@ -400,38 +407,6 @@ static void dump_confidential_status(struct seq_file *s)
     return;
 }
 
-static void dump_secure_type(struct seq_file *s)
-{
-#define OEM_SEC_BOOT_REG 0x780350
-
-    void __iomem *oem_config_base = NULL;
-    uint32_t secure_oem_config = 0;
-
-    oem_config_base = ioremap(OEM_SEC_BOOT_REG, 4);
-    if (oem_config_base) {
-        secure_oem_config = __raw_readl(oem_config_base);
-        iounmap(oem_config_base);
-    }
-
-    seq_printf(s, "%d", secure_oem_config);    
-}
-
-static void dump_secure_stage(struct seq_file *s)
-{
-#define OEM_SEC_ENABLE_ANTIROLLBACK_REG 0x78019c
-
-    void __iomem *oem_config_base = NULL;
-    uint32_t secure_oem_config = 0;
-
-    oem_config_base = ioremap(OEM_SEC_ENABLE_ANTIROLLBACK_REG, 4);
-    if (oem_config_base) {
-        secure_oem_config = __raw_readl(oem_config_base);
-        iounmap(oem_config_base);
-    }
-
-    seq_printf(s, "%d", secure_oem_config);
-}
-
 static void update_manifest(struct proc_dir_entry *parent_1, struct proc_dir_entry *parent_2)
 {
     static const char* manifest_src[2] = {
@@ -512,12 +487,6 @@ static int project_read_func(struct seq_file *s, void *v)
     case MODEM_TYPE:
     case RF_INFO:
         seq_printf(s, "%d", get_Modem_Version());
-        break;
-    case SECURE_TYPE:
-        dump_secure_type(s);
-        break;
-    case SECURE_STAGE:
-        dump_secure_stage(s);
         break;
     case OCP_NUMBER:
         dump_ocp_info(s);
@@ -612,14 +581,6 @@ static int __init oplus_project_init(void)
     if (!p_entry)
         goto error_init;
 
-    p_entry = proc_create_data("secureType", S_IRUGO, oplus_info, &project_info_fops, UINT2Ptr(SECURE_TYPE));
-    if (!p_entry)
-        goto error_init;
-
-    p_entry = proc_create_data("secureStage", S_IRUGO, oplus_info, &project_info_fops, UINT2Ptr(SECURE_STAGE));
-    if (!p_entry)
-        goto error_init;
-
     p_entry = proc_create_data("ocp", S_IRUGO, oplus_info, &project_info_fops, UINT2Ptr(OCP_NUMBER));
     if (!p_entry)
         goto error_init;
@@ -672,14 +633,6 @@ static int __init oplus_project_init(void)
         goto error_init;
 
     p_entry = proc_create_data("operatorName", S_IRUGO, oplus_info_temp, &project_info_fops, UINT2Ptr(OPERATOR_NAME));
-    if (!p_entry)
-        goto error_init;
-
-    p_entry = proc_create_data("secureType", S_IRUGO, oplus_info_temp, &project_info_fops, UINT2Ptr(SECURE_TYPE));
-    if (!p_entry)
-        goto error_init;
-
-    p_entry = proc_create_data("secureStage", S_IRUGO, oplus_info_temp, &project_info_fops, UINT2Ptr(SECURE_STAGE));
     if (!p_entry)
         goto error_init;
 

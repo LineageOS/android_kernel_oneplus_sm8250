@@ -12,6 +12,11 @@ static inline void init_task_ux_info(struct task_struct *p)
 	p->ux_state = 0;
 	atomic64_set(&(p->inherit_ux), 0);
 	INIT_LIST_HEAD(&p->ux_entry);
+#ifdef CONFIG_LOCKING_PROTECT
+	INIT_LIST_HEAD(&p->locking_entry);
+	p->locking_time_start = 0;
+	p->locking_depth = 0;
+#endif
 	p->ux_depth = 0;
 	p->enqueue_time = 0;
 	p->inherit_ux_start = 0;

@@ -6013,11 +6013,13 @@ static ssize_t proc_vibration_style_write(struct file *filp, const char __user *
 	int val;
 
 	buffer = (char *)kzalloc(count, GFP_KERNEL);
-	if(buffer == NULL) {
+	if(buffer == NULL || buf == NULL) {
 		aw_dev_err("%s: alloc memory fail\n", __func__);
 		return count;
 	}
-
+	if (count > sizeof(buffer)) {
+		return -EFAULT;
+	}
 	if (copy_from_user(buffer, buf, count)) {
 		if(buffer != NULL) {
 			kfree(buffer);

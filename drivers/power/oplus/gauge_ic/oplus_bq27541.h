@@ -233,12 +233,22 @@
 #define BQ28Z610_MAC_CELL_VOLTAGE_ADDR			0x40
 #define BQ28Z610_MAC_CELL_VOLTAGE_SIZE			4//total 34byte,only read 4byte(aaAA bbBB)
 
+#define ZY602_MAC_CELL_DOD0_EN_ADDR			    0x00
+#define ZY602_MAC_CELL_DOD0_CMD				    0x00E3
+#define ZY602_MAC_CELL_DOD0_ADDR				0x40
+#define ZY602_MAC_CELL_DOD0_SIZE				12
+
 #define BQ28Z610_MAC_CELL_DOD0_EN_ADDR			0x3E
 #define BQ28Z610_MAC_CELL_DOD0_CMD				0x0074
 #define BQ28Z610_MAC_CELL_DOD0_ADDR				0x4A
 #define BQ28Z610_MAC_CELL_DOD0_SIZE				6
 
 #define ZY0603_MAC_CELL_SOCCAL0				0x56
+
+#define ZY602_MAC_CELL_QMAX_EN_ADDR			0x00
+#define ZY602_MAC_CELL_QMAX_CMD				0x00E4
+#define ZY602_MAC_CELL_QMAX_ADDR_A			0x40
+#define ZY602_MAC_CELL_QMAX_SIZE_A			18
 
 #define BQ28Z610_MAC_CELL_QMAX_EN_ADDR			0x3E
 #define BQ28Z610_MAC_CELL_QMAX_CMD				0x0075
@@ -300,8 +310,22 @@
 #define U_DELAY_5_MS	5000
 #define M_DELAY_10_S	10000
 
-#define BCC_PARMS_COUNT 18
-#define BCC_PARMS_COUNT_LEN 69
+typedef enum
+{
+	DOUBLE_SERIES_WOUND_CELLS = 0,
+	SINGLE_CELL,
+	DOUBLE_PARALLEL_WOUND_CELLS,
+} SCC_CELL_TYPE;
+
+typedef enum
+{
+	TI_GAUGE = 0,
+	SW_GAUGE,
+	UNKNOWN_GAUGE_TYPE,
+} SCC_GAUGE_TYPE;
+
+#define BCC_PARMS_COUNT 19
+#define BCC_PARMS_COUNT_LEN (BCC_PARMS_COUNT * sizeof(int))
 #define ZY0602_KEY_INDEX	0X02
 struct cmd_address {
 /*      bq27411 standard cmds     */
@@ -445,6 +469,7 @@ struct chip_bq27541 {
 	int fcf_pre;
 	int sou_pre;
 	int do0_pre;
+	int passed_q_pre;
 	int doe_pre;
 	int trm_pre;
 	int pc_pre;
@@ -509,6 +534,7 @@ struct chip_bq27541 {
 	int bq28z610_device_chem;
 	int gauge_num;
 	struct mutex chip_mutex;
+	struct mutex bq28z610_alt_manufacturer_access;
 	struct bq27541_authenticate_data *authenticate_data;
 	struct file_operations *authenticate_ops;
 	struct oplus_gauge_chip	*oplus_gauge;
@@ -525,6 +551,9 @@ struct chip_bq27541 {
 	int capacity_pct;
 	int fg_soft_version;
 	bool b_soft_reset_for_zy;
+	atomic_t gauge_i2c_status;
+	int dump_sh366002_block;
+	unsigned long log_last_update_tick;
 };
 
 extern bool oplus_gauge_ic_chip_is_null(void);

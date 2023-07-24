@@ -27,9 +27,12 @@
 
 #ifdef OPLUS_BUG_STABILITY
 #include "sde_trace.h"
+#include <linux/sched.h>
+#include "oplus_onscreenfingerprint.h"
 
 extern u32 g_new_bk_level;
 static DEFINE_SPINLOCK(g_bk_lock);
+extern int oplus_dimlayer_hbm;
 #endif
 
 
@@ -85,6 +88,13 @@ static const struct drm_prop_enum_list e_frame_trigger_mode[] = {
 #ifdef OPLUS_BUG_STABILITY
 extern int oplus_debug_max_brightness;
 extern int oplus_seed_backlight;
+/*Display.LCD.Stable,2022-09-20 add for dc */
+struct dc_apollo_pcc_sync dc_apollo;
+EXPORT_SYMBOL(dc_apollo);
+extern int dc_apollo_enable;
+extern int oplus_backlight_wait_vsync(struct drm_encoder *drm_enc);
+extern int dc_apollo_sync_hbmon(struct dsi_display *display);
+extern bool is_spread_backlight(struct dsi_display *display, int level);
 #endif
 
 static int sde_backlight_device_update_status(struct backlight_device *bd)
@@ -188,24 +198,25 @@ static int sde_backlight_device_update_status(struct backlight_device *bd)
 			}
 
 		if (is_support_panel_backlight_smooths(display->panel->oplus_priv.vendor_name)) {
-				if ((bl_lvl >= 2) && (bl_lvl <= 200)) {
+			if (is_spread_backlight(display, bl_lvl) && !dc_apollo_sync_hbmon(display)) {
+					oplus_dc_pcc_backlight(display, c_conn, bl_lvl);
 					spin_lock(&g_bk_lock);
 					g_new_bk_level = bl_lvl;
 					spin_unlock(&g_bk_lock);
-				} else {
+			} else {
 					spin_lock(&g_bk_lock);
 					g_new_bk_level = bl_lvl;
 					spin_unlock(&g_bk_lock);
 					rc = c_conn->ops.set_backlight(&c_conn->base,
 					c_conn->display, bl_lvl);
 					c_conn->unset_bl_level = 0;
-				}
+			}
 		} else {
 					rc = c_conn->ops.set_backlight(&c_conn->base,
 					c_conn->display, bl_lvl);
 					c_conn->unset_bl_level = 0;
-				}
 		}
+	}
 #endif
 
 #ifdef OPLUS_BUG_STABILITY
@@ -253,6 +264,15 @@ static int sde_backlight_setup(struct sde_connector *c_conn,
 #else
 	props.brightness = bl_config->brightness_default_level;
 #endif
+
+#ifdef OPLUS_BUG_STABILITY
+	/*DC backlight sync*/
+	if (display->panel->oplus_priv.dc_apollo_sync_enable) {
+		init_waitqueue_head(&dc_apollo.bk_wait);
+		mutex_init(&dc_apollo.lock);
+	}
+#endif
+
 	snprintf(bl_node_name, BL_NODE_NAME_SIZE, "panel%u-backlight",
 							display_count);
 	c_conn->bl_device = backlight_device_register(bl_node_name, dev->dev,
@@ -581,6 +601,10 @@ void sde_connector_schedule_status_work(struct drm_connector *connector,
 {
 	struct sde_connector *c_conn;
 	struct msm_display_info info;
+#ifdef OPLUS_BUG_STABILITY
+	/* A tablet Pad, add for FPC cause splash screen issue */
+	struct dsi_display *display = get_main_display();
+#endif
 
 	c_conn = to_sde_connector(connector);
 	if (!c_conn)
@@ -603,6 +627,17 @@ void sde_connector_schedule_status_work(struct drm_connector *connector,
 			interval = c_conn->esd_status_interval ?
 				c_conn->esd_status_interval :
 					STATUS_CHECK_INTERVAL_MS;
+		#ifdef OPLUS_BUG_STABILITY
+			/* A tablet Pad, add for FPC cause splash screen issue */
+			if (display != NULL) {
+				if (!strcmp(display->panel->name, "nt36523 lcd vid mode dsi panel")) {
+					interval = 500;
+				}
+			} else {
+				SDE_ERROR("display is NULL!!!");
+				return;
+			}
+		#endif /* OPLUS_BUG_STABILITY */
 			/* Schedule ESD status check */
 			schedule_delayed_work(&c_conn->status_work,
 				msecs_to_jiffies(interval));

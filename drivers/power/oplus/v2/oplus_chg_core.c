@@ -9,6 +9,7 @@
 #include <linux/delay.h>
 #include <linux/device.h>
 #include <soc/oplus/system/boot_mode.h>
+#include <soc/oplus/system/oplus_project.h>
 #ifdef CONFIG_OPLUS_CHARGER_MTK
 #include <mtk_boot_common.h>
 #endif
@@ -20,6 +21,7 @@
 int oplus_log_level = LOG_LEVEL_INFO;
 module_param(oplus_log_level, int, 0644);
 MODULE_PARM_DESC(oplus_log_level, "debug log level");
+EXPORT_SYMBOL(oplus_log_level);
 
 int charger_abnormal_log = 0;
 
@@ -27,18 +29,19 @@ int oplus_is_rf_ftm_mode(void)
 {
 	int boot_mode = get_boot_mode();
 #ifdef CONFIG_OPLUS_CHARGER_MTK
-	if (boot_mode == META_BOOT || boot_mode == FACTORY_BOOT
-			|| boot_mode == ADVMETA_BOOT || boot_mode == ATE_FACTORY_BOOT) {
-		chg_debug(" boot_mode:%d, return\n",boot_mode);
+	if (boot_mode == META_BOOT || boot_mode == FACTORY_BOOT ||
+	    boot_mode == ADVMETA_BOOT || boot_mode == ATE_FACTORY_BOOT) {
+		chg_debug(" boot_mode:%d, return\n", boot_mode);
 		return true;
 	} else {
 		/*chg_debug(" boot_mode:%d, return false\n",boot_mode);*/
 		return false;
 	}
 #else
-	if(boot_mode == MSM_BOOT_MODE__RF || boot_mode == MSM_BOOT_MODE__WLAN
-			|| boot_mode == MSM_BOOT_MODE__FACTORY){
-		chg_debug(" boot_mode:%d, return\n",boot_mode);
+	if (boot_mode == MSM_BOOT_MODE__RF ||
+	    boot_mode == MSM_BOOT_MODE__WLAN ||
+	    boot_mode == MSM_BOOT_MODE__FACTORY) {
+		chg_debug(" boot_mode:%d, return\n", boot_mode);
 		return true;
 	} else {
 		/*chg_debug(" boot_mode:%d, return false\n",boot_mode);*/
@@ -47,6 +50,10 @@ int oplus_is_rf_ftm_mode(void)
 #endif
 }
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0))
+bool __attribute__((weak)) qpnp_is_charger_reboot(void);
+bool __attribute__((weak)) qpnp_is_power_off_charging(void);
+#else
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0))
 /* only for GKI compile */
 bool __attribute__((weak)) qpnp_is_charger_reboot(void)
@@ -58,6 +65,7 @@ bool __attribute__((weak)) qpnp_is_power_off_charging(void)
 {
 	return false;
 }
+#endif
 #endif
 
 bool oplus_is_power_off_charging(void)
@@ -89,6 +97,22 @@ bool oplus_is_charger_reboot(void)
 	return false;
 #else
 	return qpnp_is_charger_reboot();
+#endif
+}
+
+struct timespec oplus_current_kernel_time(void)
+{
+	struct timespec ts;
+	getnstimeofday(&ts);
+	return ts;
+}
+
+bool oplus_is_ptcrb_version(void)
+{
+#ifndef CONFIG_OPLUS_CHARGER_MTK6895S
+	return (get_eng_version() == PTCRB);
+#else
+	return false;
 #endif
 }
 

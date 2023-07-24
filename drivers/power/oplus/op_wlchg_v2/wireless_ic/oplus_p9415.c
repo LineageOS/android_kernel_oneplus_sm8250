@@ -19,6 +19,8 @@
 #include <linux/mutex.h>
 #include <linux/regmap.h>
 #include <linux/list.h>
+#include <linux/debugfs.h>
+#include <linux/sched/clock.h>
 #ifdef CONFIG_OPLUS_CHG_OOS
 #include <linux/oem/oplus_chg.h>
 #else
@@ -29,6 +31,7 @@
 #include "../hal/oplus_chg_ic.h"
 #include "oplus_p9415_fw.h"
 #include "oplus_p9415_reg.h"
+#include "../oplus_chg_track.h"
 
 #ifndef I2C_ERR_MAX
 #define I2C_ERR_MAX 6
@@ -91,7 +94,41 @@ struct oplus_p9415 {
 	struct oplus_chg_mod *wls_ocm;
 	struct rx_msg_struct rx_msg;
 	struct completion ldo_on;
+
+	char chg_power_info[OPLUS_CHG_TRACK_CURX_INFO_LEN];
+	char err_reason[OPLUS_CHG_TRACK_DEVICE_ERR_NAME_LEN];
+	char wls_crux_info[OPLUS_CHG_TRACK_CURX_INFO_LEN];
+	struct mutex track_upload_lock;
+
+	struct mutex track_i2c_err_lock;
+	u32 debug_force_i2c_err;
+	bool i2c_err_uploading;
+	oplus_chg_track_trigger *i2c_err_load_trigger;
+	struct delayed_work i2c_err_load_trigger_work;
+
+	struct mutex track_rx_err_lock;
+	u32 debug_force_rx_err;
+	bool rx_err_uploading;
+	oplus_chg_track_trigger *rx_err_load_trigger;
+	struct delayed_work rx_err_load_trigger_work;
+
+	struct mutex track_tx_err_lock;
+	u32 debug_force_tx_err;
+	bool tx_err_uploading;
+	oplus_chg_track_trigger *tx_err_load_trigger;
+	struct delayed_work tx_err_load_trigger_work;
+
+	struct mutex track_update_err_lock;
+	u32 debug_force_update_err;
+	bool update_err_uploading;
+	oplus_chg_track_trigger *update_err_load_trigger;
+	struct delayed_work update_err_load_trigger_work;
+
+	u32 debug_force_upload_period;
 };
+
+static int p9415_track_upload_i2c_err_info(
+	struct oplus_p9415 *chip, int err_type, u16 reg);
 
 static bool p9415_rx_is_connected(struct oplus_chg_ic_dev *dev)
 {
@@ -152,13 +189,14 @@ static __inline__ void p9415_i2c_err_clr(void)
 static int p9415_read_byte(struct oplus_p9415 *chip, u16 addr, u8 *data)
 {
 	char cmd_buf[2] = { addr >> 8, addr & 0xff };
-	int rc;
+	int rc = 0;
 
 	mutex_lock(&chip->i2c_lock);
 	rc = i2c_master_send(chip->client, cmd_buf, 2);
 	if (rc < 2) {
 		pr_err("read 0x%04x error, rc=%d\n", addr, rc);
 		rc = rc < 0 ? rc : -EIO;
+		p9415_track_upload_i2c_err_info(chip, rc, addr);
 		goto error;
 	}
 
@@ -171,6 +209,8 @@ static int p9415_read_byte(struct oplus_p9415 *chip, u16 addr, u8 *data)
 
 	mutex_unlock(&chip->i2c_lock);
 	p9415_i2c_err_clr();
+	if (chip->debug_force_i2c_err)
+		p9415_track_upload_i2c_err_info(chip, rc, addr);
 	return 0;
 
 error:
@@ -183,13 +223,14 @@ static int p9415_read_data(struct oplus_p9415 *chip, u16 addr,
 			   u8 *buf, int len)
 {
 	char cmd_buf[2] = { addr >> 8, addr & 0xff };
-	int rc;
+	int rc = 0;
 
 	mutex_lock(&chip->i2c_lock);
 	rc = i2c_master_send(chip->client, cmd_buf, 2);
 	if (rc < 2) {
 		pr_err("read 0x%04x error, rc=%d\n", addr, rc);
 		rc = rc < 0 ? rc : -EIO;
+		p9415_track_upload_i2c_err_info(chip, rc, addr);
 		goto error;
 	}
 
@@ -197,11 +238,14 @@ static int p9415_read_data(struct oplus_p9415 *chip, u16 addr,
 	if (rc < len) {
 		pr_err("read 0x%04x error, rc=%d\n", addr, rc);
 		rc = rc < 0 ? rc : -EIO;
+		p9415_track_upload_i2c_err_info(chip, rc, addr);
 		goto error;
 	}
 
 	mutex_unlock(&chip->i2c_lock);
 	p9415_i2c_err_clr();
+	if (chip->debug_force_i2c_err)
+		p9415_track_upload_i2c_err_info(chip, rc, addr);
 	return 0;
 
 error:
@@ -222,6 +266,7 @@ static int p9415_write_byte(struct oplus_p9415 *chip, u16 addr, u8 data)
 		mutex_unlock(&chip->i2c_lock);
 		p9415_i2c_err_inc(chip);
 		rc = rc < 0 ? rc : -EIO;
+		p9415_track_upload_i2c_err_info(chip, rc, addr);
 		return rc;
 	}
 	mutex_unlock(&chip->i2c_lock);
@@ -383,6 +428,511 @@ static struct attribute_group p9415_attribute_group = {
 	.attrs = p9415_attributes
 };
 #endif /*WLS_QI_DEBUG*/
+
+#define TRACK_LOCAL_T_NS_TO_S_THD		1000000000
+#define TRACK_UPLOAD_COUNT_MAX		10
+#define TRACK_DEVICE_ABNORMAL_UPLOAD_PERIOD	(24 * 3600)
+static int p9415_track_get_local_time_s(void)
+{
+	int local_time_s;
+
+	local_time_s = local_clock() / TRACK_LOCAL_T_NS_TO_S_THD;
+	pr_info("local_time_s:%d\n", local_time_s);
+
+	return local_time_s;
+}
+
+static int p9415_track_upload_i2c_err_info(
+	struct oplus_p9415 *chip, int err_type, u16 reg)
+{
+	int index = 0;
+	int curr_time;
+	static int upload_count = 0;
+	static int pre_upload_time = 0;
+
+	if (!chip)
+		return -EINVAL;
+
+	mutex_lock(&chip->track_upload_lock);
+	memset(chip->chg_power_info, 0, sizeof(chip->chg_power_info));
+	memset(chip->err_reason, 0, sizeof(chip->err_reason));
+	curr_time = p9415_track_get_local_time_s();
+	if (curr_time - pre_upload_time > TRACK_DEVICE_ABNORMAL_UPLOAD_PERIOD)
+		upload_count = 0;
+
+	if (chip->debug_force_upload_period > 0 &&
+	    curr_time - pre_upload_time > chip->debug_force_upload_period)
+		upload_count = 0;
+
+	if (upload_count > TRACK_UPLOAD_COUNT_MAX) {
+		mutex_unlock(&chip->track_upload_lock);
+		return 0;
+	}
+
+	if (chip->debug_force_i2c_err)
+		err_type = -chip->debug_force_i2c_err;
+
+	mutex_lock(&chip->track_i2c_err_lock);
+	if (chip->i2c_err_uploading) {
+		pr_info("i2c_err_uploading, should return\n");
+		mutex_unlock(&chip->track_i2c_err_lock);
+		mutex_unlock(&chip->track_upload_lock);
+		return 0;
+	}
+
+	if (chip->i2c_err_load_trigger)
+		kfree(chip->i2c_err_load_trigger);
+	chip->i2c_err_load_trigger = kzalloc(sizeof(oplus_chg_track_trigger), GFP_KERNEL);
+	if (!chip->i2c_err_load_trigger) {
+		pr_err("i2c_err_load_trigger memery alloc fail\n");
+		mutex_unlock(&chip->track_i2c_err_lock);
+		mutex_unlock(&chip->track_upload_lock);
+		return -ENOMEM;
+	}
+	chip->i2c_err_load_trigger->type_reason =
+		TRACK_NOTIFY_TYPE_DEVICE_ABNORMAL;
+	chip->i2c_err_load_trigger->flag_reason =
+		TRACK_NOTIFY_FLAG_WLS_TRX_ABNORMAL;
+	chip->i2c_err_uploading = true;
+	upload_count++;
+	pre_upload_time = p9415_track_get_local_time_s();
+	mutex_unlock(&chip->track_i2c_err_lock);
+
+	index += snprintf(
+		&(chip->i2c_err_load_trigger->crux_info[index]),
+		OPLUS_CHG_TRACK_CURX_INFO_LEN - index, "$$device_id@@%s",
+		"p9415");
+	index += snprintf(
+		&(chip->i2c_err_load_trigger->crux_info[index]),
+		OPLUS_CHG_TRACK_CURX_INFO_LEN - index, "$$err_scene@@%s",
+		OPLUS_CHG_TRACK_SCENE_I2C_ERR);
+
+	oplus_chg_track_get_i2c_err_reason(err_type, chip->err_reason, sizeof(chip->err_reason));
+	index += snprintf(
+		&(chip->i2c_err_load_trigger->crux_info[index]),
+		OPLUS_CHG_TRACK_CURX_INFO_LEN - index,
+		"$$err_reason@@%s", chip->err_reason);
+
+	oplus_chg_track_obtain_power_info(chip->chg_power_info, sizeof(chip->chg_power_info));
+	index += snprintf(&(chip->i2c_err_load_trigger->crux_info[index]),
+			OPLUS_CHG_TRACK_CURX_INFO_LEN - index, "%s", chip->chg_power_info);
+	index += snprintf(&(chip->i2c_err_load_trigger->crux_info[index]),
+			OPLUS_CHG_TRACK_CURX_INFO_LEN - index,
+			"$$access_reg@@0x%x", reg);
+	schedule_delayed_work(&chip->i2c_err_load_trigger_work, 0);
+	mutex_unlock(&chip->track_upload_lock);
+	pr_info("success\n");
+
+	return 0;
+}
+
+static void p9415_track_i2c_err_load_trigger_work(
+	struct work_struct *work)
+{
+	struct delayed_work *dwork = to_delayed_work(work);
+	struct oplus_p9415 *chip =
+		container_of(dwork, struct oplus_p9415, i2c_err_load_trigger_work);
+
+	if (!chip->i2c_err_load_trigger)
+		return;
+
+	oplus_chg_track_upload_trigger_data(*(chip->i2c_err_load_trigger));
+	if (chip->i2c_err_load_trigger) {
+		kfree(chip->i2c_err_load_trigger);
+		chip->i2c_err_load_trigger = NULL;
+	}
+	chip->i2c_err_uploading = false;
+}
+
+static int p9415_track_upload_wls_rx_err_info(
+	struct oplus_p9415 *chip, int err_type)
+{
+	int index = 0;
+	int curr_time;
+	static int upload_count = 0;
+	static int pre_upload_time = 0;
+
+	if (!chip)
+		return -EINVAL;
+
+	pr_info("start\n");
+	mutex_lock(&chip->track_upload_lock);
+	memset(chip->chg_power_info, 0, sizeof(chip->chg_power_info));
+	memset(chip->err_reason, 0, sizeof(chip->err_reason));
+	memset(chip->wls_crux_info, 0, sizeof(chip->wls_crux_info));
+	curr_time = p9415_track_get_local_time_s();
+	if (curr_time - pre_upload_time > TRACK_DEVICE_ABNORMAL_UPLOAD_PERIOD)
+		upload_count = 0;
+
+	if (chip->debug_force_upload_period > 0 &&
+	    curr_time - pre_upload_time > chip->debug_force_upload_period)
+		upload_count = 0;
+
+	if (err_type == TRACK_WLS_TRX_ERR_DEFAULT) {
+		mutex_unlock(&chip->track_upload_lock);
+		return 0;
+	}
+
+	if (upload_count > TRACK_UPLOAD_COUNT_MAX) {
+		mutex_unlock(&chip->track_upload_lock);
+		return 0;
+	}
+
+	mutex_lock(&chip->track_rx_err_lock);
+	if (chip->rx_err_uploading) {
+		pr_info("rx_err_uploading, should return\n");
+		mutex_unlock(&chip->track_rx_err_lock);
+		mutex_unlock(&chip->track_upload_lock);
+		return 0;
+	}
+
+	if (chip->rx_err_load_trigger)
+		kfree(chip->rx_err_load_trigger);
+	chip->rx_err_load_trigger = kzalloc(sizeof(oplus_chg_track_trigger), GFP_KERNEL);
+	if (!chip->rx_err_load_trigger) {
+		pr_err("rx_err_load_trigger memery alloc fail\n");
+		mutex_unlock(&chip->track_rx_err_lock);
+		mutex_unlock(&chip->track_upload_lock);
+		return -ENOMEM;
+	}
+	chip->rx_err_load_trigger->type_reason =
+		TRACK_NOTIFY_TYPE_DEVICE_ABNORMAL;
+	chip->rx_err_load_trigger->flag_reason =
+		TRACK_NOTIFY_FLAG_WLS_TRX_ABNORMAL;
+	chip->rx_err_uploading = true;
+	upload_count++;
+	pre_upload_time = p9415_track_get_local_time_s();
+	mutex_unlock(&chip->track_rx_err_lock);
+
+	index += snprintf(
+		&(chip->rx_err_load_trigger->crux_info[index]),
+		OPLUS_CHG_TRACK_CURX_INFO_LEN - index, "$$device_id@@%s",
+		"p9415");
+	index += snprintf(
+		&(chip->rx_err_load_trigger->crux_info[index]),
+		OPLUS_CHG_TRACK_CURX_INFO_LEN - index, "$$err_scene@@%s",
+		OPLUS_CHG_TRACK_SCENE_WLS_RX_ERR);
+
+	oplus_chg_track_get_wls_trx_err_reason(err_type, chip->err_reason, sizeof(chip->err_reason));
+	index += snprintf(
+		&(chip->rx_err_load_trigger->crux_info[index]),
+		OPLUS_CHG_TRACK_CURX_INFO_LEN - index,
+		"$$err_reason@@%s", chip->err_reason);
+
+	oplus_chg_track_obtain_power_info(chip->chg_power_info, sizeof(chip->chg_power_info));
+	index += snprintf(&(chip->rx_err_load_trigger->crux_info[index]),
+			OPLUS_CHG_TRACK_CURX_INFO_LEN - index, "%s", chip->chg_power_info);
+	oplus_chg_track_obtain_wls_general_crux_info(
+		chip->wls_crux_info, sizeof(chip->wls_crux_info));
+	index += snprintf(&(chip->rx_err_load_trigger->crux_info[index]),
+			OPLUS_CHG_TRACK_CURX_INFO_LEN - index,
+			"%s", chip->wls_crux_info);
+	schedule_delayed_work(&chip->rx_err_load_trigger_work, 0);
+	mutex_unlock(&chip->track_upload_lock);
+	pr_info("success\n");
+
+	return 0;
+}
+
+static void p9415_track_rx_err_load_trigger_work(
+	struct work_struct *work)
+{
+	struct delayed_work *dwork = to_delayed_work(work);
+	struct oplus_p9415 *chip =
+		container_of(dwork, struct oplus_p9415, rx_err_load_trigger_work);
+
+	if (!chip->rx_err_load_trigger)
+		return;
+
+	oplus_chg_track_upload_trigger_data(*(chip->rx_err_load_trigger));
+	if (chip->rx_err_load_trigger) {
+		kfree(chip->rx_err_load_trigger);
+		chip->rx_err_load_trigger = NULL;
+	}
+	chip->rx_err_uploading = false;
+}
+
+static int p9415_track_upload_wls_tx_err_info(
+	struct oplus_p9415 *chip, int err_type)
+{
+	int index = 0;
+	int curr_time;
+	static int upload_count = 0;
+	static int pre_upload_time = 0;
+
+	if (!chip)
+		return -EINVAL;
+
+	mutex_lock(&chip->track_upload_lock);
+	memset(chip->chg_power_info, 0, sizeof(chip->chg_power_info));
+	memset(chip->err_reason, 0, sizeof(chip->err_reason));
+	memset(chip->wls_crux_info, 0, sizeof(chip->wls_crux_info));
+	curr_time = p9415_track_get_local_time_s();
+	if (curr_time - pre_upload_time > TRACK_DEVICE_ABNORMAL_UPLOAD_PERIOD)
+		upload_count = 0;
+
+	if (chip->debug_force_upload_period > 0 &&
+	    curr_time - pre_upload_time > chip->debug_force_upload_period)
+		upload_count = 0;
+
+	if (err_type == TRACK_WLS_TRX_ERR_DEFAULT) {
+		mutex_unlock(&chip->track_upload_lock);
+		return 0;
+	}
+
+	if (upload_count > TRACK_UPLOAD_COUNT_MAX) {
+		mutex_unlock(&chip->track_upload_lock);
+		return 0;
+	}
+
+	mutex_lock(&chip->track_tx_err_lock);
+	if (chip->tx_err_uploading) {
+		pr_info("tx_err_uploading, should return\n");
+		mutex_unlock(&chip->track_tx_err_lock);
+		mutex_unlock(&chip->track_upload_lock);
+		return 0;
+	}
+
+	if (chip->tx_err_load_trigger)
+		kfree(chip->tx_err_load_trigger);
+	chip->tx_err_load_trigger = kzalloc(sizeof(oplus_chg_track_trigger), GFP_KERNEL);
+	if (!chip->tx_err_load_trigger) {
+		pr_err("tx_err_load_trigger memery alloc fail\n");
+		mutex_unlock(&chip->track_tx_err_lock);
+		mutex_unlock(&chip->track_upload_lock);
+		return -ENOMEM;
+	}
+	chip->tx_err_load_trigger->type_reason =
+		TRACK_NOTIFY_TYPE_DEVICE_ABNORMAL;
+	chip->tx_err_load_trigger->flag_reason =
+		TRACK_NOTIFY_FLAG_WLS_TRX_ABNORMAL;
+	chip->tx_err_uploading = true;
+	upload_count++;
+	pre_upload_time = p9415_track_get_local_time_s();
+	mutex_unlock(&chip->track_tx_err_lock);
+
+	index += snprintf(
+		&(chip->tx_err_load_trigger->crux_info[index]),
+		OPLUS_CHG_TRACK_CURX_INFO_LEN - index, "$$device_id@@%s",
+		"p9415");
+	index += snprintf(
+		&(chip->tx_err_load_trigger->crux_info[index]),
+		OPLUS_CHG_TRACK_CURX_INFO_LEN - index, "$$err_scene@@%s",
+		OPLUS_CHG_TRACK_SCENE_WLS_TX_ERR);
+
+	oplus_chg_track_get_wls_trx_err_reason(err_type, chip->err_reason, sizeof(chip->err_reason));
+	index += snprintf(
+		&(chip->tx_err_load_trigger->crux_info[index]),
+		OPLUS_CHG_TRACK_CURX_INFO_LEN - index,
+		"$$err_reason@@%s", chip->err_reason);
+
+	oplus_chg_track_obtain_power_info(chip->chg_power_info, sizeof(chip->chg_power_info));
+	index += snprintf(&(chip->tx_err_load_trigger->crux_info[index]),
+			OPLUS_CHG_TRACK_CURX_INFO_LEN - index, "%s", chip->chg_power_info);
+	oplus_chg_track_obtain_wls_general_crux_info(
+		chip->wls_crux_info, sizeof(chip->wls_crux_info));
+	index += snprintf(&(chip->tx_err_load_trigger->crux_info[index]),
+			OPLUS_CHG_TRACK_CURX_INFO_LEN - index,
+			"%s", chip->wls_crux_info);
+	schedule_delayed_work(&chip->tx_err_load_trigger_work, 0);
+	mutex_unlock(&chip->track_upload_lock);
+	pr_info("success\n");
+
+	return 0;
+}
+
+static void p9415_track_tx_err_load_trigger_work(
+	struct work_struct *work)
+{
+	struct delayed_work *dwork = to_delayed_work(work);
+	struct oplus_p9415 *chip =
+		container_of(dwork, struct oplus_p9415, tx_err_load_trigger_work);
+
+	if (!chip->tx_err_load_trigger)
+		return;
+
+	oplus_chg_track_upload_trigger_data(*(chip->tx_err_load_trigger));
+	if (chip->tx_err_load_trigger) {
+		kfree(chip->tx_err_load_trigger);
+		chip->tx_err_load_trigger = NULL;
+	}
+	chip->tx_err_uploading = false;
+}
+
+static int p9415_track_upload_wls_update_err_info(
+	struct oplus_p9415 *chip, int err_type)
+{
+	int index = 0;
+	int curr_time;
+	static int upload_count = 0;
+	static int pre_upload_time = 0;
+
+	if (!chip)
+		return -EINVAL;
+
+	mutex_lock(&chip->track_upload_lock);
+	memset(chip->chg_power_info, 0, sizeof(chip->chg_power_info));
+	memset(chip->err_reason, 0, sizeof(chip->err_reason));
+	curr_time = p9415_track_get_local_time_s();
+	if (curr_time - pre_upload_time > TRACK_DEVICE_ABNORMAL_UPLOAD_PERIOD)
+		upload_count = 0;
+
+	if (chip->debug_force_upload_period > 0 &&
+	    curr_time - pre_upload_time > chip->debug_force_upload_period)
+		upload_count = 0;
+
+	if (err_type == TRACK_WLS_TRX_ERR_DEFAULT) {
+		mutex_unlock(&chip->track_upload_lock);
+		return 0;
+	}
+
+	if (upload_count > TRACK_UPLOAD_COUNT_MAX) {
+		mutex_unlock(&chip->track_upload_lock);
+		return 0;
+	}
+
+	mutex_lock(&chip->track_update_err_lock);
+	if (chip->update_err_uploading) {
+		pr_info("update_err_uploading, should return\n");
+		mutex_unlock(&chip->track_update_err_lock);
+		mutex_unlock(&chip->track_upload_lock);
+		return 0;
+	}
+
+	if (chip->update_err_load_trigger)
+		kfree(chip->update_err_load_trigger);
+	chip->update_err_load_trigger = kzalloc(sizeof(oplus_chg_track_trigger), GFP_KERNEL);
+	if (!chip->update_err_load_trigger) {
+		pr_err("update_err_load_trigger memery alloc fail\n");
+		mutex_unlock(&chip->track_update_err_lock);
+		mutex_unlock(&chip->track_upload_lock);
+		return -ENOMEM;
+	}
+	chip->update_err_load_trigger->type_reason =
+		TRACK_NOTIFY_TYPE_DEVICE_ABNORMAL;
+	chip->update_err_load_trigger->flag_reason =
+		TRACK_NOTIFY_FLAG_WLS_TRX_ABNORMAL;
+	chip->update_err_uploading = true;
+	upload_count++;
+	pre_upload_time = p9415_track_get_local_time_s();
+	mutex_unlock(&chip->track_update_err_lock);
+
+	index += snprintf(
+		&(chip->update_err_load_trigger->crux_info[index]),
+		OPLUS_CHG_TRACK_CURX_INFO_LEN - index, "$$device_id@@%s",
+		"p9415");
+	index += snprintf(
+		&(chip->update_err_load_trigger->crux_info[index]),
+		OPLUS_CHG_TRACK_CURX_INFO_LEN - index, "$$err_scene@@%s",
+		OPLUS_CHG_TRACK_SCENE_WLS_UPDATE_ERR);
+
+	oplus_chg_track_get_wls_trx_err_reason(err_type, chip->err_reason, sizeof(chip->err_reason));
+	index += snprintf(
+		&(chip->update_err_load_trigger->crux_info[index]),
+		OPLUS_CHG_TRACK_CURX_INFO_LEN - index,
+		"$$err_reason@@%s", chip->err_reason);
+
+	oplus_chg_track_obtain_power_info(chip->chg_power_info, sizeof(chip->chg_power_info));
+	index += snprintf(&(chip->update_err_load_trigger->crux_info[index]),
+			OPLUS_CHG_TRACK_CURX_INFO_LEN - index, "%s", chip->chg_power_info);
+	schedule_delayed_work(&chip->update_err_load_trigger_work, 0);
+	mutex_unlock(&chip->track_upload_lock);
+	pr_info("success\n");
+
+	return 0;
+}
+
+static void p9415_track_update_err_load_trigger_work(
+	struct work_struct *work)
+{
+	struct delayed_work *dwork = to_delayed_work(work);
+	struct oplus_p9415 *chip =
+		container_of(dwork, struct oplus_p9415, update_err_load_trigger_work);
+
+	if (!chip->update_err_load_trigger)
+		return;
+
+	oplus_chg_track_upload_trigger_data(*(chip->update_err_load_trigger));
+	if (chip->update_err_load_trigger) {
+		kfree(chip->update_err_load_trigger);
+		chip->update_err_load_trigger = NULL;
+	}
+	chip->update_err_uploading = false;
+}
+
+static int p9415_track_debugfs_init(struct oplus_p9415 *chip)
+{
+	int ret = 0;
+	struct dentry *debugfs_root;
+	struct dentry *debugfs_p9415;
+
+	debugfs_root = oplus_chg_track_get_debugfs_root();
+	if (!debugfs_root) {
+		ret = -ENOENT;
+		return ret;
+	}
+
+	debugfs_p9415 = debugfs_create_dir("p9415", debugfs_root);
+	if (!debugfs_p9415) {
+		ret = -ENOENT;
+		return ret;
+	}
+
+	chip->debug_force_i2c_err = false;
+	chip->debug_force_rx_err = TRACK_WLS_TRX_ERR_DEFAULT;
+	chip->debug_force_tx_err = TRACK_WLS_TRX_ERR_DEFAULT;
+	chip->debug_force_update_err = TRACK_WLS_TRX_ERR_DEFAULT;
+	chip->debug_force_upload_period = 0;
+	debugfs_create_u32("debug_force_i2c_err", 0644,
+	    debugfs_p9415, &(chip->debug_force_i2c_err));
+	debugfs_create_u32("debug_force_rx_err", 0644,
+	    debugfs_p9415, &(chip->debug_force_rx_err));
+	debugfs_create_u32("debug_force_tx_err", 0644,
+	    debugfs_p9415, &(chip->debug_force_tx_err));
+	debugfs_create_u32("debug_force_update_err", 0644,
+	    debugfs_p9415, &(chip->debug_force_update_err));
+	debugfs_create_u32("debug_force_upload_period", 0644,
+	    debugfs_p9415, &(chip->debug_force_upload_period));
+
+	return ret;
+}
+
+static int p9415_track_init(struct oplus_p9415 *chip)
+{
+	int rc;
+
+	if (!chip)
+		return - EINVAL;
+
+	mutex_init(&chip->track_i2c_err_lock);
+	mutex_init(&chip->track_rx_err_lock);
+	mutex_init(&chip->track_tx_err_lock);
+	mutex_init(&chip->track_update_err_lock);
+	mutex_init(&chip->track_upload_lock);
+	chip->i2c_err_uploading = false;
+	chip->i2c_err_load_trigger = NULL;
+	chip->rx_err_uploading = false;
+	chip->rx_err_load_trigger = NULL;
+	chip->tx_err_uploading = false;
+	chip->tx_err_load_trigger = NULL;
+	chip->update_err_uploading = false;
+	chip->update_err_load_trigger = NULL;
+
+	INIT_DELAYED_WORK(&chip->i2c_err_load_trigger_work,
+				p9415_track_i2c_err_load_trigger_work);
+	INIT_DELAYED_WORK(&chip->rx_err_load_trigger_work,
+				p9415_track_rx_err_load_trigger_work);
+	INIT_DELAYED_WORK(&chip->tx_err_load_trigger_work,
+				p9415_track_tx_err_load_trigger_work);
+	INIT_DELAYED_WORK(&chip->update_err_load_trigger_work,
+				p9415_track_update_err_load_trigger_work);
+	rc = p9415_track_debugfs_init(chip);
+	if (rc < 0) {
+		pr_err("p9415 debugfs init error, rc=%d\n", rc);
+	}
+
+	return rc;
+}
 
 static int p9415_set_trx_boost_enable(struct oplus_p9415 *chip, bool en)
 {
@@ -864,6 +1414,74 @@ static int p9415_get_trx_err(struct oplus_chg_ic_dev *dev, u8 *err)
 	return rc;
 }
 
+static void p9415_rx_track_info(struct oplus_p9415 *chip)
+{
+	int rc = 0;
+	char temp = 0;
+	int trx_err = TRACK_WLS_TRX_ERR_DEFAULT;
+
+	rc = p9415_read_byte(chip, P9415_REG_TRX_ERR, &temp);
+	if (rc) {
+		pr_err("Couldn't read trx err code, rc = %d\n", rc);
+		return;
+	}
+	if (temp & P9415_TRX_ERR_RXAC)
+		trx_err = TRACK_WLS_TRX_ERR_RXAC;
+	if (temp & P9415_TRX_ERR_OCP)
+		trx_err = TRACK_WLS_TRX_ERR_OCP;
+	if (temp & P9415_TRX_ERR_OVP)
+		trx_err = TRACK_WLS_TRX_ERR_OVP;
+	if (temp & P9415_TRX_ERR_LVP)
+		trx_err = TRACK_WLS_TRX_ERR_LVP;
+	if (temp & P9415_TRX_ERR_FOD)
+		trx_err = TRACK_WLS_TRX_ERR_FOD;
+	if (temp & P9415_TRX_ERR_OTP)
+		trx_err = TRACK_WLS_TRX_ERR_OTP;
+	if (temp & P9415_TRX_ERR_RXEPT)
+		trx_err = TRACK_WLS_TRX_ERR_RXEPT;
+
+	if (chip->debug_force_rx_err)
+		trx_err = chip->debug_force_rx_err;
+	if (trx_err != TRACK_WLS_TRX_ERR_DEFAULT)
+		p9415_track_upload_wls_rx_err_info(chip, trx_err);
+
+	return;
+}
+
+static void p9415_tx_track_info(struct oplus_p9415 *chip)
+{
+	int rc = 0;
+	char temp = 0;
+	int trx_err = TRACK_WLS_TRX_ERR_DEFAULT;
+
+	rc = p9415_read_byte(chip, P9415_REG_TRX_ERR, &temp);
+	if (rc) {
+		pr_err("Couldn't read trx err code, rc = %d\n", rc);
+		return;
+	}
+	if (temp & P9415_TRX_ERR_RXAC)
+		trx_err = TRACK_WLS_TRX_ERR_RXAC;
+	if (temp & P9415_TRX_ERR_OCP)
+		trx_err = TRACK_WLS_TRX_ERR_OCP;
+	if (temp & P9415_TRX_ERR_OVP)
+		trx_err = TRACK_WLS_TRX_ERR_OVP;
+	if (temp & P9415_TRX_ERR_LVP)
+		trx_err = TRACK_WLS_TRX_ERR_LVP;
+	if (temp & P9415_TRX_ERR_FOD)
+		trx_err = TRACK_WLS_TRX_ERR_FOD;
+	if (temp & P9415_TRX_ERR_OTP)
+		trx_err = TRACK_WLS_TRX_ERR_OTP;
+	if (temp & P9415_TRX_ERR_RXEPT)
+		trx_err = TRACK_WLS_TRX_ERR_RXEPT;
+
+	if (chip->debug_force_tx_err)
+		trx_err = chip->debug_force_tx_err;
+	if (trx_err != TRACK_WLS_TRX_ERR_DEFAULT)
+		p9415_track_upload_wls_tx_err_info(chip, trx_err);
+
+	return;
+}
+
 static int p9415_get_headroom(struct oplus_chg_ic_dev *dev, int *val)
 {
 	struct oplus_p9415 *chip;
@@ -1157,6 +1775,8 @@ static int p9415_mtp(struct oplus_p9415 *chip, unsigned char *fw_buf, int fw_siz
 	rc = p9415_load_bootloader(chip);
 	if (rc != 0) {
 		pr_err("<IDT UPDATE>Update bootloader 1 error!\n");
+		p9415_track_upload_wls_update_err_info(
+			chip, TRACK_WLS_UPDATE_ERR_I2C);
 		return rc;
 	}
 
@@ -1187,6 +1807,8 @@ static int p9415_mtp(struct oplus_p9415 *chip, unsigned char *fw_buf, int fw_siz
 	rc = p9415_load_fw(chip, fw_data, CodeLength);
 	if (rc < 0) { // not OK
 		pr_err("<IDT UPDATE>ERROR: erase fw version ERR\n");
+		p9415_track_upload_wls_update_err_info(
+			chip, TRACK_WLS_UPDATE_ERR_OTHER);
 		goto MTP_ERROR;
 	}
 
@@ -1231,6 +1853,8 @@ static int p9415_mtp(struct oplus_p9415 *chip, unsigned char *fw_buf, int fw_siz
 		rc = p9415_load_fw(chip, fw_data, CodeLength);
 		if (rc < 0) { // not OK
 			pr_err("<IDT UPDATE>ERROR: write chunk %d ERR\n", i);
+			p9415_track_upload_wls_update_err_info(
+				chip, TRACK_WLS_UPDATE_ERR_OTHER);
 			goto MTP_ERROR;
 		}
 	}
@@ -1240,18 +1864,24 @@ static int p9415_mtp(struct oplus_p9415 *chip, unsigned char *fw_buf, int fw_siz
 	rc = p9415_set_trx_boost_enable(chip, false);
 	if (rc < 0) {
 		pr_err("disable trx power error, rc=%d\n", rc);
+		p9415_track_upload_wls_update_err_info(
+			chip, TRACK_WLS_UPDATE_ERR_OTHER);
 		goto MTP_ERROR;
 	}
 	msleep(3000);
 	pr_info("<IDT UPDATE>enable trx boost\n");
 	rc = p9415_set_trx_boost_vol(chip, P9415_MTP_VOL_MV);
 	if (rc < 0) {
+		p9415_track_upload_wls_update_err_info(
+			chip, TRACK_WLS_UPDATE_ERR_OTHER);
 		pr_err("set trx power vol(=%d), rc=%d\n", P9415_MTP_VOL_MV, rc);
 		goto MTP_ERROR;
 	}
 	rc = p9415_set_trx_boost_enable(chip, true);
 	if (rc < 0) {
 		pr_err("enable trx power error, rc=%d\n", rc);
+		p9415_track_upload_wls_update_err_info(
+			chip, TRACK_WLS_UPDATE_ERR_OTHER);
 		goto MTP_ERROR;
 	}
 	msleep(500);
@@ -1260,29 +1890,39 @@ static int p9415_mtp(struct oplus_p9415 *chip, unsigned char *fw_buf, int fw_siz
 	rc = p9415_load_bootloader(chip);
 	if (rc != 0) {
 		pr_err("<IDT UPDATE>Update bootloader 2 error!\n");
+		p9415_track_upload_wls_update_err_info(
+			chip, TRACK_WLS_UPDATE_ERR_OTHER);
 		goto MTP_ERROR;
 	}
 	msleep(100);
 	rc = p9415_write_byte(chip, 0x402, 0x00); // write start address
 	if (rc != 0) {
 		pr_err("<IDT UPDATE>Write 0x402 reg error!\n");
+		p9415_track_upload_wls_update_err_info(
+			chip, TRACK_WLS_UPDATE_ERR_OTHER);
 		goto MTP_ERROR;
 	}
 
 	rc = p9415_write_byte(chip, 0x403, 0x00); // write start address
 	if (rc != 0) {
 		pr_err("<IDT UPDATE>Write 0x403 reg error!\n");
+		p9415_track_upload_wls_update_err_info(
+			chip, TRACK_WLS_UPDATE_ERR_OTHER);
 		goto MTP_ERROR;
 	}
 
 	rc = p9415_write_byte(chip, 0x404, pure_fw_size & 0xff); // write FW length low byte
 	if (rc != 0) {
 		pr_err("<IDT UPDATE>Write 0x404 reg error!\n");
+		p9415_track_upload_wls_update_err_info(
+			chip, TRACK_WLS_UPDATE_ERR_OTHER);
 		goto MTP_ERROR;
 	}
 	rc = p9415_write_byte(chip, 0x405, (pure_fw_size >> 8) & 0xff); // write FW length high byte
 	if (rc != 0) {
 		pr_err("<IDT UPDATE>Write 0x405 reg error!\n");
+		p9415_track_upload_wls_update_err_info(
+			chip, TRACK_WLS_UPDATE_ERR_OTHER);
 		goto MTP_ERROR;
 	}
 
@@ -1294,6 +1934,8 @@ static int p9415_mtp(struct oplus_p9415 *chip, unsigned char *fw_buf, int fw_siz
 	rc = p9415_write_byte(chip, 0x400, 0x11);
 	if (rc != 0) {
 		pr_err("<IDT UPDATE>Write 0x406 reg error!\n");
+		p9415_track_upload_wls_update_err_info(
+			chip, TRACK_WLS_UPDATE_ERR_OTHER);
 		goto MTP_ERROR;
 	}
 	do {
@@ -1301,6 +1943,8 @@ static int p9415_mtp(struct oplus_p9415 *chip, unsigned char *fw_buf, int fw_siz
 		rc = p9415_read_byte(chip, 0x401, &write_ack);
 		if (rc != 0) {
 			pr_err("<IDT UPDATE>ERROR: on reading OTP buffer status\n");
+			p9415_track_upload_wls_update_err_info(
+				chip, TRACK_WLS_UPDATE_ERR_OTHER);
 			goto MTP_ERROR;
 		}
 	} while ((write_ack & 0x01) != 0);
@@ -1313,6 +1957,8 @@ static int p9415_mtp(struct oplus_p9415 *chip, unsigned char *fw_buf, int fw_siz
 		else
 			pr_err("<IDT UPDATE>ERROR: CRC UNKNOWN ERR\n");
 
+		p9415_track_upload_wls_update_err_info(
+			chip, TRACK_WLS_UPDATE_ERR_CRC);
 		goto MTP_ERROR;
 	}
 
@@ -1333,6 +1979,8 @@ static int p9415_mtp(struct oplus_p9415 *chip, unsigned char *fw_buf, int fw_siz
 	rc = p9415_load_fw(chip, fw_data, CodeLength);
 	if (rc < 0) { // not OK
 		pr_err("<IDT UPDATE>ERROR: erase fw version ERR\n");
+		p9415_track_upload_wls_update_err_info(
+			chip, TRACK_WLS_UPDATE_ERR_OTHER);
 		goto MTP_ERROR;
 	}
 
@@ -1340,12 +1988,16 @@ static int p9415_mtp(struct oplus_p9415 *chip, unsigned char *fw_buf, int fw_siz
 	rc = p9415_write_byte(chip, 0x3000, 0x5a); // write key
 	if (rc != 0) {
 		pr_err("<IDT UPDATE>Write 0x3000 reg error!\n");
+		p9415_track_upload_wls_update_err_info(
+				chip, TRACK_WLS_UPDATE_ERR_OTHER);
 		goto MTP_ERROR;
 	}
 
 	rc = p9415_write_byte(chip, 0x3048, 0x00); // remove code remapping
 	if (rc != 0) {
 		pr_err("<IDT UPDATE>Write 0x3048 reg error!\n");
+		p9415_track_upload_wls_update_err_info(
+			chip, TRACK_WLS_UPDATE_ERR_OTHER);
 		goto MTP_ERROR;
 	}
 
@@ -1551,10 +2203,12 @@ static void p9415_event_process(struct oplus_p9415 *chip)
 				val_buf[0], val_buf[1], val_buf[2], val_buf[3], val_buf[4], val_buf[5]);
 			if (chip->rx_msg.msg_call_back != NULL)
 					chip->rx_msg.msg_call_back(chip->rx_msg.dev_data, val_buf);
+			p9415_rx_track_info(chip);
 		}
 	}
 	if (temp[0] & P9415_TRX_EVENT) {
 		pr_err("trx event\n");
+		p9415_tx_track_info(chip);
 		if (is_wls_ocm_available(chip))
 			oplus_chg_anon_mod_event(chip->wls_ocm, OPLUS_CHG_EVENT_CHECK_TRX);
 		else
@@ -1957,6 +2611,7 @@ static int p9415_driver_probe(struct i2c_client *client,
 	}
 
 	p9415_set_chip_info(chip->ic_dev);
+	p9415_track_init(chip);
 
 	device_init_wakeup(chip->dev, true);
 

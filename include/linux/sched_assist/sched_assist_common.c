@@ -32,6 +32,10 @@
 extern bool is_webview(struct task_struct *p);
 #endif
 
+#ifdef CONFIG_OPLUS_CPU_AUDIO_PERF
+#include "sched_assist_audio.h"
+#endif
+
 #define CREATE_TRACE_POINTS
 #include <sched_assist_trace.h>
 
@@ -52,6 +56,9 @@ int sched_assist_ib_duration_coedecay = 1;
 static int param_ux_debug = 0;
 module_param_named(debug, param_ux_debug, uint, 0644);
 
+int global_debug_enabled;
+static DEFINE_PER_CPU(int, prev_ux_state);
+
 struct ux_util_record sf_target[SF_GROUP_COUNT] = {
 {"surfaceflinger", 0, 0},
 {"RenderEngine", 0, 0},
@@ -60,9 +67,12 @@ struct ux_util_record sf_target[SF_GROUP_COUNT] = {
 pid_t sf_pid = 0;
 pid_t re_pid = 0;
 
-bool slide_scene(void)
-{
+bool slide_scene(void) {
 	return sched_assist_scene(SA_SLIDE) || sched_assist_scene(SA_ANIM) || sched_assist_scene(SA_INPUT);
+}
+
+static bool  sf_boost_scene(void) {
+	return sched_assist_scene(SA_SLIDE) || sched_assist_scene(SA_ANIM) || sched_assist_scene(SA_INPUT) || sched_assist_scene(SA_GPU_COMPOSITION);
 }
 
 /* record important process tgid */
@@ -178,7 +188,58 @@ static int entity_over(struct sched_entity *a, struct sched_entity *b)
 	return (s64)(a->vruntime - b->vruntime) > (s64)ux_max_over_thresh * S2NS_T;
 }
 
+noinline int tracing_mark_write(const char *buf)
+{
+	trace_printk(buf);
+	return 0;
+}
+
+void ux_state_systrace_c(unsigned int cpu, struct task_struct *p)
+{
+	if (unlikely(global_debug_enabled & DEBUG_SYSTRACE)) {
+		int ux_state = p->ux_state;
+
+		if (per_cpu(prev_ux_state, cpu) != ux_state) {
+			char buf[256];
+			snprintf(buf, sizeof(buf), "C|9999|Cpu%d_ux_state|%d\n", cpu, ux_state);
+			tracing_mark_write(buf);
+			per_cpu(prev_ux_state, cpu) = ux_state;
+		}
+	}
+}
+
+void sa_scene_systrace_c(void)
+{
+	if (unlikely(global_debug_enabled & DEBUG_SYSTRACE)) {
+		static int prev_ux_scene = 0;
+		int assist_scene = sysctl_sched_assist_scene;
+
+		if (prev_ux_scene != assist_scene) {
+			char buf[64];
+			snprintf(buf, sizeof(buf), "C|9999|Ux_Scene|%d\n", sysctl_sched_assist_scene);
+			tracing_mark_write(buf);
+			prev_ux_scene = assist_scene;
+		}
+	}
+}
+
 extern const struct sched_class fair_sched_class;
+extern const struct sched_class rt_sched_class;
+
+bool should_force_adjust_vruntime(struct sched_entity *se)
+{
+	struct task_struct *se_task = NULL;
+
+	if (!entity_is_task(se))
+		return false;
+
+	se_task = task_of(se);
+	/* requeue runnable inherit ux task should be adjusted */
+	if (se_task && (se_task->ux_state & SA_TYPE_INHERIT))
+		return true;
+
+	return false;
+}
 
 /* identify ux only opt in some case, but always keep it's id_type, and wont do inherit through test_task_ux() */
 bool test_task_identify_ux(struct task_struct *task, int id_type_ux)
@@ -209,10 +270,10 @@ inline bool test_task_ux(struct task_struct *task)
 	if (!task)
 		return false;
 
-	if (task->sched_class != &fair_sched_class)
+	if (task->sched_class != &fair_sched_class && task->sched_class != &rt_sched_class)
 		return false;
 
-	if (task->ux_state & (SA_TYPE_HEAVY | SA_TYPE_LIGHT | SA_TYPE_ANIMATOR | SA_TYPE_LISTPICK))
+	if (task->ux_state & (SA_TYPE_HEAVY | SA_TYPE_LIGHT | SA_TYPE_ANIMATOR | SA_TYPE_LISTPICK | SA_TYPE_ID_CAMERA_PROVIDER))
 		return true;
 
 	return false;
@@ -518,24 +579,6 @@ u64 sa_calc_delta(struct sched_entity *se, u64 delta_exec, unsigned long weight,
 	return mul_u64_u32_shr(delta_exec, fact, shift);
 }
 
-bool should_force_adjust_vruntime(struct sched_entity *se)
-{
-	struct task_struct *se_task = NULL;
-
-	if (!is_spread_task_enabled())
-		return false;
-
-	if (!entity_is_task(se))
-		return false;
-
-	se_task = task_of(se);
-	/* requeue runnable inherit ux task should be adjusted */
-	if (se_task && (se_task->ux_state & SA_TYPE_INHERIT))
-		return true;
-
-	return false;
-}
-
 void printf_cpu_spread_nr_info(unsigned int cpu, char *nr_info, int info_size)
 {
 	int rq_ux_nr = 0, rq_top_nr = 0, rq_fg_nr = 0, rq_bg_nr = 0;
@@ -770,6 +813,24 @@ inline int get_ux_state_type(struct task_struct *task)
 	return UX_STATE_NONE;
 }
 
+static void insert_ux_task_into_list(struct rq *rq, struct task_struct *p)
+{
+	struct list_head *pos;
+	bool exist = false;
+
+	list_for_each(pos, &rq->ux_thread_list) {
+		if (pos == &p->ux_entry) {
+			exist = true;
+			BUG_ON(1);
+			break;
+		}
+	}
+	if (!exist) {
+		list_add_tail(&p->ux_entry, &rq->ux_thread_list);
+		get_task_struct(p);
+	}
+}
+
 inline bool test_list_pick_ux(struct task_struct *task)
 {
 #if defined(CONFIG_OPLUS_FEATURE_INPUT_BOOST) && defined(CONFIG_OPLUS_FEATURE_IM)
@@ -782,29 +843,18 @@ inline bool test_list_pick_ux(struct task_struct *task)
 
 void enqueue_ux_thread(struct rq *rq, struct task_struct *p)
 {
-	struct list_head *pos, *n;
-	bool exist = false;
-
 	if (unlikely(!sysctl_sched_assist_enabled))
 		return;
 
 	if (!rq || !p || !list_empty(&p->ux_entry)) {
 		return;
 	}
-
+#ifdef CONFIG_OPLUS_CPU_AUDIO_PERF
+	oplus_sched_assist_audio_enqueue_hook(p);
+#endif
 	p->enqueue_time = rq->clock;
-	if (test_list_pick_ux(p)) {
-		list_for_each_safe(pos, n, &rq->ux_thread_list) {
-			if (pos == &p->ux_entry) {
-				exist = true;
-				break;
-			}
-		}
-		if (!exist) {
-			list_add_tail(&p->ux_entry, &rq->ux_thread_list);
-			get_task_struct(p);
-		}
-	}
+	if (test_list_pick_ux(p))
+		insert_ux_task_into_list(rq, p);
 }
 
 void dequeue_ux_thread(struct rq *rq, struct task_struct *p)
@@ -1258,9 +1308,6 @@ bool is_sf(struct task_struct *p)
 void drop_ux_task_cpus(struct task_struct *p, struct cpumask *lowest_mask)
 {
 	unsigned int cpu = cpumask_first(lowest_mask);
-#ifdef CONFIG_SCHED_WALT
-	bool sf = false;
-#endif
 
 	while (cpu < nr_cpu_ids) {
 		/* unlocked access */
@@ -1275,9 +1322,8 @@ void drop_ux_task_cpus(struct task_struct *p, struct cpumask *lowest_mask)
 		}
 
 #ifdef CONFIG_SCHED_WALT
-		if (slide_scene()) {
-			sf = is_sf(p);
-			if (sf && (cpu < ux_prefer_cpu[0] || (task->ux_state & SA_TYPE_HEAVY)))
+		if (sf_boost_scene() && is_sf(p)) {
+			if (cpu < ux_prefer_cpu[0] || (task->ux_state & SA_TYPE_HEAVY))
 				cpumask_clear_cpu(cpu, lowest_mask);
 		}
 #endif
@@ -1386,7 +1432,7 @@ void place_entity_adjust_ux_task(struct cfs_rq *cfs_rq, struct sched_entity *se,
 
 #ifdef CONFIG_MMAP_LOCK_OPT
 	if (se_task->ux_once) {
-		vruntime -= 3 * thresh;
+		vruntime -= thresh;
 		se->vruntime = vruntime;
 		se_task->ux_once = 0;
 		return;
@@ -1405,18 +1451,17 @@ void place_entity_adjust_ux_task(struct cfs_rq *cfs_rq, struct sched_entity *se,
 		return;
 	}
 
+#if defined(CONFIG_OPLUS_FEATURE_AUDIO_OPT) && defined(CONFIG_OPLUS_UX_IM_FLAG) && defined(CONFIG_OPLUS_FEATURE_AUDIO_CAMUX_OFF)
+	if (sched_assist_scene(SA_AUDIO) && (se_task->group_leader) && se_task->group_leader->ux_im_flag == IM_FLAG_CAMERA_SERVER) {
+		return;
+	}
+#endif
+
 	if (test_task_identify_ux(se_task, SA_TYPE_ID_CAMERA_PROVIDER)) {
 		vruntime -= 2 * thresh + (thresh >> 1);
 		se->vruntime = vruntime - (launch_adjust >> 1);
 		return;
 	}
-
-#ifdef CONFIG_OPLUS_FEATURE_SCHED_SPREAD
-	if (should_force_adjust_vruntime(se)) {
-		se->vruntime = vruntime - (thresh + (thresh >> 1));
-		return;
-	}
-#endif
 }
 
 bool should_ux_preempt_wakeup(struct task_struct *wake_task, struct task_struct *curr_task)
@@ -1439,8 +1484,18 @@ bool should_ux_preempt_wakeup(struct task_struct *wake_task, struct task_struct 
 	if (!wake_web && curr_web)
 		return false;
 #endif
+#if defined(CONFIG_OPLUS_FEATURE_AUDIO_OPT) && defined(CONFIG_OPLUS_FEATURE_AUDIO_CAMUX_OFF)
+	if (sched_assist_scene(SA_AUDIO)) {
+        	wake_ux = test_task_ux(wake_task) || test_list_pick_ux(wake_task);
+		curr_ux = test_task_ux(curr_task) || test_list_pick_ux(curr_task);
+	} else {
 	wake_ux = test_task_ux(wake_task) || test_list_pick_ux(wake_task) || test_task_identify_ux(wake_task, SA_TYPE_ID_CAMERA_PROVIDER);
 	curr_ux = test_task_ux(curr_task) || test_list_pick_ux(curr_task) || test_task_identify_ux(curr_task, SA_TYPE_ID_CAMERA_PROVIDER);
+	}
+#else
+	wake_ux = test_task_ux(wake_task) || test_list_pick_ux(wake_task) || test_task_identify_ux(wake_task, SA_TYPE_ID_CAMERA_PROVIDER);
+	curr_ux = test_task_ux(curr_task) || test_list_pick_ux(curr_task) || test_task_identify_ux(curr_task, SA_TYPE_ID_CAMERA_PROVIDER);
+#endif
 
 	/* ux can preemt cfs */
 	if (wake_ux && !curr_ux)
@@ -1663,7 +1718,6 @@ void oplus_boost_kill_signal(int sig, struct task_struct *cur, struct task_struc
 	}
 }
 
-#ifdef CONFIG_OPLUS_FEATURE_SCHED_SPREAD
 static void requeue_runnable_task(struct task_struct *p)
 {
 	bool queued, running;
@@ -1686,7 +1740,6 @@ static void requeue_runnable_task(struct task_struct *p)
 
 	task_rq_unlock(rq, p, &rf);
 }
-#endif
 
 void set_inherit_ux(struct task_struct *task, int type, int depth, int inherit_val)
 {
@@ -1697,6 +1750,7 @@ void set_inherit_ux(struct task_struct *task, int type, int depth, int inherit_v
 #endif
 	struct rq *rq = NULL;
 	int old_state = 0;
+	bool list_pick = false;
 
 	if (!task || type >= INHERIT_UX_MAX) {
 		return;
@@ -1722,12 +1776,16 @@ void set_inherit_ux(struct task_struct *task, int type, int depth, int inherit_v
 
 	sched_assist_systrace_pid(task->tgid, task->ux_state, "ux_state %d", task->pid);
 
+	list_pick = test_list_pick_ux(task);
+	if (list_pick && task->on_rq && list_empty(&task->ux_entry)) {
+		insert_ux_task_into_list(rq, task);
+	}
+
 	task_rq_unlock(rq, task, &flags);
 
-#ifdef CONFIG_OPLUS_FEATURE_SCHED_SPREAD
 	/* requeue runnable task to ensure vruntime adjust */
-	requeue_runnable_task(task);
-#endif
+	if (!list_pick)
+		requeue_runnable_task(task);
 }
 
 void reset_inherit_ux(struct task_struct *inherit_task, struct task_struct *ux_task, int reset_type)
@@ -1853,7 +1911,7 @@ bool sf_task_misfit(struct task_struct *p)
 		for (i = 0; i < SF_GROUP_COUNT; i++) {
 			util += sf_target[i].util;
 		}
-		if ((util > sysctl_boost_task_threshold) && slide_scene())
+		if ((util > sysctl_boost_task_threshold) && sf_boost_scene())
 			return true;
 		else
 			return false;
@@ -2300,6 +2358,64 @@ void cgroup_set_sched_assist_boost_task(struct task_struct *p)
 	}
 }
 
+#ifdef CONFIG_OPLUS_SS_LOCKER_OPT
+#define SS_LOCKER_BOOST_NICE (-4)
+static void opt_ss_lock_contention(struct task_struct *p, int old_im, int new_im)
+{
+	struct rq_flags rf;
+	struct rq *rq;
+	int ux_state;
+	long nice = LONG_MAX;
+	unsigned long lk_start = 0;
+
+	if (unlikely(!sysctl_sched_assist_enabled && new_im == IM_FLAG_SS_LOCK_OWNER))
+		return;
+
+	rq = task_rq_lock(p, &rf);
+
+	if (p->sched_class != &fair_sched_class)
+		goto out_unlock;
+
+	ux_state = p->ux_state;
+	/* Ux thread do not need this opt. */
+	if (ux_state != 0)
+		goto out_unlock;
+
+	/*
+	 * When p enter/leave critical section, adjust it's nice and locking_time_start,
+	 * set locking_time_start can avoid p being preempted in wakeup-preemption.
+	 **/
+	if (new_im == IM_FLAG_SS_LOCK_OWNER) {
+#ifdef CONFIG_LOCKING_PROTECT
+		p->locking_time_start = jiffies;
+#endif
+		p->nice_saved = PRIO_TO_NICE(p->prio);
+		if (PRIO_TO_NICE(p->prio) > SS_LOCKER_BOOST_NICE)
+			nice = SS_LOCKER_BOOST_NICE;
+	} else {
+#ifdef CONFIG_LOCKING_PROTECT
+		p->locking_time_start = 0;
+#endif
+		nice = p->nice_saved;
+	}
+#ifdef CONFIG_LOCKING_PROTECT
+	lk_start = p->locking_time_start;
+#endif
+	task_rq_unlock(rq, p, &rf);
+
+	if (nice != LONG_MAX)
+		set_user_nice(p, nice);
+
+	if (unlikely(param_ux_debug))
+		trace_printk("comm=%-12s pid=%d old_im=%d new_im=%d lk_start=%llu prio=%d\n",
+			p->comm, p->pid, old_im, new_im, lk_start, p->prio);
+	return;
+
+out_unlock:
+	task_rq_unlock(rq, p, &rf);
+}
+#endif
+
 static ssize_t proc_sched_impt_task_write(struct file *file, const char __user *buf,
 		size_t count, loff_t *ppos)
 {
@@ -2379,6 +2495,46 @@ static ssize_t proc_sched_impt_task_read(struct file *file, char __user *buf,
 	return simple_read_from_buffer(buf, count, ppos, buffer, len);
 }
 
+static ssize_t proc_debug_enabled_write(struct file *file, const char __user *buf,
+ 		size_t count, loff_t *ppos)
+{
+	char buffer[8];
+	int err, val;
+
+	memset(buffer, 0, sizeof(buffer));
+
+	if (count > sizeof(buffer) - 1)
+		count = sizeof(buffer) - 1;
+
+	if (copy_from_user(buffer, buf, count))
+		return -EFAULT;
+
+	buffer[count] = '\0';
+	err = kstrtoint(strstrip(buffer), 10, &val);
+	if (err)
+		return err;
+
+	global_debug_enabled = val;
+
+	return count;
+}
+
+static ssize_t proc_debug_enabled_read(struct file *file, char __user *buf,
+		size_t count, loff_t *ppos)
+{
+	char buffer[20];
+	size_t len = 0;
+
+	len = snprintf(buffer, sizeof(buffer), "debug_enabled=%d\n", global_debug_enabled);
+
+	return simple_read_from_buffer(buf, count, ppos, buffer, len);
+}
+
+static const struct file_operations proc_debug_enabled_fops = {
+	.write		= proc_debug_enabled_write,
+	.read		= proc_debug_enabled_read,
+};
+
 static const struct file_operations proc_sched_impt_task_fops = {
 	.write		= proc_sched_impt_task_write,
 	.read		= proc_sched_impt_task_read,
@@ -2397,6 +2553,14 @@ static pid_t global_im_flag_pid = -1;
 
 static int im_flag_set_handle(struct task_struct *task, int im_flag)
 {
+#ifdef CONFIG_OPLUS_SS_LOCKER_OPT
+	int old_im = task->ux_im_flag;
+#endif
+
+#ifdef CONFIG_OPLUS_CPU_AUDIO_PERF
+	oplus_sched_assist_audio_perf_addIm(task, im_flag);
+#endif
+
 	task->ux_im_flag = im_flag;
 
 	switch (task->ux_im_flag) {
@@ -2406,6 +2570,13 @@ static int im_flag_set_handle(struct task_struct *task, int im_flag)
 	default:
 		break;
 	}
+
+#ifdef CONFIG_OPLUS_SS_LOCKER_OPT
+	/* Optimization of ams/wsm lock contention */
+	if ((old_im != im_flag) && (old_im == IM_FLAG_SS_LOCK_OWNER ||
+		im_flag == IM_FLAG_SS_LOCK_OWNER))
+		opt_ss_lock_contention(task, old_im, im_flag);
+#endif
 
 	return 0;
 }
@@ -2465,14 +2636,16 @@ static ssize_t proc_im_flag_write(struct file *file, const char __user *buf,
 		if (pid > 0 && pid <= PID_MAX_DEFAULT) {
 			rcu_read_lock();
 			task = find_task_by_vpid(pid);
-			if (task) {
+			if (task)
 				get_task_struct(task);
+			rcu_read_unlock();
+
+			if (task) {
 				im_flag_set_handle(task, im_flag);
 				put_task_struct(task);
 			} else {
 				ux_debug("Can not find task with pid=%d", pid);
 			}
-			rcu_read_unlock();
 		}
 	}
 
@@ -2500,10 +2673,120 @@ static ssize_t proc_im_flag_read(struct file *file, char __user *buf,
 	return simple_read_from_buffer(buf, count, ppos, buffer, len);
 }
 
+static inline bool can_access_im_flag_app(struct task_struct *task)
+{
+	return task->tgid == current->tgid;
+}
+
+/*
+ * this handles "im_flag_app" proc point, only accepts that app change the im flag of its child threads.
+ * audio app will use this to change im flag.
+ */
+static ssize_t proc_im_flag_app_write(struct file *file, const char __user *buf,
+		size_t count, loff_t *ppos)
+{
+	char buffer[MAX_SET];
+	char *str, *token;
+	char opt_str[OPT_STR_MAX][8];
+	int cnt = 0;
+	int pid = 0;
+	int im_flag = 0;
+	int err = 0;
+	static DEFINE_MUTEX(sa_im_mutex);
+
+	memset(buffer, 0, sizeof(buffer));
+
+	if (count > sizeof(buffer) - 1)
+		count = sizeof(buffer) - 1;
+
+	if (copy_from_user(buffer, buf, count))
+		return -EFAULT;
+
+	buffer[count] = '\0';
+	str = strstrip(buffer);
+	while ((token = strsep(&str, " ")) && *token && (cnt < OPT_STR_MAX)) {
+		strlcpy(opt_str[cnt], token, sizeof(opt_str[cnt]));
+		cnt += 1;
+	}
+
+	if (cnt != OPT_STR_MAX) {
+		if (cnt == (OPT_STR_MAX - 1) && !strncmp(opt_str[OPT_STR_TYPE], "r", 1)) {
+			err = kstrtoint(strstrip(opt_str[OPT_STR_PID]), 10, &pid);
+			if (err)
+				return err;
+
+			if (pid > 0 && pid <= PID_MAX_DEFAULT)
+				global_im_flag_pid = pid;
+
+			return count;
+		} else {
+			return -EFAULT;
+		}
+	}
+
+	err = kstrtoint(strstrip(opt_str[OPT_STR_PID]), 10, &pid);
+	if (err)
+		return err;
+
+	err = kstrtoint(strstrip(opt_str[OPT_STR_VAL]), 10, &im_flag);
+	if (err)
+		return err;
+
+	mutex_lock(&sa_im_mutex);
+	if (!strncmp(opt_str[OPT_STR_TYPE], "p", 1)) {
+		struct task_struct *task = NULL;
+
+		if (pid > 0 && pid <= PID_MAX_DEFAULT) {
+			rcu_read_lock();
+			task = find_task_by_vpid(pid);
+			if (task && can_access_im_flag_app(task)) {
+				get_task_struct(task);
+				im_flag_set_handle(task, im_flag);
+				put_task_struct(task);
+			} else
+				ux_debug("Can not find task with pid=%d", pid);
+			rcu_read_unlock();
+		}
+	}
+
+	mutex_unlock(&sa_im_mutex);
+	return count;
+}
+
+/*
+ * this handles "im_flag_app" proc point, only accepts that app change the im flag of its child threads.
+ * audio app will use this to change im flag.
+ */
+static ssize_t proc_im_flag_app_read(struct file *file, char __user *buf,
+		size_t count, loff_t *ppos)
+{
+	char buffer[256];
+	size_t len = 0;
+	struct task_struct *task = NULL;
+
+	task = find_task_by_vpid(global_im_flag_pid);
+	if (task && can_access_im_flag_app(task)) {
+		get_task_struct(task);
+		len = snprintf(buffer, sizeof(buffer), "comm=%s pid=%d tgid=%d im_flag=%d\n",
+			task->comm, task->pid, task->tgid, task->ux_im_flag);
+		put_task_struct(task);
+	} else
+		len = snprintf(buffer, sizeof(buffer), "Can not find task\n");
+
+	return simple_read_from_buffer(buf, count, ppos, buffer, len);
+}
+
+
 static const struct file_operations proc_im_flag_fops = {
 	.write		= proc_im_flag_write,
 	.read		= proc_im_flag_read,
 };
+
+static const struct file_operations proc_im_flag_app_fops = {
+	.write		= proc_im_flag_app_write,
+	.read		= proc_im_flag_app_read,
+};
+
 #endif /* CONFIG_OPLUS_UX_IM_FLAG */
 
 #define OPLUS_SCHEDULER_PROC_DIR	"oplus_scheduler"
@@ -2526,6 +2809,12 @@ static int __init oplus_sched_assist_init(void)
 		goto err_dir_sa;
 	}
 
+	proc_node = proc_create("debug_enabled", 0666, d_sched_assist, &proc_debug_enabled_fops);
+	if (!proc_node) {
+		ux_err("failed to create proc node debug_enabled\n");
+		goto err_creat_debug_enabled;
+	}
+
 	proc_node = proc_create("sched_impt_task", 0666, d_sched_assist, &proc_sched_impt_task_fops);
 	if(!proc_node) {
 		ux_err("failed to create proc node sched_impt_task\n");
@@ -2542,6 +2831,17 @@ static int __init oplus_sched_assist_init(void)
 		ux_err("failed to create proc node im_flag\n");
 		goto err_node_assist;
 	}
+
+	proc_node = proc_create("im_flag_app", 0666, d_sched_assist, &proc_im_flag_app_fops);
+	if (!proc_node) {
+		ux_err("failed to create proc node im_flag_app\n");
+		remove_proc_entry("im_flag_app", d_sched_assist);
+	}
+
+#ifdef CONFIG_OPLUS_CPU_AUDIO_PERF
+	oplus_sched_assist_audio_proc_init(d_sched_assist);
+#endif
+
 #endif
 
 	return 0;
@@ -2552,6 +2852,9 @@ err_node_assist:
 err_node_impt:
 #endif
 	remove_proc_entry(OPLUS_SCHEDASSIST_PROC_DIR, NULL);
+
+err_creat_debug_enabled:
+	remove_proc_entry(OPLUS_SCHEDASSIST_PROC_DIR, d_oplus_scheduler);
 
 err_dir_sa:
 	remove_proc_entry(OPLUS_SCHEDULER_PROC_DIR, NULL);

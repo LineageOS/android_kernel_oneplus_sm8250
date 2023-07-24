@@ -439,6 +439,7 @@ struct mtk_charger {
 	int chargeric_temp_volt;
 	int chargeric_temp;
 	bool support_ntc_01c_precision;
+	bool ntc_temp_volt_1840mv;
 
 	struct tcpc_device *tcpc;
 	struct adapter_power_cap srccap;
@@ -512,6 +513,7 @@ extern void mt_usb_disconnect(void);
 int oplus_get_chargeric_temp(void);
 extern bool is_meta_mode(void);
 int oplus_get_fast_chg_type(void);
+extern bool oplus_get_wd0_stat(bool wd0_status);
 #endif
 #endif /* __MTK_CHARGER_H */
 

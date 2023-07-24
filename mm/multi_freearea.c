@@ -99,10 +99,14 @@ static int proc_free_area_show(struct seq_file *m, void *p)
     struct page *page;
 	int zone_type;
 
+	/*
+	 * The proc-node just for test so that close in release-version.
+	 */
+	return 0;
 
     for (zone_type = 0; zone_type < MAX_NR_ZONES; zone_type++) {
         struct zone *zone = &pgdat->node_zones[zone_type];
-    
+
         if (!managed_zone(zone)) {
             continue;
         }
@@ -124,8 +128,8 @@ static int proc_free_area_show(struct seq_file *m, void *p)
             }
         }
     }
-    
-   return 0; 
+
+	return 0;
 }
 
 static ssize_t proc_free_area_write(struct file *file, const char __user *buff, size_t len, loff_t *ppos)
@@ -133,8 +137,15 @@ static ssize_t proc_free_area_write(struct file *file, const char __user *buff, 
     char write_data[16] = {0};
     int ret = 0;
 
-    if (copy_from_user(&write_data, buff, len)) {
-        return -EFAULT;
+    /*
+     * The proc-node just for test so that close in release-version.
+     */
+	return len;
+
+	if (len > 15)
+	    len = 15;
+	if (copy_from_user(&write_data, buff, len)) {
+	    return -EFAULT;
     }
     ret = kstrtouint(write_data, 10, &show_order);
 
@@ -160,7 +171,7 @@ void list_sort_add(struct page *page, struct zone *zone, unsigned int order, int
     struct list_head *list = &(zone->free_area[0][order].free_list[mt]);
     unsigned long pfn = 0, segment = 0;
     int i = 0;
-    
+
     pfn = page_to_pfn(page);
 
     if (unlikely(pfn > zone->zone_label[FREE_AREA_COUNTS - 1].label)) {
@@ -169,7 +180,7 @@ void list_sort_add(struct page *page, struct zone *zone, unsigned int order, int
         goto add_page;
     }
 
-    for (i = 0; i < FREE_AREA_COUNTS; i++) { 
+	for (i = 0; i < FREE_AREA_COUNTS; i++) {
         if (pfn <= zone->zone_label[i].label) {
             list = &(zone->free_area[i][order].free_list[mt]);
             segment = zone->zone_label[i].segment;
@@ -189,7 +200,7 @@ int page_to_flc(struct page *page)
     struct zone *zone = page_zone(page);
     unsigned long pfn = page_to_pfn(page);
     int flc = 0;
- 
+
     if (unlikely(pfn > zone->zone_label[FREE_AREA_COUNTS - 1].label))
         return FREE_AREA_COUNTS - 1;
 
@@ -223,7 +234,7 @@ void ajust_zone_label(struct zone *zone)
 
 unsigned int ajust_flc(unsigned int current_flc, unsigned int order)
 {
-    /* when alloc_order >= HIGH_ORDER_TO_FLC, 
+    /* when alloc_order >= HIGH_ORDER_TO_FLC,
      * we like to alloc in free_area: 4->3->2->1
      */
     if (order >= HIGH_ORDER_TO_FLC)

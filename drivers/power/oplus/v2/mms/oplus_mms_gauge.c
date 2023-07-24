@@ -27,17 +27,21 @@
 #include <oplus_chg_monitor.h>
 #include <oplus_mms_wired.h>
 #include <oplus_mms_gauge.h>
+#include <oplus_chg_vooc.h>
 
 struct oplus_mms_gauge {
 	struct device *dev;
 	struct oplus_chg_ic_dev *gauge_ic;
+	struct oplus_chg_ic_dev *voocphy_ic;
 	struct oplus_mms *gauge_topic;
 	struct oplus_mms *comm_topic;
 	struct oplus_mms *wired_topic;
+	struct oplus_mms *vooc_topic;
 	struct oplus_mms *err_topic;
 	struct mms_subscribe *comm_subs;
 	struct mms_subscribe *wired_subs;
 	struct mms_subscribe *gauge_subs;
+	struct mms_subscribe *vooc_subs;
 
 	struct delayed_work hal_gauge_init_work;
 	struct work_struct err_handler_work;
@@ -46,13 +50,16 @@ struct oplus_mms_gauge {
 	struct work_struct resume_handler_work;
 	struct work_struct update_change_work;
 	struct work_struct gauge_update_work;
+	struct work_struct gauge_set_curve_work;
 
 	struct votable *gauge_update_votable;
 
 	int device_type;
 	int device_type_for_vooc;
+	unsigned int vooc_sid;
 	unsigned int err_code;
 	int check_batt_vol_count;
+	bool pd_svooc;
 	bool bat_volt_different;
 
 	bool factory_test_mode;
@@ -1194,6 +1201,48 @@ end:
 	return 0;
 }
 
+static bool is_voocphy_ic_available(struct oplus_mms_gauge *chip)
+{
+	if (!chip->voocphy_ic)
+		chip->voocphy_ic = of_get_oplus_chg_ic(chip->dev->of_node,
+						       "oplus,voocphy_ic", 0);
+
+	return !!chip->voocphy_ic;
+}
+
+#define VBATT_OVER_THR_MV 4600
+#define MAX_CP_GAUGE_VBATT_DIFF 800
+static int oplus_mms_gauge_choice_fit_vol(struct oplus_mms_gauge *chip, int gauge_vol)
+{
+	int ret;
+	int cp_vbat;
+	int vbatt_ov_thr_mv;
+
+	if (chip->comm_topic)
+		vbatt_ov_thr_mv = oplus_comm_get_vbatt_over_threshold(chip->comm_topic);
+	else
+		vbatt_ov_thr_mv = VBATT_OVER_THR_MV;
+
+	ret = oplus_chg_ic_func(chip->voocphy_ic,
+				OPLUS_IC_FUNC_VOOCPHY_GET_CP_VBAT,
+				&cp_vbat);
+	if (ret < 0) {
+		chg_err("can't get cp voltage, rc=%d\n", ret);
+		return gauge_vol;
+	}
+
+	if (cp_vbat >= vbatt_ov_thr_mv || cp_vbat <= 0 ||
+	    abs(cp_vbat - gauge_vol) > MAX_CP_GAUGE_VBATT_DIFF) {
+		chg_info("choice gauge voltage as vbat [%d, %d]\n",
+			 cp_vbat, gauge_vol);
+		return gauge_vol;
+	} else {
+		chg_info("choice cp voltage as vbat [%d, %d]\n",
+			 cp_vbat, gauge_vol);
+		return cp_vbat;
+	}
+}
+
 static int oplus_mms_gauge_update_vol_max(struct oplus_mms *mms, union mms_msg_data *data)
 {
 	struct oplus_mms_gauge *chip;
@@ -1216,6 +1265,9 @@ static int oplus_mms_gauge_update_vol_max(struct oplus_mms *mms, union mms_msg_d
 		chg_err("get battery voltage max error, rc=%d\n", rc);
 		vol = 0;
 	}
+
+	if (chip->wired_online && is_voocphy_ic_available(chip))
+		vol = oplus_mms_gauge_choice_fit_vol(chip, vol);
 end:
 	data->intval = vol;
 	return 0;
@@ -1243,6 +1295,9 @@ static int oplus_mms_gauge_update_vol_min(struct oplus_mms *mms, union mms_msg_d
 		chg_err("get battery voltage min error, rc=%d\n", rc);
 		vol = 0;
 	}
+
+	if (chip->wired_online && is_voocphy_ic_available(chip))
+		vol = oplus_mms_gauge_choice_fit_vol(chip, vol);
 end:
 	data->intval = vol;
 	return 0;
@@ -1765,6 +1820,50 @@ static void oplus_mms_gauge_subscribe_comm_topic(struct oplus_mms *topic,
 	schedule_work(&chip->update_change_work);
 }
 
+static void oplus_mms_gauge_set_curve_work(struct work_struct *work)
+{
+	struct oplus_mms_gauge *chip =
+		container_of(work, struct oplus_mms_gauge, gauge_set_curve_work);
+	int type;
+	unsigned int adapter_id;
+
+	type = oplus_wired_get_chg_type();
+	if ((type != OPLUS_CHG_USB_TYPE_VOOC) &&
+	    (type != OPLUS_CHG_USB_TYPE_SVOOC)) {
+		if (sid_to_adapter_chg_type(chip->vooc_sid) == CHARGER_TYPE_VOOC)
+			type = OPLUS_CHG_USB_TYPE_VOOC;
+		else if (sid_to_adapter_chg_type(chip->vooc_sid) == CHARGER_TYPE_SVOOC)
+			type = OPLUS_CHG_USB_TYPE_SVOOC;
+	}
+
+	switch (type) {
+	case OPLUS_CHG_USB_TYPE_UNKNOWN:
+		return;
+	case OPLUS_CHG_USB_TYPE_QC2:
+	case OPLUS_CHG_USB_TYPE_QC3:
+		type = CHARGER_SUBTYPE_QC;
+		break;
+	case OPLUS_CHG_USB_TYPE_PD:
+	case OPLUS_CHG_USB_TYPE_PD_DRP:
+	case OPLUS_CHG_USB_TYPE_PD_PPS:
+		type = CHARGER_SUBTYPE_PD;
+		break;
+	case OPLUS_CHG_USB_TYPE_VOOC:
+		type = CHARGER_SUBTYPE_FASTCHG_VOOC;
+		break;
+	case OPLUS_CHG_USB_TYPE_SVOOC:
+		type = CHARGER_SUBTYPE_FASTCHG_SVOOC;
+		break;
+	default:
+		type = CHARGER_SUBTYPE_DEFAULT;
+		break;
+	}
+
+	adapter_id = sid_to_adapter_id(chip->vooc_sid);
+	(void)oplus_chg_ic_func(chip->gauge_ic, OPLUS_IC_FUNC_GAUGE_SET_BATTERY_CURVE,
+				type, adapter_id, chip->pd_svooc);
+}
+
 static void oplus_mms_gauge_wired_subs_callback(struct mms_subscribe *subs,
 						enum mms_msg_type type, u32 id)
 {
@@ -1779,6 +1878,18 @@ static void oplus_mms_gauge_wired_subs_callback(struct mms_subscribe *subs,
 						false);
 			chip->wired_online = data.intval;
 			schedule_work(&chip->update_change_work);
+			break;
+		case WIRED_ITEM_CHG_TYPE:
+			if (chip->wired_online && is_voocphy_ic_available(chip))
+				schedule_work(&chip->gauge_set_curve_work);
+			break;
+		case WIRED_TIME_ABNORMAL_ADAPTER:
+			oplus_mms_get_item_data(chip->wired_topic,
+						WIRED_TIME_ABNORMAL_ADAPTER,
+						&data, false);
+			chip->pd_svooc = data.intval;
+			if (chip->wired_online && is_voocphy_ic_available(chip))
+				schedule_work(&chip->gauge_set_curve_work);
 			break;
 		default:
 			break;
@@ -1810,6 +1921,13 @@ static void oplus_mms_gauge_subscribe_wired_topic(struct oplus_mms *topic,
 				true);
 	chip->wired_online = !!data.intval;
 	schedule_work(&chip->update_change_work);
+	if (chip->wired_online && is_voocphy_ic_available(chip)) {
+		oplus_mms_get_item_data(chip->wired_topic,
+					WIRED_TIME_ABNORMAL_ADAPTER,
+					&data, false);
+		chip->pd_svooc = data.intval;
+		schedule_work(&chip->gauge_set_curve_work);
+	}
 }
 
 static int oplus_mms_gauge_push_hmac(struct oplus_mms_gauge *chip)
@@ -1959,6 +2077,55 @@ static int oplus_mms_gauge_subscribe_gauge_topic(struct oplus_mms_gauge *chip)
 	return 0;
 }
 
+static void oplus_mms_gauge_vooc_subs_callback(struct mms_subscribe *subs,
+					       enum mms_msg_type type, u32 id)
+{
+	struct oplus_mms_gauge *chip = subs->priv_data;
+	union mms_msg_data data = { 0 };
+
+	switch (type) {
+	case MSG_TYPE_ITEM:
+		switch (id) {
+		case VOOC_ITEM_SID:
+			oplus_mms_get_item_data(chip->vooc_topic, id, &data,
+						false);
+			chip->vooc_sid = (unsigned int)data.intval;
+			if (chip->vooc_sid && chip->wired_online &&
+			    is_voocphy_ic_available(chip))
+				schedule_work(&chip->gauge_set_curve_work);
+			break;
+		default:
+			break;
+		}
+		break;
+	default:
+		break;
+	}
+}
+static void oplus_mms_gauge_subscribe_vooc_topic(struct oplus_mms *topic,
+						 void *prv_data)
+{
+	struct oplus_mms_gauge *chip = prv_data;
+	union mms_msg_data data = { 0 };
+
+	chip->vooc_topic = topic;
+	chip->vooc_subs =
+		oplus_mms_subscribe(chip->vooc_topic, chip,
+				    oplus_mms_gauge_vooc_subs_callback,
+				    "mms_gauge");
+	if (IS_ERR_OR_NULL(chip->vooc_subs)) {
+		chg_err("subscribe vooc topic error, rc=%ld\n",
+			PTR_ERR(chip->vooc_subs));
+		return;
+	}
+
+	oplus_mms_get_item_data(chip->vooc_topic, VOOC_ITEM_SID, &data,
+				true);
+	chip->vooc_sid = (unsigned int)data.intval;
+	if (chip->wired_online && is_voocphy_ic_available(chip))
+		schedule_work(&chip->gauge_set_curve_work);
+}
+
 static int oplus_mms_gauge_topic_init(struct oplus_mms_gauge *chip)
 {
 	struct oplus_mms_config mms_cfg = {};
@@ -1991,6 +2158,7 @@ static int oplus_mms_gauge_topic_init(struct oplus_mms_gauge *chip)
 	oplus_mms_gauge_push_hmac(chip);
 	oplus_mms_wait_topic("common", oplus_mms_gauge_subscribe_comm_topic, chip);
 	oplus_mms_wait_topic("wired", oplus_mms_gauge_subscribe_wired_topic, chip);
+	oplus_mms_wait_topic("vooc", oplus_mms_gauge_subscribe_vooc_topic, chip);
 
 	return 0;
 }
@@ -2049,6 +2217,7 @@ static int oplus_mms_gauge_probe(struct platform_device *pdev)
 	INIT_WORK(&chip->resume_handler_work, oplus_mms_gauge_resume_handler_work);
 	INIT_WORK(&chip->update_change_work, oplus_mms_gauge_update_change_work);
 	INIT_WORK(&chip->gauge_update_work, oplus_mms_gauge_gauge_update_work);
+	INIT_WORK(&chip->gauge_set_curve_work, oplus_mms_gauge_set_curve_work);
 
 	schedule_delayed_work(&chip->hal_gauge_init_work, 0);
 

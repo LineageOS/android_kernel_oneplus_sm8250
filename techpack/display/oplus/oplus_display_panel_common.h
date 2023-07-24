@@ -97,4 +97,6 @@ int oplus_display_panel_hbm_lightspot_check(void);
 int oplus_display_set_dither_status(void *buf);
 int oplus_display_get_dither_status(void *buf);
 int oplus_dsi_update_dynamic_osc_clock(void);
+/* Apollo DC backlight */
+int oplus_display_panel_set_dc_real_brightness(void *data);
 #endif /*_OPLUS_DISPLAY_PANEL_COMMON_H_*/

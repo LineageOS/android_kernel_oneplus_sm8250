@@ -46,7 +46,7 @@ ADD_FUNC_BODY(oplus_is_pd_svooc)
 
 #if defined(CONFIG_OPLUS_SM8350_CHARGER)
 DEF_SYMBOLE(void, oplus_adsp_crash_recover_work, void)
-ADD_FUNC_BODY(oplus_is_pd_svooc)
+ADD_FUNC_BODY(oplus_adsp_crash_recover_work)
 #endif
 
 DEF_SYMBOLE(int, qti_battery_charger_get_prop, const char *name, enum battery_charger_prop prop_id, int *val)
@@ -62,6 +62,9 @@ ADD_FUNC_BODY(oplus_chg_wake_update_work)
 
 DEF_SYMBOLE(bool, oplus_chg_check_chip_is_null, void)
 ADD_FUNC_BODY(oplus_chg_check_chip_is_null)
+
+DEF_SYMBOLE(int, oplus_chg_check_ui_soc, void)
+ADD_FUNC_BODY(oplus_chg_check_ui_soc)
 
 DEF_SYMBOLE(int, oplus_is_vooc_project, void)
 ADD_FUNC_BODY(oplus_is_vooc_project)

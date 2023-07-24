@@ -835,7 +835,6 @@ static int oplus_sm8350_pps_get_authentiate(void)
 	return 1;
 }
 
-
 void oplus_op10_hardware_init(void)
 {
 	pps_err(" end\n");
@@ -1033,6 +1032,7 @@ static int op10_parse_fw_from_array(struct oplus_vooc_chip *chip)
 		chip->firmware_data = op10_fw_data_4450_vooc_ffc_5v6a_4bit;
 		chip->fw_data_count = sizeof(op10_fw_data_4450_vooc_ffc_5v6a_4bit);
 		chip->fw_data_version = op10_fw_data_4450_vooc_ffc_5v6a_4bit[chip->fw_data_count - 4];
+		break;
 	default:
 		break;
 	}
@@ -1145,7 +1145,6 @@ static int op10_driver_probe(struct i2c_client *client, const struct i2c_device_
 		op10_parse_fw_from_array(chip);
 
 	oplus_pps_ops_register("mcu-op10", &oplus_op10_pps_ops);
-
 	chip->vops = &oplus_op10_ops;
 	chip->fw_mcu_version = 0;
 

@@ -24,6 +24,8 @@ theia_kevent_packet.data: is logmap format: logmap{key1:value1;key2:value2;key3:
 */
 #define THEIA_KEVENT_TYPE_DCS_MSG 2
 
+#define THEIA_ATTR_TYPE_SEND_EVENT 3
+
 #define THEIA_KEVENT_MODULE 	"theia_kevent"
 
 struct theia_kevent_packet {
@@ -39,4 +41,4 @@ void theia_kevent_module_exit(void);
 void SendTheiaKevent(int type, char *log_tag, char *event_id, char *payload);
 void SendDcsTheiaKevent(char *log_tag, char *event_id, char *logmap);
 
-#endif
+#endif /* __THEIA_KEVENT_KERNEL_H_ */

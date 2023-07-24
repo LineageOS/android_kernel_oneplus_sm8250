@@ -7,7 +7,7 @@
 
 #define BRIGHTSCREEN_COUNT_FILE    "/data/oplus/log/bsp/brightscreen_count.txt"
 #define BRIGHT_MAX_WRITE_NUMBER            50
-#define BRIGHT_SLOW_TIMEOUT_MS            20000
+#define BRIGHT_SLOW_TIMEOUT_MS            5000
 
 #define BRIGHT_DEBUG_PRINTK(a, arg...)\
     do{\
@@ -52,6 +52,12 @@ int bright_screen_timer_restart(void)
         BRIGHT_DEBUG_PRINTK("bright_screen_timer_restart:g_bright_data.status = %d return\n",g_bright_data.status);
         return g_bright_data.status;
     }
+
+	/* Remove for MTK functioning */
+	if (!is_system_boot_completed()) {
+		BRIGHT_DEBUG_PRINTK("boot not complete, %s just return\n", __func__);
+		/* return -1; */
+	}
 
 #ifdef CONFIG_DRM_MSM
     if(g_bright_data.blank == MSM_DRM_BLANK_UNBLANK)    //MSM_DRM_BLANK_POWERDOWN

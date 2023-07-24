@@ -40,6 +40,10 @@ bool ux_task_misfit(struct task_struct *p, int cpu);
 #define scale_demand(d) ((d)/walt_scale_demand_divisor)
 #endif /* OPLUS_FEATURE_SCHED_ASSIST */
 
+#ifdef CONFIG_LOCKING_PROTECT
+#include <linux/sched_assist/sched_assist_locking.h>
+#endif
+
 #ifdef CONFIG_OPLUS_FEATURE_GAME_OPT
 #include "../../drivers/soc/oplus/game_opt/game_ctrl.h"
 #endif
@@ -659,6 +663,10 @@ static void __enqueue_entity(struct cfs_rq *cfs_rq, struct sched_entity *se)
 	struct sched_entity *entry;
 	bool leftmost = true;
 
+#ifdef CONFIG_LOCKING_PROTECT
+	enqueue_locking_entity(cfs_rq, se);
+#endif
+
 	/*
 	 * Find the right place in the rbtree:
 	 */
@@ -684,6 +692,9 @@ static void __enqueue_entity(struct cfs_rq *cfs_rq, struct sched_entity *se)
 
 static void __dequeue_entity(struct cfs_rq *cfs_rq, struct sched_entity *se)
 {
+#ifdef CONFIG_LOCKING_PROTECT
+	dequeue_locking_entity(cfs_rq, se);
+#endif
 	rb_erase_cached(&se->run_node, &cfs_rq->tasks_timeline);
 }
 
@@ -4587,6 +4598,9 @@ check_preempt_tick(struct cfs_rq *cfs_rq, struct sched_entity *curr)
 
 	ideal_runtime = sched_slice(cfs_rq, curr);
 	delta_exec = curr->sum_exec_runtime - curr->prev_sum_exec_runtime;
+#ifdef CONFIG_LOCKING_PROTECT
+	check_locking_protect_tick(curr);
+#endif
 #ifdef OPLUS_FEATURE_SCHED_ASSIST
 	if (is_heavy_load_task(current))
 		ideal_runtime = HEAVY_LOAD_RUNTIME;
@@ -5774,7 +5788,6 @@ enqueue_task_fair(struct rq *rq, struct task_struct *p, int flags)
 #ifdef OPLUS_FEATURE_SCHED_ASSIST
 	enqueue_ux_thread(rq, p);
 #endif
-
 	for_each_sched_entity(se) {
 		cfs_rq = cfs_rq_of(se);
 		cfs_rq->h_nr_running++;
@@ -5887,7 +5900,6 @@ static void dequeue_task_fair(struct rq *rq, struct task_struct *p, int flags)
 #ifdef OPLUS_FEATURE_SCHED_ASSIST
 	dequeue_ux_thread(rq, p);
 #endif
-
 	for_each_sched_entity(se) {
 		cfs_rq = cfs_rq_of(se);
 		cfs_rq->h_nr_running--;
@@ -8582,6 +8594,11 @@ static void check_preempt_wakeup(struct rq *rq, struct task_struct *p, int wake_
 
 	if (unlikely(se == pse))
 		return;
+
+#ifdef CONFIG_LOCKING_PROTECT
+	if (check_locking_protect_wakeup(curr, p))
+		return;
+#endif
 #ifdef OPLUS_FEATURE_SCHED_ASSIST
 	if (is_heavy_load_task(current))
 		return;
@@ -8738,7 +8755,9 @@ again:
 #ifdef OPLUS_FEATURE_SCHED_ASSIST
 	pick_ux_thread(rq, &p, &se);
 #endif
-
+#ifdef CONFIG_LOCKING_PROTECT
+	pick_locking_thread(rq, &p, &se);
+#endif
 	/*
 	 * Since we haven't yet done put_prev_entity and if the selected task
 	 * is a different task than we started out with, try and touch the
@@ -8786,6 +8805,9 @@ simple:
 		p = pos;
 		se = &p->se;
 	}
+#ifdef CONFIG_LOCKING_PROTECT
+	pick_locking_thread(rq, &p, &se);
+#endif
 	for_each_sched_entity(se) {
 		set_next_entity(cfs_rq_of(se), se);
 	}

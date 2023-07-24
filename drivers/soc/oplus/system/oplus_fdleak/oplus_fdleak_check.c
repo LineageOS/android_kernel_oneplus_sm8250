@@ -11,7 +11,9 @@
 #include <linux/printk.h>      /* for pr_err, pr_info etc */
 #include <linux/mutex.h>
 #include <linux/fcntl.h>
+#include <linux/proc_fs.h>
 #include <linux/atomic.h>
+#include <linux/version.h>
 #define FDLEAK_CHECK_LOG_TAG "[fdleak_check]"
 #define FD_MAX 32768
 #define DEFAULT_THRESHOLD (FD_MAX/2)
@@ -20,25 +22,107 @@
 #define FDLEAK_ALREADY_DUMP_FLAG 0x56
 #define SIG_FDLEAK_CHECK_TRIGGER (SIGRTMIN + 10)
 #define BIONIC_SIGNAL_FDTRACK (SIGRTMIN + 7)
-
+#define TASK_COMM_LEN			16
 #define MAX_SYMBOL_LEN 64
+#define TASK_WHITE_LIST_MAX  128
+
 static char symbol[MAX_SYMBOL_LEN] = "__alloc_fd";
 module_param_string(symbol, symbol, sizeof(symbol), 0644);
 int load_threshold = DEFAULT_THRESHOLD;
 int dump_threshold = DEFAULT_DUMP_THRESHOLD;
 
 struct fdleak_white_list_struct {
-	char *comm;
+	char comm[TASK_COMM_LEN];
 	int load_threshold;
 	int dump_threshold;
 };
 
-static struct fdleak_white_list_struct white_list[] = {
+static struct fdleak_white_list_struct white_list[TASK_WHITE_LIST_MAX] = {
 	{"fdleak_example", 2048, 2560},
-	{"vendor.qti.hardware.display.composer-service", 2048, 2560},
-	{"android.hardware.graphics.composer", 2048, 2560},
+	{"composer", 2048, 2560},
 };
 
+char page[2048] = {0};
+static ssize_t fdleak_proc_read(struct file *file, char __user *buf,
+		size_t count, loff_t *off)
+{
+	int len = 0;
+	int i;
+
+	memset(&page, 0, sizeof(page));
+
+	for(i = 0; i < ARRAY_SIZE(white_list); i++) {
+                if (!strlen(white_list[i].comm))
+                        break;
+		len += snprintf(&page[len], 2048 - len, "fdleak_detect_task = %s load_threshold = %d dump_threshold = %d\n",
+					white_list[i].comm, white_list[i].load_threshold, white_list[i].dump_threshold);
+	}
+
+	if(len > *off)
+	   len -= *off;
+	else
+	   len = 0;
+
+	if(copy_to_user(buf, page, (len < count ? len : count))) {
+	   return -EFAULT;
+	}
+	*off += len < count ? len : count;
+	return (len < count ? len : count);
+}
+
+static ssize_t fdleak_proc_write(struct file *file, const char __user *buf,
+		size_t count, loff_t *off)
+{
+	int tmp_load_threshold = 0;
+	int tmp_dump_threshold = 0;
+	char tmp_task[16] = {0};
+	int ret = 0;
+	char buffer[100] = {0};
+	int i;
+
+	if (count > 64) {
+		count = 64;
+	}
+
+	if (copy_from_user(buffer, buf, count)) {
+		pr_err(FDLEAK_CHECK_LOG_TAG "%s: read proc input error.\n", __func__);
+		return count;
+	}
+	ret = sscanf(buffer, "%s %d %d", &tmp_task, &tmp_load_threshold, &tmp_dump_threshold);
+	if(ret <= 0) {
+		pr_err(FDLEAK_CHECK_LOG_TAG "%s: input error\n", __func__);
+		return count;
+	}
+
+	for (i = 0; i < ARRAY_SIZE(white_list); i++) {
+		if (strlen(white_list[i].comm) && !strcmp(white_list[i].comm, tmp_task)) {
+			white_list[i].load_threshold = tmp_load_threshold;
+			white_list[i].dump_threshold = tmp_dump_threshold;
+			break;
+		} else if (strlen(white_list[i].comm)) {
+			continue;
+		} else {
+			strncpy(white_list[i].comm, tmp_task, strlen(tmp_task));
+			white_list[i].load_threshold = tmp_load_threshold;
+			white_list[i].dump_threshold = tmp_dump_threshold;
+			break;
+		}
+	}
+	return count;
+}
+
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0))
+static struct proc_ops fdleak_proc_pops = {
+	.proc_read = fdleak_proc_read,
+	.proc_write = fdleak_proc_write,
+	.proc_lseek = default_llseek,
+};
+#else
+static struct file_operations fdleak_proc_pops = {
+	.read = fdleak_proc_read,
+	.write = fdleak_proc_write,
+};
+#endif
 /* used for handle_fdleak_error serialize to avoid race condition */
 static atomic_t error_is_handling;
 
@@ -55,16 +139,19 @@ int white_list_check(struct task_struct *p) {
         int i;
 
         for (i = 0; i < ARRAY_SIZE(white_list); i++) {
-		if (!strncmp(p->comm, white_list[i].comm, strlen(white_list[i].comm))) {
-			load_threshold = white_list[i].load_threshold;
-			dump_threshold = white_list[i].dump_threshold;
-			return 0;
-		}
+			if (!strlen(white_list[i].comm))
+				break;
+
+			if (strnstr(p->comm, white_list[i].comm, strlen(white_list[i].comm))) {
+				load_threshold = white_list[i].load_threshold;
+				dump_threshold = white_list[i].dump_threshold;
+				return 0;
+			}
         }
 
         load_threshold = DEFAULT_THRESHOLD;
         dump_threshold = DEFAULT_DUMP_THRESHOLD;
-        return 0;
+        return -1;
 }
 
 static void fdleak_check(struct task_struct *p, int fd)
@@ -82,7 +169,7 @@ static void fdleak_check(struct task_struct *p, int fd)
 	/* already fdleak, return, not check */
 	if (ots->fdleak_flag == FDLEAK_ALREADY_DUMP_FLAG || p->pid != p->tgid) {
 		return;
-        } else if (ots->fdleak_flag == FDLEAK_ALREADY_TRIGGER_FLAG && !white_list_check(p) && fd >= dump_threshold) {
+	} else if (ots->fdleak_flag == FDLEAK_ALREADY_TRIGGER_FLAG && !white_list_check(p) && fd >= dump_threshold) {
 		send_sig(BIONIC_SIGNAL_FDTRACK, p, 0);
 		ots->fdleak_flag = FDLEAK_ALREADY_DUMP_FLAG;
 	} else if (ots->fdleak_flag != FDLEAK_ALREADY_TRIGGER_FLAG && !white_list_check(p) && fd >= load_threshold) {
@@ -120,6 +207,7 @@ static int __init fdleak_check_init(void)
 	int ret;
 
 	g_krp.kp.symbol_name = symbol;
+	proc_create("fdleak_detect", 0666, NULL, &fdleak_proc_pops);
 	ret = register_kretprobe(&g_krp);
 	if (ret < 0) {
 		pr_err(FDLEAK_CHECK_LOG_TAG "oplus_fdleak_check, register_kretprobe failed, return %d\n", ret);

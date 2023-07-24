@@ -8,7 +8,6 @@
 **
 ** ------------------ Revision History:------------------------
 ** <author> <data> <version > <desc>
-** penghao 2019/10/02 1.0 build this module
 ****************************************************************/
 
 #include <linux/types.h>
@@ -57,6 +56,15 @@ struct link_score_msg_st
 	u32 link_index;
 	s32 uplink_score;
 	s32 downlink_score;
+	u32 uplink_srtt;
+	u32 uplink_packets;
+	u32 uplink_retrans_packets;
+	u32 uplink_retrans_rate;
+	u32 downlink_srtt;
+	u32 downlink_packets;
+	u32 downlink_retrans_packets;
+	u32 downlink_retrans_rate;
+	u32 downlink_rate;
 };
 
 struct score_param_st
@@ -405,6 +413,12 @@ void oplus_score_calc_and_report(void)
 					uplink_smooth_score, uplink_seq, oplus_score_foreground_uid[0], retrans_rate, index, uplink_nodata_count);
 		}
 
+		/*added for score3.0 by linjinbin*/
+		link_score_msg.uplink_srtt = uplink_srtt;
+		link_score_msg.uplink_packets = uplink_packets;
+		link_score_msg.uplink_retrans_packets = uplink_retrans_packets;
+		link_score_msg.uplink_retrans_rate = retrans_rate;
+
 		/*start downlink score calc*/
 		if (downlink_total_packets == 0) {
 			if (oplus_score_debug) {
@@ -452,6 +466,13 @@ void oplus_score_calc_and_report(void)
 					downlink_index, ifname, downlink_packets, downlink_retrans_packets, uplink_srtt, downlink_score,
 					downlink_smooth_score, downlink_seq, oplus_score_foreground_uid[0], retrans_rate, index, downlink_nodata_count);
 		}
+
+		/*added for score3.0 by linjinbin*/
+		link_score_msg.downlink_srtt = downlink_srtt;
+		link_score_msg.downlink_packets = downlink_packets;
+		link_score_msg.downlink_retrans_packets = downlink_retrans_packets;
+		link_score_msg.downlink_retrans_rate  = retrans_rate;
+		link_score_msg.downlink_rate = downlink_rate;
 
 		if (uplink_report || downlink_report) {
 			link_score_msg.link_index = uplink_index;
@@ -1214,11 +1235,9 @@ static int oplus_score_netlink_rcv_msg(struct sk_buff *skb, struct genl_info *in
 	genlhdr = nlmsg_data(nlhdr);
 	nla = genlmsg_data(genlhdr);
 
-	if (oplus_score_user_pid == 0) {
-		oplus_score_user_pid = nlhdr->nlmsg_pid;
-		if (oplus_score_debug) {
-			printk("[oplus_score]:set oplus_score_user_pid=%u.\n", oplus_score_user_pid);
-		}
+	oplus_score_user_pid = nlhdr->nlmsg_pid;
+	if (oplus_score_debug) {
+		printk("[oplus_score]:set oplus_score_user_pid=%u.\n", oplus_score_user_pid);
 	}
 
 	/* to do: may need to some head check here*/

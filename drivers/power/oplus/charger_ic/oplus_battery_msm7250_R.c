@@ -49,6 +49,7 @@
 #include "../gauge_ic/oplus_bq27541.h"
 #include "op_charge.h"
 #include "../oplus_configfs.h"
+#include "../oplus_chg_track.h"
 #ifdef CONFIG_OPLUS_FEATURE_SEC_DEBUG
 extern void oplus_force_panic(void);
 #endif
@@ -306,6 +307,7 @@ extern bool oplus_usbtemp_check_is_support(void);
 extern void oplus_set_usb_status(int status);
 extern void oplus_clear_usb_status(int status);
 extern int oplus_get_usb_status(void);
+int oplus_chg_get_charger_subtype(void);
 extern int oplus_usbtemp_monitor_common(void *data);
 extern void oplus_usbtemp_recover_func(struct oplus_chg_chip *chip);
 void oplus_set_smb5_usb_props_type(enum power_supply_type type);
@@ -6070,6 +6072,11 @@ void smblib_usb_plugin_hard_reset_locked(struct smb_charger *chg)
 
 	vbus_rising = (bool)(stat & USBIN_PLUGIN_RT_STS_BIT);
 
+#ifdef OPLUS_FEATURE_CHG_BASIC
+	oplus_chg_track_check_wired_charging_break(vbus_rising);
+	chg->real_chg_type = POWER_SUPPLY_TYPE_UNKNOWN;
+#endif
+
 	if (vbus_rising) {
 		/* Remove FCC_STEPPER 1.5A init vote to allow FCC ramp up */
 		if (chg->fcc_stepper_enable)
@@ -6199,6 +6206,10 @@ void smblib_usb_plugin_locked(struct smb_charger *chg)
 	}
 
 	vbus_rising = (bool)(stat & USBIN_PLUGIN_RT_STS_BIT);
+#ifdef OPLUS_FEATURE_CHG_BASIC
+	oplus_chg_track_check_wired_charging_break(vbus_rising);
+	chg->real_chg_type = POWER_SUPPLY_TYPE_UNKNOWN;
+#endif
 	smblib_set_opt_switcher_freq(chg, vbus_rising ? chg->chg_freq.freq_5V :
 						chg->chg_freq.freq_removal);
 
@@ -6602,6 +6613,10 @@ static void smblib_handle_apsd_done(struct smb_charger *chg, bool rising)
 {
 	const struct apsd_result *apsd_result;
 
+#ifdef OPLUS_FEATURE_CHG_BASIC
+	int chg_type;
+	int sub_chg_type;
+#endif
 	if (!rising)
 		return;
 
@@ -6638,6 +6653,9 @@ static void smblib_handle_apsd_done(struct smb_charger *chg, bool rising)
 			chg->hvdcp_detect_time = cpu_clock(smp_processor_id()) / 1000000;
 			printk(KERN_ERR " HVDCP2 detect: %d, the detect time: %lu\n", chg->hvdcp_detect_ok, chg->hvdcp_detect_time);
 		}
+		chg_type = opchg_get_charger_type();
+		sub_chg_type = oplus_chg_get_charger_subtype();
+		chg->real_chg_type = chg_type | (sub_chg_type << 8);
 #endif
 
 	smblib_dbg(chg, PR_INTERRUPT, "IRQ: apsd-done rising; %s detected\n",

@@ -272,7 +272,8 @@ int gf_parse_dts(struct gf_dev* gf_dev)
         || FP_GOODIX_3626 == get_fpsensor_type()
         || FP_GOODIX_3688 == get_fpsensor_type()
         || FP_GOODIX_3956 == get_fpsensor_type()
-        || FP_GOODIX_3636 == get_fpsensor_type() ) { //add new fpsensor if needed
+        || FP_GOODIX_3636 == get_fpsensor_type()
+        || FP_GOODIX_3976 == get_fpsensor_type() ) { // add new fpsensor if needed
         gf_dev->is_optical = false;
     }
     else {

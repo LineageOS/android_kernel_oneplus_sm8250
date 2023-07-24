@@ -80,6 +80,10 @@ enum votable_type {
 #define PDQC_VOTER		"PDQC_VOTER"
 #define TYPEC_VOTER		"TYPEC_VOTER"
 #define VOL_DIFF_VOTER		"VOL_DIFF_VOTER"
+#define CHARGE_SUSPEND_VOTER	"CHARGE_SUSPEND_VOTER"
+#define CHAEGE_DISABLE_VOTER	"CHAEGE_DISABLE_VOTER"
+#define OTG_ONLINE_VOTER	"OTG_ONLINE_VOTER"
+#define COPYCAT_ADAPTER		"COPYCAT_ADAPTER"
 
 bool is_client_vote_enabled(struct votable *votable, const char *client_str);
 bool is_client_vote_enabled_locked(struct votable *votable,

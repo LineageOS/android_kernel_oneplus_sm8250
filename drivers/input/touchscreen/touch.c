@@ -92,32 +92,37 @@ int tp_util_get_vendor(struct hw_resource *hw_res, struct panel_info *panel_data
 	prj_id = g_tp_prj_id;
 	if (panel_data->tp_type == TP_SAMSUNG) {
 		memcpy(panel_data->manufacture_info.version, "SL", 2);
+		panel_data->manufacture_info.version[2] = '\0';
 	} else if (panel_data->tp_type == TP_BOE) {
 		memcpy(panel_data->manufacture_info.version, "BS", 2);
+		panel_data->manufacture_info.version[2] = '\0';
 	} else {
 		memcpy(panel_data->manufacture_info.version, "0x", 2);
+		panel_data->manufacture_info.version[2] = '\0';
 	}
 	if (prj_id == 19795) {
 		memcpy(panel_data->manufacture_info.version, "goodix_", 7);
+		panel_data->manufacture_info.version[7] = '\0';
 	}
 	if (prj_id == 19015 || prj_id == 19016) {
 		memcpy(panel_data->manufacture_info.version, "0xbd3180000", 11);
+		panel_data->manufacture_info.version[11] = '\0';
 	}
 	if (prj_id == 19125) {
 		memcpy(panel_data->manufacture_info.version, "0xbd2830000", 11);
+		panel_data->manufacture_info.version[11] = '\0';
 	}
 	if (prj_id == 20801) {
 		memcpy(panel_data->manufacture_info.version, "0x504000000", 11);
+		panel_data->manufacture_info.version[11] = '\0';
 	}
 	if (prj_id == 21623) {
 		memcpy(panel_data->manufacture_info.version, "focalt_", sizeof("focalt_"));
+		panel_data->manufacture_info.version[sizeof("focalt_")] = '\0';
 	}
 	if (g_tp_ext_prj_name) {
-		if (NULL != panel_data->manufacture_info.version) {
-			strncpy(panel_data->manufacture_info.version + strlen(panel_data->manufacture_info.version),
-			g_tp_ext_prj_name, 7);
-			panel_data->manufacture_info.version[strlen(panel_data->manufacture_info.version)] = '\0';
-		}
+		strncpy(panel_data->manufacture_info.version + strlen(panel_data->manufacture_info.version),
+		g_tp_ext_prj_name, 7);
 	}
 	if (panel_data->tp_type == TP_UNKNOWN) {
 		pr_err("[TP]%s type is unknown\n", __func__);

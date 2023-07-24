@@ -150,7 +150,6 @@ bool qpnp_is_power_off_charging(void)
 	return false;
 }
 
-#ifdef PHOENIX_PROJECT
 bool op_is_monitorable_boot(void)
 {
 	if (ftm_mode != MSM_BOOT_MODE__NORMAL) {
@@ -163,11 +162,13 @@ bool op_is_monitorable_boot(void)
 		return true;
 	} else if (!strcmp(boot_mode, "kernel")) {
 		return true;
+	} else if (!strcmp(boot_mode, "rtc")) {
+		return true;
 	} else {
 		return false;
 	}
 }
-#endif
+EXPORT_SYMBOL(op_is_monitorable_boot);
 
 char charger_reboot[MAX_CMD_LENGTH + 1];
 bool qpnp_is_charger_reboot(void)

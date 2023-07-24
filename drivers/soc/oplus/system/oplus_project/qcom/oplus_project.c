@@ -30,8 +30,6 @@
 #define RF_INFO                    (0x3)
 #define MODEM_TYPE                (0x4)
 #define OPLUS_BOOTMODE            (0x5)
-#define SECURE_TYPE                (0x6)
-#define SECURE_STAGE            (0x7)
 #define OCP_NUMBER                (0x8)
 #define SERIAL_NUMBER            (0x9)
 #define ENG_VERSION                (0xA)
@@ -402,38 +400,6 @@ static void dump_confidential_status(struct seq_file *s)
     return;
 }
 
-static void dump_secure_type(struct seq_file *s)
-{
-#define OEM_SEC_BOOT_REG 0x780350
-
-    void __iomem *oem_config_base = NULL;
-    uint32_t secure_oem_config = 0;
-
-    oem_config_base = ioremap(OEM_SEC_BOOT_REG, 4);
-    if (oem_config_base) {
-        secure_oem_config = __raw_readl(oem_config_base);
-        iounmap(oem_config_base);
-    }
-
-    seq_printf(s, "%d", secure_oem_config);    
-}
-
-static void dump_secure_stage(struct seq_file *s)
-{
-#define OEM_SEC_ENABLE_ANTIROLLBACK_REG 0x78019c
-
-    void __iomem *oem_config_base = NULL;
-    uint32_t secure_oem_config = 0;
-
-    oem_config_base = ioremap(OEM_SEC_ENABLE_ANTIROLLBACK_REG, 4);
-    if (oem_config_base) {
-        secure_oem_config = __raw_readl(oem_config_base);
-        iounmap(oem_config_base);
-    }
-
-    seq_printf(s, "%d", secure_oem_config);
-}
-
 static void update_manifest(struct proc_dir_entry *parent)
 {
     static const char* manifest_src[2] = {
@@ -513,12 +479,6 @@ static int project_read_func(struct seq_file *s, void *v)
     case MODEM_TYPE:
     case RF_INFO:
         seq_printf(s, "%d", get_Modem_Version());
-        break;
-    case SECURE_TYPE:
-        dump_secure_type(s);
-        break;
-    case SECURE_STAGE:
-        dump_secure_stage(s);
         break;
     case OCP_NUMBER:
         dump_ocp_info(s);
@@ -601,14 +561,6 @@ static int __init oplus_project_init(void)
         goto error_init;
 
     p_entry = proc_create_data("operatorName", S_IRUGO, oplus_info, &project_info_fops, UINT2Ptr(OPERATOR_NAME));
-    if (!p_entry)
-        goto error_init;
-
-    p_entry = proc_create_data("secureType", S_IRUGO, oplus_info, &project_info_fops, UINT2Ptr(SECURE_TYPE));
-    if (!p_entry)
-        goto error_init;
-
-    p_entry = proc_create_data("secureStage", S_IRUGO, oplus_info, &project_info_fops, UINT2Ptr(SECURE_STAGE));
     if (!p_entry)
         goto error_init;
 

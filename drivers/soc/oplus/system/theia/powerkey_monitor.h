@@ -135,4 +135,5 @@ void record_stage(const char *buf);
 bool is_valid_systemserver_pid(int pid);
 int get_systemserver_pid(void);
 void doPanic(void);
-#endif
+bool is_system_boot_completed(void);
+#endif /* __POWERKEY_MONITOR_H_ */

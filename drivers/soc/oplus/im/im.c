@@ -111,6 +111,8 @@ static inline void im_tagging(struct task_struct *task, int idx)
 		case IM_ID_HWUI_EX:
 			task->im_flag |= IM_HWUI_EX;
 			break;
+		default:
+			break;
 		}
 	}
 
@@ -140,6 +142,8 @@ static inline void im_tagging(struct task_struct *task, int idx)
 			break;
 		case IM_ID_UNITY_MAIN:
 			task->im_flag |= IM_UNITY_MAIN;
+			break;
+		default:
 			break;
 		}
 	}

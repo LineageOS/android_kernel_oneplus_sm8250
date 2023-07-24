@@ -282,7 +282,7 @@ static int oplus_find_index_invmaplist(uint32_t bl_level)
 		}
 	}
 
-	pr_err("%s error\n", __func__);
+	DSI_DEBUG("%s error\n", __func__);
 	return -1;
 }
 static int oplus_get_panel_brightness_to_alpha(void)
@@ -509,7 +509,7 @@ int dsi_panel_parse_oplus_config(struct dsi_panel *panel)
 		"oplus,dfps-idle-off");
 	DSI_INFO("oplus,dfps-idle-off: %s", panel->oplus_priv.dfps_idle_off ? "true" : "false");
 
-	if (!strcmp(panel->oplus_priv.vendor_name, "ANA6706")) {
+	if (!strcmp(panel->oplus_priv.vendor_name, "ANA6706") || !strcmp(panel->oplus_priv.vendor_name, "SOFE03F")) {
 		oplus_enhance_mipi_strength = true;
 	} else {
 		oplus_enhance_mipi_strength = false;
@@ -561,7 +561,42 @@ int dsi_panel_parse_oplus_config(struct dsi_panel *panel)
 
 	panel->oplus_priv.is_raw_backlight = utils->read_bool(utils->data, "oplus,raw-backlight");
 	pr_info("[%s]is_raw_backlight: %s", __func__, panel->oplus_priv.is_raw_backlight? "Yes" : "Not");
+	panel->oplus_priv.is_apollo_support = apollo_backlight_enable;
+	if (panel->oplus_priv.is_apollo_support) {
+		panel->oplus_priv.dc_apollo_sync_enable = utils->read_bool(utils->data, "oplus,dc_apollo_sync_enable");
+		if (panel->oplus_priv.dc_apollo_sync_enable) {
+			ret = utils->read_u32(utils->data, "oplus,dc-apollo-backlight-sync-level",
+					&panel->oplus_priv.dc_apollo_sync_brightness_level);
+			if (ret) {
+				pr_info("[%s] failed to get panel parameter: oplus,dc-apollo-backlight-sync-level\n", __func__);
+				panel->oplus_priv.dc_apollo_sync_brightness_level = 1100;
+			}
+			ret = utils->read_u32(utils->data, "oplus,dc-apollo-backlight-sync-level-pcc-max",
+					&panel->oplus_priv.dc_apollo_sync_brightness_level_pcc);
+			if (ret) {
+				pr_info("[%s] failed to get panel parameter: oplus,dc-apollo-backlight-sync-level-pcc-max\n", __func__);
+				panel->oplus_priv.dc_apollo_sync_brightness_level_pcc = 30000;
+			}
+			ret = utils->read_u32(utils->data, "oplus,dc-apollo-backlight-sync-level-pcc-min",
+					&panel->oplus_priv.dc_apollo_sync_brightness_level_pcc_min);
+			if (ret) {
+				pr_info("[%s] failed to get panel parameter: oplus,dc-apollo-backlight-sync-level-pcc-min\n", __func__);
+				panel->oplus_priv.dc_apollo_sync_brightness_level_pcc_min = 29608;
+			}
+			pr_info("dc apollo sync enable(%d,%d,%d)\n", panel->oplus_priv.dc_apollo_sync_brightness_level,
+				panel->oplus_priv.dc_apollo_sync_brightness_level_pcc,
+				panel->oplus_priv.dc_apollo_sync_brightness_level_pcc_min);
+		}
+	}
 
+	ret = utils->read_u32(utils->data, "oplus,apollo-sync-brightness-level",
+			&panel->oplus_priv.sync_brightness_level);
+	if (ret) {
+		pr_info("[%s] failed to get panel parameter: oplus,apollo-sync-brightness-level\n", __func__);
+		/* Default sync brightness level is set to 200 */
+		panel->oplus_priv.sync_brightness_level = 200;
+	}
+	pr_info("sync level:%d\n", panel->oplus_priv.sync_brightness_level);
 #ifdef OPLUS_FEATURE_ADFR
 	if (oplus_adfr_is_support()) {
 		if (oplus_adfr_get_vsync_mode() == OPLUS_EXTERNAL_TE_TP_VSYNC) {
@@ -707,6 +742,8 @@ int sde_crtc_set_onscreenfinger_defer_sync(struct drm_crtc_state *crtc_state, bo
 	return 0;
 }
 
+extern int dc_apollo_enable;
+
 int sde_crtc_config_fingerprint_dim_layer(struct drm_crtc_state *crtc_state, int stage)
 {
 	struct sde_crtc_state *cstate;
@@ -735,6 +772,13 @@ int sde_crtc_config_fingerprint_dim_layer(struct drm_crtc_state *crtc_state, int
 
 	if ((stage + SDE_STAGE_0) >= kms->catalog->mixer[0].sblk->maxblendstages) {
 		return -EINVAL;
+	}
+
+	if (display->panel->oplus_priv.dc_apollo_sync_enable && dc_apollo_enable) {
+		if ((display->panel->bl_config.bl_level == display->panel->oplus_priv.dc_apollo_sync_brightness_level)
+			&& cstate->fingerprint_mode && (display->panel->bl_config.bl_dc_real > 0)) {
+			alpha = brightness_to_alpha(display->panel->bl_config.bl_dc_real);
+		}
 	}
 
 	fingerprint_dim_layer = &cstate->dim_layer[cstate->num_dim_layers];

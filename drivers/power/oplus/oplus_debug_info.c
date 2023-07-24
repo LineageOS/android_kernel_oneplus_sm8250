@@ -856,39 +856,48 @@ static void oplus_chg_print_debug_info(struct oplus_chg_chip *chip)
 					//chip->voocphy.fastchg_start, chip->voocphy.fastchg_ing, chip->voocphy.fastchg_dummy_start,
 					//chip->voocphy.fastchg_to_normal, chip->voocphy.fastchg_to_warm, chip->voocphy.chg_ctl_param_info);
 		}
+
 		pps_chip = oplus_pps_get_pps_chip();
 		if (pps_chip && pps_chip->pps_support_type) {
 			ret += snprintf(&oplus_chg_debug_msg[ret], OPLUS_CHG_DEBUG_MSG_LEN - ret,
-					"PPS_MSG[%d, %d, %d, %d, %d, %d][%d, %d, %d, %d, %d, %d, %d][%d, %d, %d, %d, %d, %d][%d, %d, %d, %d, %d, %d, %d, %d]\
-					[%d, %d, %d, %d, %d, %d][%d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d][%d, %d, %d, %d, %d, %d, %d, %d][%d, %d, %d, %d, %d, %d, %d]",
+					"PPS_MSG[%d, %d, %d, %d, %d, %d] [%d, %d, %d, %d, %d, %d] [%d, %d, %d, %d, %d, %d]\
+					ilimit[%d, %d, %d, %d, %d, %d] \
+					data1[%d, %d, %d, %d, %d, %d, %d, %d]\
+					data2[%d, %d, %d, %d, %d, %d][%d, %d, %d, %d, %d] [%d, %d, %d, %d, %d]\
+					cp[%d, %d, %d, %d, %d, %d][%d, %d, %d, %d]\
+					r[%d, %d, %d, %d, %d, %d, %d]",
 					pps_chip->pps_support_type, pps_chip->pps_adapter_type, pps_chip->pps_power, pps_chip->pps_status,
 					pps_chip->pps_stop_status, pps_chip->pps_chging,
 
-					pps_chip->pps_fastchg_started, pps_chip->pps_dummy_started, pps_chip->batt_curve_index, pps_chip->need_change_curve,
+					pps_chip->pps_fastchg_started, pps_chip->pps_dummy_started, pps_chip->batt_curve_index,
 					pps_chip->pps_low_curr_full_temp_status, pps_chip->pps_temp_cur_range, pps_chip->pps_fastchg_batt_temp_status,
 
-					pps_chip->current_batt_curve, pps_chip->current_batt_temp, pps_chip->current_cool_down,
-					pps_chip->cp_ibus_down, pps_chip->cp_r_down, pps_chip->cp_tdie_down,
-
-					pps_chip->ap_batt_volt, pps_chip->ap_batt_current, pps_chip->ap_batt_soc, pps_chip->ap_batt_temperature,
-					pps_chip->charger_output_volt, pps_chip->charger_output_current, pps_chip->current_adapter_max, pps_chip->vbat0,
-
 					pps_chip->target_charger_volt, pps_chip->target_charger_current, pps_chip->ask_charger_volt,
-					pps_chip->ask_charger_current, pps_chip->charger_output_volt, pps_chip->charger_output_current,
+					pps_chip->ask_charger_current, pps_chip->pps_imax, pps_chip->pps_vmax,
 
-					pps_chip->ap_input_volt, pps_chip->ap_input_current, pps_chip->cp_master_ibus, pps_chip->cp_master_vac,
-					pps_chip->cp_master_vout, pps_chip->cp_slave_vout, pps_chip->cp_slave_vac, pps_chip->cp_slave_ibus,
-					pps_chip->slave_input_volt, pps_chip->cp_master_tdie, pps_chip->cp_slave_tdie,
+					pps_chip->ilimit.current_batt_curve, pps_chip->ilimit.current_batt_temp, pps_chip->ilimit.current_cool_down,
+					pps_chip->ilimit.cp_ibus_down, pps_chip->ilimit.cp_r_down, pps_chip->ilimit.cp_tdie_down,
 
-					pps_chip->cp_slave_enable, pps_chip->cp_master_abnormal, pps_chip->cp_slave_abnormal, pps_chip->pps_iic_err,
-					pps_chip->pps_iic_err_num, pps_chip->master_enable_err_num, pps_chip->slave_enable_err_num, pps_chip->pps_imax, pps_chip->pps_vmax,
+					pps_chip->data.charger_output_volt, pps_chip->data.charger_output_current, pps_chip->data.ap_batt_volt,
+					pps_chip->data.ap_batt_current, pps_chip->data.ap_batt_soc, pps_chip->data.ap_batt_temperature,
+					pps_chip->data.current_adapter_max, pps_chip->data.vbat0,
 
-					pps_chip->r_avg.r0, pps_chip->r_avg.r1, pps_chip->r_avg.r2, pps_chip->r_avg.r3, pps_chip->r_avg.r4, pps_chip->r_avg.r5, pps_chip->r_avg.r6);
-/*
-			if (report_flag & (1 << 6)) {
-				strcpy(reason,"BTBError ");
-			}
-*/
+					pps_chip->data.ap_input_volt, pps_chip->data.ap_input_current, pps_chip->data.cp_master_ibus,
+					pps_chip->data.cp_master_vac, pps_chip->data.cp_master_vout, pps_chip->data.cp_master_tdie,
+
+					pps_chip->data.cp_slave_vac, pps_chip->data.cp_slave_ibus, pps_chip->data.slave_input_volt,
+					pps_chip->data.cp_slave_vout, pps_chip->data.cp_slave_tdie,
+
+					pps_chip->data.cp_slave_b_vac, pps_chip->data.cp_slave_b_ibus, pps_chip->data.slave_b_input_volt,
+					pps_chip->data.cp_slave_b_vout, pps_chip->data.cp_slave_b_tdie,
+
+					pps_chip->cp.master_enable, pps_chip->cp.slave_enable, pps_chip->cp.slave_b_enable, pps_chip->cp.master_abnormal,
+					pps_chip->cp.slave_abnormal, pps_chip->cp.iic_err, pps_chip->cp.iic_err_num, pps_chip->cp.master_enable_err_num,
+					pps_chip->cp.slave_enable_err_num, pps_chip->cp.slave_b_enable_err_num,
+
+					pps_chip->r_avg.r0, pps_chip->r_avg.r1, pps_chip->r_avg.r2, pps_chip->r_avg.r3, pps_chip->r_avg.r4,
+					pps_chip->r_avg.r5, pps_chip->r_avg.r6);
+
 			ret += snprintf(&oplus_chg_debug_msg[ret], OPLUS_CHG_DEBUG_MSG_LEN - ret,
 					"PPS_REG[18~1C/42][");
 			for (i = 0; i < 6; i++) {
@@ -960,6 +969,8 @@ static void oplus_chg_print_debug_info(struct oplus_chg_chip *chip)
 			ret = oplus_chg_pack_debug_info(chip);
 			if (!ret) {
 				oplus_chg_debug_info.retry_cnt = SEND_INFO_MAX_CNT;
+				if (oplus_pps_get_support_type() == PPS_SUPPORT_2CP || oplus_pps_get_support_type() == PPS_SUPPORT_3CP)
+					queue_delayed_work(oplus_chg_debug_info.oplus_chg_debug_wq, &oplus_chg_debug_info.send_info_dwork, 0);
 			}
 		}
 #else
@@ -2494,11 +2505,17 @@ void oplus_chg_sc8571_error(int report_flag, int *buf, int ret)
 	if (report_flag & (1 << PPS_REPORT_ERROR_USBTEMP_OVER)) {
 		strcpy(reason, "USBTEMP_OVER ");
 	}
+	if (report_flag & (1 << PPS_REPORT_ERROR_TFG_OVER)) {
+		strcpy(reason, "TFG_OVER ");
+	}
 	if (report_flag & (1 << PPS_REPORT_ERROR_VBAT_DIFF)) {
 		strcpy(reason, "VBAT_DIFF ");
 	}
 	if (report_flag & (1 << PPS_REPORT_ERROR_TDIE_OVER)) {
 		strcpy(reason, "TDIE_OVER ");
+	}
+	if (report_flag & (1 << PPS_REPORT_ERROR_STARTUP_FAIL)) {
+		strcpy(reason, "STARTUP_FAIL ");
 	}
 
 	if (ret != 0) {

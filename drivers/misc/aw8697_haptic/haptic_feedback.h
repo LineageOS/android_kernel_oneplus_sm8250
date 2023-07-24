@@ -12,11 +12,11 @@
 #define MAX_FUN_NAME_LEN                     (64)
 #define OPLUS_HAPTIC_UPDATE_INFO_DELAY_MS    (500)
 #define OPLUS_HAPTIC_FB_RETRY_TIME           (2)
-#define UPLOAD_TIME_LIMIT_HOURS              (2)
+#define UPLOAD_TIME_LIMIT_HOURS              (1)
 #define SECSONDS_PER_HOUR                    (60 * 60)
 
-#define MAX_DEV_EVENT_QUEUE_LEN              (10)
-#define MAX_MEM_ALLOC_EVENT_QUEUE_LEN        (5)
+#define MAX_DEV_EVENT_QUEUE_LEN              (3)
+#define MAX_MEM_ALLOC_EVENT_QUEUE_LEN        (3)
 
 #define OPLUS_HSPTIC_TRIGGER_MSG_LEN         (2048)
 
@@ -104,6 +104,8 @@ enum haptic_fb_track_type {
 	HAPTIC_F0_CALI_TRACK,
 	HAPTIC_OSC_CALI_TRACK,
 	HAPTIC_MEM_ALLOC_TRACK,
+	HAPTIC_SPMI_READ_TRACK_ERR,
+	HAPTIC_SPMI_WRITE_TRACK_ERR,
 	HAPTIC_TRACK_TYPE_MAX,
 };
 

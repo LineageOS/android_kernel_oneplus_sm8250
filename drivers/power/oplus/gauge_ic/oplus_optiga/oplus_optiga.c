@@ -213,9 +213,6 @@ int oplus_optiga_parse_dt(struct oplus_optiga_chip *chip)
 			if (rc) {
 				chg_err("unable to request gpio [%d]\n", chip->data_gpio);
 				return -1;
-			} else {
-				chg_err("chip->data_gpio: [%d]\n", chip->data_gpio);
-				gpio_direction_output(g_oplus_optiga_chip->data_gpio, 0);
 			}
 		} else {
 			chg_err("optiga data_gpio invalid\n");
@@ -561,6 +558,8 @@ static int oplus_optiga_probe(struct platform_device *pdev)
 		g_oplus_optiga_chip->hmac_status.authenticate_result = true;
 	} else {
 		chg_err("get lk auth failed or not support auth in LK.\n");
+		gpio_direction_output(g_oplus_optiga_chip->data_gpio, 0);
+		chg_err("g_oplus_optiga_chip->data_gpio: [%d]\n", g_oplus_optiga_chip->data_gpio);
 		while (retry < OPLUS_OPTIGA_RETRY_COUNT) {
 			ret = oplus_optiga_get_external_auth_hmac();
 			if (ret) {

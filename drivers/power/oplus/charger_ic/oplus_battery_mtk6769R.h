@@ -15,13 +15,23 @@
 #include <linux/timer.h>
 #include <linux/wait.h>
 #include <linux/alarmtimer.h>
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 19, 0))
 #include <mt-plat/charger_type.h>
 #include <mt-plat/mtk_charger.h>
 #include <mt-plat/mtk_battery.h>
+#include <mt-plat/charger_class.h>
+#else
+#include <mt-plat/v1/charger_type.h>
+#include <mt-plat/v1/mtk_battery.h>
+#include <mt-plat/v1/charger_class.h>
+#include <mt-plat/v1/mtk_charger.h>
+#endif
+
 #include <uapi/linux/sched/types.h>
 #include <linux/uaccess.h>
+#include <linux/version.h>
 
-#include <mt-plat/charger_class.h>
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 19, 0))
 #include "../../../../kernel-4.14/drivers/misc/mediatek/typec/tcpc/inc/tcpm.h"
 #include "../../../../kernel-4.14/drivers/misc/mediatek/typec/tcpc/inc/mtk_direct_charge_vdm.h"
 struct charger_manager;
@@ -32,11 +42,23 @@ struct charger_manager;
 #include "../../../../kernel-4.14/drivers/power/supply/mediatek/charger/mtk_charger_init.h"
 #include "../../../../kernel-4.14/drivers/power/supply/mediatek/charger/mtk_charger_intf.h"
 
+#else
+#include "../../../../kernel-4.19/drivers/misc/mediatek/typec/tcpc/inc/tcpm.h"
+#include "../../../../kernel-4.19/drivers/misc/mediatek/typec/tcpc/inc/mtk_direct_charge_vdm.h"
+struct charger_manager;
+#include "../../../../kernel-4.19/drivers/power/supply/mediatek/charger/mtk_pe_intf.h"
+#include "../../../../kernel-4.19/drivers/power/supply/mediatek/charger/mtk_pe20_intf.h"
+#include "../../../../kernel-4.19/drivers/power/supply/mediatek/charger/mtk_pdc_intf.h"
+#include "../../../../kernel-4.19/drivers/power/supply/mediatek/charger/mtk_charger_init.h"
+#include "../../../../kernel-4.19/drivers/power/supply/mediatek/charger/mtk_charger_intf.h"
+#endif
+
 #define RT9471D 0
 #define RT9467 1
 #define BQ2589X 2
 #define BQ2591X 3
 #define SY6974 4
+#define SGM41512 8
 
 typedef enum {
         OPLUS_MINI_USB_TYPE = 0,
@@ -64,4 +86,10 @@ typedef enum {
         BATT_TEMP_EXTEND_ABOVE_T7
 }OPLUS_CHG_BATT_TEMP_EXTEND_STAT;
 
+struct master_chg_psy {
+	struct device *dev;
+	struct power_supply_desc mastercharger_psy_desc;
+	struct power_supply_config mastercharger_psy_cfg;
+	struct power_supply *mastercharger_psy;
+};
 #endif /* __OPLUS_BATTERY_MTK6768_H__ */

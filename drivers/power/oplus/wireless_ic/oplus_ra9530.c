@@ -32,7 +32,6 @@
 #include <uapi/linux/qg.h>
 #include <linux/timer.h>
 #include <linux/fs.h>
-#include <linux/kobject.h>
 
 #include <soc/oplus/device_info.h>
 #include <soc/oplus/system/oplus_project.h>
@@ -74,10 +73,13 @@ int ra9530_get_vbat_en_val(void);
 int ra9530_hall_notifier_callback(struct notifier_block *nb, unsigned long event, void *data);
 static void ra9530_power_onoff_switch(int value);
 
-void __attribute__((weak)) notify_pen_state(bool state, unsigned int tp_index) {return;}
-
+void __attribute__((weak)) notify_pen_state(int state) {return;}
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0))
 extern int wireless_register_notify(struct notifier_block *nb);
 extern int wireless_unregister_notify(struct notifier_block *nb);
+#else
+extern struct blocking_notifier_head hall_notifier;
+#endif
 static struct notifier_block ra9530_notifier ={
 	.notifier_call = ra9530_hall_notifier_callback,
 };
@@ -98,7 +100,6 @@ static inline void do_gettimeofday(struct timeval *tv)
         tv->tv_usec = now.tv_nsec/1000;
 }
 #endif
-
 static DEFINE_MUTEX(ra9530_i2c_access);
 
 #define RA9530_ADD_COUNT      2
@@ -277,6 +278,7 @@ static void ra9530_set_tx_mode(int value)
 	struct oplus_ra9530_ic *chip = ra9530_chip;
 	char reg_tx;
 	int rc;
+	unsigned char wbuff[2] = {0xA0, 0x0F};
 
 	if (!chip) {
 		printk(KERN_ERR "[OPLUS_CHG][%s]: ra9530_chip not ready!\n", __func__);
@@ -289,6 +291,7 @@ static void ra9530_set_tx_mode(int value)
 	} else {
 		if (value && (RA9530_RTX_READY & reg_tx)) {
 			chg_err("set tx enable\n");
+			ra9530_write_reg_multi_byte(chip, RA9530_REG_UVLO_THD, wbuff, 2);
 			ra9530_config_interface(chip, RA9530_REG_RTX_CMD, 0x01, 0xFF);
 		} else if (!value && (RA9530_RTX_TRANSFER & reg_tx)) {
 			chg_err("set tx disable\n");
@@ -344,9 +347,9 @@ static void ra9530_set_ble_addr(struct oplus_ra9530_ic *chip)
 	}
 
 	/* decode high 3 bytes */
-	decode_addr[4] = ((addr[5] & 0x0F) << 4) | ((addr[2] & 0xF0) >> 4);
-	decode_addr[3] = ((addr[4] & 0x0F) << 4) | ((addr[1] & 0xF0) >> 4);
-	decode_addr[5] = ((addr[3] & 0x0F) << 4) | ((addr[0] & 0xF0) >> 4);
+	decode_addr[5] = ((addr[5] & 0x0F) << 4) | ((addr[2] & 0xF0) >> 4);
+	decode_addr[4] = ((addr[4] & 0x0F) << 4) | ((addr[1] & 0xF0) >> 4);
+	decode_addr[3] = ((addr[3] & 0x0F) << 4) | ((addr[0] & 0xF0) >> 4);
 
 	/* decode low 3 bytes */
 	decode_addr[2] = ((addr[2] & 0x0F) << 4) | ((addr[5] & 0xF0) >> 4);
@@ -421,14 +424,14 @@ static void ra9530_power_enable(struct oplus_ra9530_ic *chip, bool enable)
 	}
 
 	if (enable) {
-		ra9530_set_vbat_en_val(1);
+		ra9530_set_vbat_en_val(chip, 1);
 		udelay(1000);
-		ra9530_set_booster_en_val(1);
+		ra9530_set_booster_en_val(chip, 1);
 		chip->is_power_on = true;
 	} else {
-		ra9530_set_booster_en_val(0);
+		ra9530_set_booster_en_val(chip, 0);
 		udelay(1000);
-		ra9530_set_vbat_en_val(0);
+		ra9530_set_vbat_en_val(chip, 0);
 		chip->tx_current = NUM_0;
 		chip->tx_voltage = NUM_0;
 		chip->is_power_on = false;
@@ -594,9 +597,9 @@ static int RA9530_e2p_check(struct oplus_ra9530_ic *chip)
 	/* check status*/
 	chip->boot_check_status = ((write_ack >> 4) & 0x07) << 8 | (chip->boot_check_status & 0xFF);
 	if (NUM_0 == (write_ack & 0x70)) { /* not OK*/
-		chg_err("<IDT UPDATE>E2P_check1 SRAM ok\n");
+		chg_err("<IDT UPDATE>E2P_check1 ok\n");
 	} else {
-		chg_err("<IDT UPDATE>E2P_check1 SRAM fail:%d\n", write_ack);
+		chg_err("<IDT UPDATE>E2P_check1 fail:%d\n", write_ack);
 		rc = ERR_SRAM;
 		return rc;
 	}
@@ -789,7 +792,6 @@ static int RA9530_Crc32_fw(struct oplus_ra9530_ic *chip, int start_addr, int fw_
 		}
 		rc = ERR_NUM;
 	}
-
 LOAD_ERR:
 	return rc;
 }
@@ -805,22 +807,26 @@ static int RA9530_MTP(struct oplus_ra9530_ic *chip, unsigned char *fw_buf, int f
 	int pure_fw_size = fw_size - RA9530_PURESIZE_OFFSET;
 	unsigned int crc32value = 0;
 
-	memcpy(&crc32value, fw_buf + 0x7eec, 4);
-
-	chg_err("<IDT UPDATE>--1--crc32value=%x!\n", crc32value);
-
-	rc = RA9530_e2p_check(chip);
-	if (NUM_0 == rc) {
-		chg_err("<IDT UPDATE>e2p totally check ok, continue to update!\n");
-	} else if (ERR_EEPROM == rc) {
-		chg_err("<IDT UPDATE>e2p check eeprom failed, continue to update reliable firmware!\n");
-	} else if (ERR_SRAM == rc) {
-		chg_err("<IDT UPDATE>e2p check sram failed, return!\n");
-		return rc;
-	} else {
-		chg_err("<IDT UPDATE>e2p check other error, return!\n");
-		return rc;
+	if (chip->unhealth_memory_handle_support) {
+		rc = RA9530_e2p_check(chip);
+		if (0 == rc) {
+			chg_err("<IDT UPDATE>e2p totally check ok, continue to update!\n");
+		} else if (ERR_EEPROM == rc) {
+			chg_err("<IDT UPDATE>e2p check eeprom failed, continue to update reliable firmware!\n");
+			fw_buf = chip->match_fw_buf;
+			fw_size = chip->match_fw_size;
+			pure_fw_size = fw_size - RA9530_PURESIZE_OFFSET;
+		} else if (ERR_SRAM == rc) {
+			chg_err("<IDT UPDATE>e2p check sram failed, return!\n");
+			return rc;
+		} else {
+			chg_err("<IDT UPDATE>e2p check other error, return!\n");
+			return rc;
+		}
 	}
+
+	memcpy(&crc32value, fw_buf + 0x7eec, 4);
+	chg_err("<IDT UPDATE>--1--crc32value=%x!\n", crc32value);
 
 	rc = RA9530_load_bootloader(chip);
 	if (rc != 0) {
@@ -934,7 +940,8 @@ static int RA9530_MTP(struct oplus_ra9530_ic *chip, unsigned char *fw_buf, int f
 	codelength = RA9530_FW_CODE_LENGTH;
 	memcpy(fw_data + 8, fw_buf + startaddr, RA9530_FW_CODE_LENGTH);
 	j = RA9530_FW_CODE_LENGTH - 1;
-	if (chip->boot_check_status) {
+
+	if (chip->unhealth_memory_handle_support && chip->boot_check_status) {
 		/* Add write E2P error flag */
 		fw_data[j + NUM_8- NUM_4] =  S_MAGIC_WORDS;
 		fw_data[j + NUM_8- NUM_5] =  S_MAGIC_WORDS;
@@ -974,13 +981,55 @@ MTP_ERROR:
 	return -EINVAL;
 }
 
+static void ra9530_set_match_firmware(struct oplus_ra9530_ic *chip)
+{
+	int rc = -1;
+	int fw_size = 0;
+	unsigned char *fw_buf = NULL;
+	int fw_ver_start_addr = 0;
+	char temp[5] = {0, 0, 0, 0, 0};
+
+	if (!chip) {
+		return;
+	}
+
+	chip->match_fw_buf = p9530_idt_firmware_olso_mp8;
+	chip->match_fw_size = ARRAY_SIZE(p9530_idt_firmware_olso_mp8);
+
+	rc = ra9530_read_reg(chip, 0x001C, temp, 4);
+	if (rc) {
+		chg_err("%s: Couldn't read 0x%04x rc = %x\n", __func__, 0x001C, rc);
+	}
+
+	rc = ra9530_read_reg(chip, 0x0017, temp + 4, 1);
+	if (rc) {
+		chg_err("%s: Couldn't read 0x0017 rc = %x\n", __func__, 0x0017, rc);
+	}
+
+	fw_buf = p9530_idt_firmware_olso_mp7;
+	fw_size = ARRAY_SIZE(p9530_idt_firmware_olso_mp7);
+	fw_ver_start_addr = fw_size - RA9530_FW_VERSION_OFFSET;
+	if ((temp[0] == fw_buf[fw_ver_start_addr + 0x05])\
+		&& (temp[1] == fw_buf[fw_ver_start_addr + 0x06])\
+		&& (temp[2] == fw_buf[fw_ver_start_addr + 0x07])\
+		&& (temp[3] == fw_buf[fw_ver_start_addr + 0x08])\
+		&& (temp[4] == fw_buf[fw_ver_start_addr])) {
+		chip->match_fw_buf = fw_buf;
+		chip->match_fw_size = fw_size;
+		chg_err("%s: set match firmware mp7 version.\n", __func__);
+	} else {
+		chg_err("%s: set match firmware mp8 version.\n", __func__);
+	}
+
+	return;
+}
+
 static int ra9530_check_idt_fw_update(struct oplus_ra9530_ic *chip, bool force_update)
 {
 	static int idt_update_retry_cnt = 0;
-	int rc = -1, i = 0, fw_version = 0;
-	int mtp_result = NUM_0;
+	int rc = -1, mtp_result = 0;
 	char temp[5] = {0, 0, 0, 0, 0};
-	char flag[NUM_2] = {NUM_0, NUM_0};
+	char flag[2] = {0, 0};
 	unsigned char *fw_buf = NULL;
 	int fw_size = 0;
 	int fw_ver_start_addr = 0;
@@ -1012,15 +1061,18 @@ static int ra9530_check_idt_fw_update(struct oplus_ra9530_ic *chip, bool force_u
 		if (rc)
 			chg_err("<IDT UPDATE>Couldn't read 0x0017 rc = %x\n", 0x001C, rc);
 
-		rc = ra9530_read_reg(chip, REG_1A, flag, NUM_2);
-		if (rc) {
-			chg_err("<IDT UPDATE>Couldn't read 0x001A rc = %x\n",  rc);
+		if (chip->unhealth_memory_handle_support) {
+			rc = ra9530_read_reg(chip, REG_1A, flag, NUM_2);
+			if (rc) {
+				chg_err("<IDT UPDATE>Couldn't read 0x001A rc = %x\n",  rc);
+			}
 		}
-		chg_err("<IDT UPDATE>The idt fw version: %02x %02x %02x %02x beta version:%02x old_flag:%02x %02x\n", \
-			temp[NUM_0], temp[NUM_1], temp[NUM_2], temp[NUM_3], temp[NUM_4], flag[NUM_0], flag[NUM_1]);
 
-		fw_buf = p9530_idt_firmware;
-		fw_size = ARRAY_SIZE(p9530_idt_firmware);
+		chg_err("<IDT UPDATE>The idt fw version: %02x %02x %02x %02x beta version:%02x old_flag:%02x %02x\n", \
+					temp[NUM_0], temp[NUM_1], temp[NUM_2], temp[NUM_3], temp[NUM_4], flag[NUM_0], flag[NUM_1]);
+
+		fw_buf = p9530_idt_firmware_latest;
+		fw_size = ARRAY_SIZE(p9530_idt_firmware_latest);
 
 		chg_err("<IDT UPDATE>The idt fw size=%d\n", fw_size);
 
@@ -1029,12 +1081,7 @@ static int ra9530_check_idt_fw_update(struct oplus_ra9530_ic *chip, bool force_u
 				fw_buf[fw_ver_start_addr + 0x05], fw_buf[fw_ver_start_addr + 0x06],
 				fw_buf[fw_ver_start_addr + 0x07], fw_buf[fw_ver_start_addr + 0x08], fw_buf[fw_ver_start_addr]);
 
-		if ((temp[NUM_0] == HEX_1) && (temp[NUM_1] == HEX_0)\
-			&& (temp[NUM_2] == HEX_2) && (temp[NUM_3] == HEX_4)\
-			&& (temp[NUM_4] == HEX_9)) {
-			chg_err("<IDT UPDATE> The fw version is 0x04020001-09, no More update!\n");
-
-		} else if (force_update
+		if (force_update
 			|| (((temp[NUM_0] != fw_buf[fw_ver_start_addr + HEX_5])\
 			|| (temp[NUM_1] != fw_buf[fw_ver_start_addr + HEX_6])\
 			|| (temp[NUM_2] != fw_buf[fw_ver_start_addr + HEX_7])\
@@ -1044,6 +1091,9 @@ static int ra9530_check_idt_fw_update(struct oplus_ra9530_ic *chip, bool force_u
 			&& (flag[NUM_1] != S_MAGIC_WORDS))) {
 			chg_err("<IDT UPDATE>Need update the idt fw!\n");
 
+			if (chip->unhealth_memory_handle_support) {
+				ra9530_set_match_firmware(chip);
+			}
 			mtp_result = RA9530_MTP(chip, fw_buf, fw_size);
 			if (NUM_0 == mtp_result) {
 				chg_err("<IDT UPDATE>Update success!!!\n");
@@ -1062,23 +1112,6 @@ static int ra9530_check_idt_fw_update(struct oplus_ra9530_ic *chip, bool force_u
 			chg_err("<IDT UPDATE>No Need update the idt fw!\n");
 		}
 	}
-
-	rc = ra9530_read_reg(chip, 0x001C, temp, 4);
-	if (rc) {
-		chg_err("<IDT UPDATE>Couldn't read 0x%04x after update rc = %x\n", 0x001C, rc);
-		mutex_unlock(&chip->flow_mutex);
-		return rc;
-	} else {
-		chg_err("<IDT UPDATE>The idt fw version after update: %02x %02x %02x %02x\n", temp[0], temp[1], temp[2], temp[3]);
-	}
-
-	for (i = 0; i < 4; i++) {
-		fw_version = fw_version + temp[i];
-		if(i < 3)
-			fw_version = fw_version << 8;
-	}
-	chip->idt_fw_version = fw_version;
-	chg_err("ra9530 idt_fw_version 0x%04x,dec:%d", chip->idt_fw_version, chip->idt_fw_version);
 
 	ra9530_power_enable(chip, false);
 	msleep(10);
@@ -1157,6 +1190,9 @@ static int oplus_wpc_chg_parse_chg_dt(struct oplus_ra9530_ic *chip)
 	if (rc) {
 		chip->power_expired_time = POWER_EXPIRED_TIME_DEFAULT;
 	}
+
+	/*add feature to control the unhealth memory handle for oslo pad, default false value */
+	chip->unhealth_memory_handle_support = of_property_read_bool(node, "unhealth_memory_handle_support");
 
 	return 0;
 }
@@ -1238,14 +1274,13 @@ static bool ra9530_valid_check(struct oplus_ra9530_ic *chip)
 
 	addr = chip->ble_mac_addr;
 	pdata = chip->private_pkg_data;
-
-	if ((((addr >> 24) & 0xFF) ^ ((addr >> 8) & 0xFF)) != ((pdata >> 16) & 0xFF)) {
+	if ((((addr >> 40) & 0xFF) ^ ((addr >> 16) & 0xFF)) != ((pdata >> 16) & 0xFF)) {
 		return false;
 	}
-	if ((((addr >> 40) & 0xFF) ^ ((addr >> 16) & 0xFF)) != ((pdata >> 8) & 0xFF)) {
+	if ((((addr >> 32) & 0xFF) ^ ((addr >> 8) & 0xFF)) != ((pdata >> 8) & 0xFF)) {
 		return false;
 	}
-	if ((((addr >> 32) & 0xFF) ^ (addr & 0xFF)) != (pdata & 0xFF)) {
+	if ((((addr >> 24) & 0xFF) ^ (addr & 0xFF)) != (pdata & 0xFF)) {
 		return false;
 	}
 
@@ -1290,7 +1325,7 @@ static void ra9530_commu_data_process(struct oplus_ra9530_ic *chip)
 	}
 	chg_err("int ATO 0x2C: %02x %02x %02x %02x\n", chip->int_flag_data[NUM_0], chip->int_flag_data[NUM_1], chip->int_flag_data[NUM_2], chip->int_flag_data[NUM_3]);
 
-	if (ping_int_flag[NUM_0] & RA9530_PING_SUCC) {
+	if ((ping_int_flag[NUM_0] & RA9530_PING_SUCC) && !chip->ping_succ_time) {
 		do_gettimeofday(&now_time);
 		chip->ping_succ_time = now_time.tv_sec * 1000 + now_time.tv_usec / 1000 - chip->tx_start_time;
 		chg_err("ra9530 ping_succ_time(%lld)\n", chip->ping_succ_time);
@@ -1326,7 +1361,7 @@ static void ra9530_commu_data_process(struct oplus_ra9530_ic *chip)
 		if (!chip->private_pkg_data) {
 			chg_err("GET_PRIVATE_PKG.\n");
 			chip->present = 1;
-			notify_pen_state(true, 0);
+			notify_pen_state(1);
 			check_int_enable(chip);
 			ra9530_set_private_data(chip);
 		}
@@ -1349,7 +1384,7 @@ static void ra9530_commu_data_process(struct oplus_ra9530_ic *chip)
 	if (chip->int_flag_data[0] & RA9530_INT_FLAG_SS) {
 		/*SS int*/
 		chip->present = 1;
-		notify_pen_state(true, 0);
+		notify_pen_state(1);
 		check_int_enable(chip);
 		schedule_delayed_work(&chip->check_point_dwork, round_jiffies_relative(msecs_to_jiffies(RA9530_CHECK_SS_INT_TIME)));
 		chg_err("ra9530 ss int ,present value :%d.\n", chip->present);
@@ -1392,12 +1427,9 @@ int ra9530_get_idt_int_val(void)
 	return gpio_get_value(chip->idt_int_gpio);
 }
 
-static void ra9530_idt_event_int_func(struct work_struct *work)
+static irqreturn_t irq_idt_event_int_handler(int irq, void *dev_id)
 {
-	struct delayed_work *dwork = to_delayed_work(work);
-	struct oplus_ra9530_ic *chip = container_of(dwork, struct oplus_ra9530_ic, idt_event_int_work);
-
-	chg_err("ra9530_idt_event_int_func triggered!!!\n");
+	struct oplus_ra9530_ic *chip = (struct oplus_ra9530_ic *)dev_id;
 
 	__pm_stay_awake(chip->bus_wakelock);
 	wait_event_interruptible_timeout(i2c_waiter, chip->i2c_ready, msecs_to_jiffies(50));
@@ -1409,11 +1441,7 @@ static void ra9530_idt_event_int_func(struct work_struct *work)
 	}
 	mutex_unlock(&chip->flow_mutex);
 	__pm_relax(chip->bus_wakelock);
-}
 
-static irqreturn_t irq_idt_event_int_handler(int irq, void *dev_id)
-{
-	schedule_delayed_work(&ra9530_chip->idt_event_int_work, msecs_to_jiffies(0));
 	return IRQ_HANDLED;
 }
 
@@ -1436,7 +1464,8 @@ static void ra9530_idt_int_eint_register(struct oplus_ra9530_ic *chip)
 	ra9530_set_idt_int_active(chip);
 
 	/* 0x01:rising edge,0x02:falling edge */
-	retval = request_irq(chip->idt_int_irq, irq_idt_event_int_handler, IRQF_TRIGGER_FALLING, "ra9530_idt_int", chip);
+	retval = request_threaded_irq(chip->idt_int_irq, NULL, irq_idt_event_int_handler,
+                                   IRQF_TRIGGER_LOW | IRQF_ONESHOT, "ra9530_idt_int", chip);
 	if (retval < 0) {
 		chg_err("%s request idt_int irq failed.\n", __func__);
 	}
@@ -1532,10 +1561,8 @@ static int ra9530_vbat_en_gpio_init(struct oplus_ra9530_ic *chip)
 	return 0;
 }
 
-void ra9530_set_vbat_en_val(int value)
+void ra9530_set_vbat_en_val(struct oplus_ra9530_ic *chip, int value)
 {
-	struct oplus_ra9530_ic *chip = ra9530_chip;
-
 	if (!chip) {
 		printk(KERN_ERR "[OPLUS_CHG][%s]: oplus_ra9530_ic not ready!\n", __func__);
 		return;
@@ -1637,10 +1664,8 @@ static int ra9530_booster_en_gpio_init(struct oplus_ra9530_ic *chip)
 	return 0;
 }
 
-void ra9530_set_booster_en_val(int value)
+void ra9530_set_booster_en_val(struct oplus_ra9530_ic *chip, int value)
 {
-	struct oplus_ra9530_ic *chip = ra9530_chip;
-
 	if (!chip) {
 		printk(KERN_ERR "[OPLUS_CHG][%s]: oplus_ra9530_ic not ready!\n", __func__);
 		return;
@@ -1846,7 +1871,7 @@ static void ra9530_do_switch(struct oplus_ra9530_ic *chip, uint8_t status)
 		chg_err("ra9530 hall far away,present value :%d", chip->present);
 		cancel_work_sync(&ra9530_idt_timer_work);
 		cancel_delayed_work(&chip->power_check_work);
-		notify_pen_state(false, 0);
+		notify_pen_state(0);
 		ra9530_send_uevent(chip->wireless_dev, chip->present, chip->ble_mac_addr);
 	}
 
@@ -2460,7 +2485,7 @@ static struct device_attribute *pencil_attributes[] = {
 static enum power_supply_property ra9530_wireless_props[] = {
 	POWER_SUPPLY_PROP_STATUS,
 	POWER_SUPPLY_PROP_PRESENT,
-	POWER_SUPPLY_PROP_BLE_MAC_ADDR,
+	/* POWER_SUPPLY_PROP_BLE_MAC_ADDR, */
 };
 
 static int ra9530_wireless_get_prop(struct power_supply *psy,
@@ -2475,8 +2500,8 @@ static int ra9530_wireless_get_prop(struct power_supply *psy,
 		break;
 	case POWER_SUPPLY_PROP_PRESENT:
 		break;
-	case POWER_SUPPLY_PROP_BLE_MAC_ADDR:
-		break;
+	/* case POWER_SUPPLY_PROP_BLE_MAC_ADDR: */
+	/* 	break; */
 
 	default:
 		return -EINVAL;
@@ -2497,8 +2522,8 @@ static int ra9530_wireless_set_prop(struct power_supply *psy,
 	switch (psp) {
 	case POWER_SUPPLY_PROP_PRESENT:
 		break;
-	case POWER_SUPPLY_PROP_BLE_MAC_ADDR:
-		break;
+	/* case POWER_SUPPLY_PROP_BLE_MAC_ADDR: */
+	/* 	break; */
 
 	default:
 		chg_err("set prop %d is not supported\n", psp);
@@ -2516,7 +2541,7 @@ static int ra9530_wireless_prop_is_writeable(struct power_supply *psy,
 
 	switch (psp) {
 	case POWER_SUPPLY_PROP_PRESENT:
-	case POWER_SUPPLY_PROP_BLE_MAC_ADDR:
+	/* case POWER_SUPPLY_PROP_BLE_MAC_ADDR: */
 		rc = 1;
 		break;
 
@@ -2589,6 +2614,66 @@ bool ra9530_check_chip_is_null(void)
 	return true;
 }
 
+static void ra9530_idt_gpio_deinit(struct oplus_ra9530_ic *chip)
+{
+	if (!chip) {
+		return;
+	}
+
+	if (gpio_is_valid(chip->idt_int_gpio)) {
+		free_irq(chip->idt_int_irq, chip);
+		gpio_free(chip->idt_int_gpio);
+	}
+
+	if (gpio_is_valid(chip->vbat_en_gpio)) {
+		gpio_free(chip->vbat_en_gpio);
+	}
+
+	if (gpio_is_valid(chip->booster_en_gpio)) {
+		gpio_free(chip->booster_en_gpio);
+	}
+
+	return;
+}
+
+static int ra9530_identity_check(struct oplus_ra9530_ic *chip)
+{
+	int rc = -1;
+	char buf[5] = {0};
+	int err_cnt = 0;
+
+	if (!chip) {
+		return -1;
+	}
+
+	disable_irq(chip->idt_int_irq);
+	ra9530_power_enable(chip, true);
+	msleep(10);
+	rc = ra9530_read_reg(chip, RA9530_REG_IDENTITY, buf, 5);
+	while (rc < 0) {
+		err_cnt++;
+		msleep(10);
+		rc = ra9530_read_reg(chip, RA9530_REG_IDENTITY, buf, 5);
+		chg_err("ra9530 read identify failed.(%d) \n", rc);
+		if (err_cnt >= 3) {
+			ra9530_power_enable(chip, false);
+			return rc;
+		}
+	}
+	ra9530_power_enable(chip, false);
+	enable_irq_wake(chip->idt_int_irq);
+	enable_irq(chip->idt_int_irq);
+
+	chg_err("chip id = 0x%02x%02x\n", buf[0], buf[4]);
+	 if ((buf[0] == 0x95) && (buf[4] == 0x30)) {
+		rc = 0;
+	} else {
+		rc = -1;
+	}
+
+	return rc;
+}
+
 static int ra9530_driver_probe(struct i2c_client *client, const struct i2c_device_id *id)
 {
 	struct oplus_ra9530_ic	*chip = NULL;
@@ -2610,8 +2695,18 @@ static int ra9530_driver_probe(struct i2c_client *client, const struct i2c_devic
 	i2c_set_clientdata(client, chip);
 	chip->power_enable_times = 0;
 	chip->power_enable_reason = PEN_REASON_UNDEFINED;
+	mutex_init(&chip->flow_mutex);
 	ra9530_idt_gpio_init(chip);
 	oplus_wpc_chg_parse_chg_dt(chip);
+
+	rc = ra9530_identity_check(chip);
+	if (rc < 0) {
+		chg_err("ra9530 indentity check failed!\n");
+		ra9530_idt_gpio_deinit(chip);
+		devm_kfree(&client->dev, chip);
+		return -1;
+	}
+
 	chip->bus_wakelock = wakeup_source_register(NULL, "ra9530_wireless_wakelock");
 	present_wakelock = wakeup_source_register(NULL, "ra9530_present_wakelock");
 
@@ -2620,7 +2715,6 @@ static int ra9530_driver_probe(struct i2c_client *client, const struct i2c_devic
 	init_ra9530_data_log();
 #endif
 
-	INIT_DELAYED_WORK(&chip->idt_event_int_work, ra9530_idt_event_int_func);
 	INIT_DELAYED_WORK(&chip->ra9530_update_work, ra9530_update_work_process);
 	INIT_WORK(&ra9530_idt_timer_work, ra9530_timer_inhall_function);
 	INIT_DELAYED_WORK(&chip->power_check_work, ra9530_power_expired_check_func);
@@ -2628,10 +2722,13 @@ static int ra9530_driver_probe(struct i2c_client *client, const struct i2c_devic
 	INIT_WORK(&chip->power_enable_work, ra9530_enable_func);
 	INIT_WORK(&chip->power_switch_work, ra9530_power_switch_func);
 	ra9530_chip = chip;
-	mutex_init(&chip->flow_mutex);
 
 	schedule_delayed_work(&chip->ra9530_update_work, RA9530_UPDATE_INTERVAL);
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0))
+	rc = blocking_notifier_chain_register(&hall_notifier, &ra9530_notifier);
+#else
 	rc = wireless_register_notify(&ra9530_notifier);
+#endif
 	if (rc < 0) {
 		chg_err("blocking_notifier_chain_register error");
 	}
@@ -2708,12 +2805,13 @@ static void ra9530_reset(struct i2c_client *client)
 
 /**********************************************************
   *
-  *   [platform_driver API] 
+  *   [platform_driver API]
   *
   *********************************************************/
 
 static const struct of_device_id ra9530_match[] = {
 	{ .compatible = "oplus,ra9530-charger"},
+	{ .compatible = "oplus,pencil-wireless-charger"},
 	{ },
 };
 
@@ -2764,7 +2862,11 @@ int ra9530_driver_init(void)
 void ra9530_driver_exit(void)
 {
 	i2c_del_driver(&ra9530_i2c_driver);
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0))
+	blocking_notifier_chain_unregister(&hall_notifier, &ra9530_notifier);
+#else
 	wireless_unregister_notify(&ra9530_notifier);
+#endif
 }
 #endif /*LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0)*/
 MODULE_DESCRIPTION("Driver for ra9530 charger chip");

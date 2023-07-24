@@ -196,7 +196,7 @@ static void oplus_monitor_charge_info_update_work(struct work_struct *work)
 	if (!rc)
 		chip->shell_temp = data.intval;
 
-	/* 
+	/*
 	 * wait for all dependent topics to be prepared to ensure that the
 	 * collected data is normal
 	 */
@@ -204,7 +204,7 @@ static void oplus_monitor_charge_info_update_work(struct work_struct *work)
 		oplus_chg_track_comm_monitor(chip);
 
 	printk(KERN_INFO "OPLUS_CHG[oplus_charge_info]: "
-		"BATTERY[%d %d %d %d %d %d %d %d %d %d 0x%x], "
+		"BATTERY[%d %d %d %d %d %d %d %d %d %d %d 0x%x], "
 		"CHARGE[%d %d %d %d], "
 		"WIRED[%d %d %d %d %d 0x%x %d %d %d %d %d], "
 		"WIRELESS[%d %d %d %d %d 0x%x %d %d], "
@@ -212,7 +212,7 @@ static void oplus_monitor_charge_info_update_work(struct work_struct *work)
 		"COMMON[%d %d %d 0x%x %d]",
 		chip->batt_temp, chip->shell_temp, chip->vbat_mv,
 		chip->vbat_min_mv, chip->ibat_ma, chip->batt_soc, chip->ui_soc,
-		chip->batt_rm, chip->batt_fcc, chip->batt_exist,
+		chip->smooth_soc, chip->batt_rm, chip->batt_fcc, chip->batt_exist,
 		chip->batt_err_code,
 		chip->fv_mv, chip->fcc_ma, chip->chg_disable, chip->chg_user_disable,
 		chip->wired_online, chip->wired_ibus_ma, chip->wired_vbus_mv,
@@ -468,6 +468,23 @@ static void oplus_monitor_subscribe_wls_topic(struct oplus_mms *topic,
 	}
 }
 
+static void oplus_monitor_ffc_step_change_work(struct work_struct *work)
+{
+	struct oplus_monitor *chip =
+		container_of(work, struct oplus_monitor, ffc_step_change_work);
+	union mms_msg_data data = { 0 };
+	int rc;
+
+	rc = oplus_mms_get_item_data(chip->comm_topic, COMM_ITEM_FFC_STEP, &data, false);
+	if (rc < 0) {
+		chg_err("can't get ffc step, rc=%d\n", rc);
+		return;
+	}
+
+	if (chip->ffc_status == FFC_FAST)
+		oplus_chg_track_aging_ffc_check(chip, data.intval);
+}
+
 static void oplus_monitor_comm_subs_callback(struct mms_subscribe *subs,
 					 enum mms_msg_type type, u32 id)
 {
@@ -488,6 +505,8 @@ static void oplus_monitor_comm_subs_callback(struct mms_subscribe *subs,
 			oplus_mms_get_item_data(chip->comm_topic, id, &data,
 						false);
 			chip->ffc_status = (unsigned int)data.intval;
+			if (chip->ffc_status == FFC_FAST)
+				schedule_work(&chip->ffc_step_change_work);
 			break;
 		case COMM_ITEM_COOL_DOWN:
 			oplus_mms_get_item_data(chip->comm_topic, id, &data,
@@ -508,6 +527,11 @@ static void oplus_monitor_comm_subs_callback(struct mms_subscribe *subs,
 				if (chip->ui_soc == 1)
 					oplus_chg_track_set_uisoc_1_start(chip);
 			}
+			break;
+		case COMM_ITEM_SMOOTH_SOC:
+			oplus_mms_get_item_data(chip->comm_topic, id, &data,
+						false);
+			chip->smooth_soc = data.intval;
 			break;
 		case COMM_ITEM_NOTIFY_CODE:
 			oplus_mms_get_item_data(chip->comm_topic, id, &data,
@@ -547,6 +571,14 @@ static void oplus_monitor_comm_subs_callback(struct mms_subscribe *subs,
 			oplus_mms_get_item_data(chip->comm_topic, id, &data,
 						false);
 			chip->rechging = !!data.intval;
+			break;
+		case COMM_ITEM_FFC_STEP:
+			schedule_work(&chip->ffc_step_change_work);
+			break;
+		case COMM_ITEM_CHG_CYCLE_STATUS:
+			oplus_mms_get_item_data(chip->comm_topic, id, &data,
+						false);
+			chip->chg_cycle_status = data.intval;
 			break;
 		default:
 			break;
@@ -594,6 +626,9 @@ static void oplus_monitor_subscribe_comm_topic(struct oplus_mms *topic,
 		if (chip->ui_soc == 1)
 			oplus_chg_track_set_uisoc_1_start(chip);
 	}
+	oplus_mms_get_item_data(chip->comm_topic, COMM_ITEM_SMOOTH_SOC, &data,
+				true);
+	chip->smooth_soc = data.intval;
 	oplus_mms_get_item_data(chip->comm_topic, COMM_ITEM_NOTIFY_CODE, &data,
 				true);
 	chip->notify_code = (unsigned int)data.intval;
@@ -609,6 +644,9 @@ static void oplus_monitor_subscribe_comm_topic(struct oplus_mms *topic,
 	oplus_mms_get_item_data(chip->comm_topic, COMM_ITEM_RECHGING, &data,
 				true);
 	chip->rechging = !!data.intval;
+	oplus_mms_get_item_data(chip->comm_topic, COMM_ITEM_CHG_CYCLE_STATUS, &data,
+				true);
+	chip->chg_cycle_status = data.intval;
 }
 
 static void oplus_monitor_vooc_subs_callback(struct mms_subscribe *subs,
@@ -659,6 +697,7 @@ static void oplus_monitor_vooc_subs_callback(struct mms_subscribe *subs,
 						false);
 			if (!!data.intval)
 				chip->chg_ctrl_by_vooc = true;
+			break;
 		default:
 			break;
 		}
@@ -831,6 +870,7 @@ static int oplus_monitor_probe(struct platform_device *pdev)
 	INIT_WORK(&chip->charge_info_update_work,
 		  oplus_monitor_charge_info_update_work);
 	INIT_WORK(&chip->wired_plugin_work, oplus_monitor_wired_plugin_work);
+	INIT_WORK(&chip->ffc_step_change_work, oplus_monitor_ffc_step_change_work);
 
 	oplus_mms_wait_topic("wired", oplus_monitor_subscribe_wired_topic, chip);
 	oplus_mms_wait_topic("wireless", oplus_monitor_subscribe_wls_topic, chip);

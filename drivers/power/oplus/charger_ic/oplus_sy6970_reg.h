@@ -226,7 +226,8 @@
 #define SY6970_BATFET_DIS_SHIFT    5
 #define SY6970_BATFET_OFF          1
 #define SY6970_BATFET_ON			0
-#define SY6970_BATFET_OFF_IMMEDIATELY	0
+#define SY6970_BATFET_OFF_IMMEDIATELY		1
+#define BQ25890H_BATFET_OFF_IMMEDIATELY		0
 #define REG09_SY6970_BATFET_DLY_SHIFT	3
 #define SY6970_BATFET_DLY_MASK	   0x08
 
@@ -395,5 +396,7 @@
 #define SY6970_DEV_REV_SHIFT       0
 
 extern void oplus_set_usb_props_type(enum power_supply_type type);
-
+extern bool oplus_pd_without_usb(void);
+int oplus_sy6970_charger_unsuspend(void);
+void oplus_set_prswap(bool swap);
 #endif

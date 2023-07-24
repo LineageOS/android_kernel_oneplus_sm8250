@@ -1253,6 +1253,10 @@ struct task_struct {
 	/* Mutex deadlock detection: */
 	struct mutex_waiter		*blocked_on;
 #endif
+#ifdef CONFIG_LOCKING_PROTECT
+	unsigned long locking_time_start;
+	unsigned long locking_depth;
+#endif
 
 #ifdef CONFIG_TRACE_IRQFLAGS
 	unsigned int			irq_events;
@@ -1588,6 +1592,9 @@ struct task_struct {
 	int ux_depth;
 	u64 enqueue_time;
 	u64 inherit_ux_start;
+#ifdef CONFIG_OPLUS_UX_IM_FLAG
+	int ux_im_flag;
+#endif
 #ifdef CONFIG_OPLUS_FEATURE_SCHED_SPREAD
         int lb_state;
         int ld_flag;
@@ -1602,7 +1609,9 @@ struct task_struct {
 #ifdef CONFIG_OPLUS_FEATURE_AUDIO_OPT
 	struct task_info oplus_task_info;
 #endif
-
+#ifdef CONFIG_LOCKING_PROTECT
+	struct list_head locking_entry;
+#endif
 #if IS_ENABLED(CONFIG_OPLUS_FEATURE_CPU_JANKINFO)
 	struct task_record record[OPLUS_NR_CPUS];	/* 2*u64 */
 #endif
@@ -1847,6 +1856,9 @@ extern struct pid *cad_pid;
 /*
  * Per process flags
  */
+#ifdef CONFIG_SHRINK_LRU_TRYLOCK
+#define PF_SHRNIK_LRUVECD	0x00000001      /* Early kill for mce process policy */
+#endif /* CONFIG_SHRINK_LRU_TRYLOCK */
 #define PF_IDLE			0x00000002	/* I am an IDLE thread */
 #define PF_EXITING		0x00000004	/* Getting shut down */
 #define PF_VCPU			0x00000010	/* I'm a virtual CPU */

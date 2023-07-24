@@ -82,6 +82,9 @@ static struct haptic_fb_info g_haptic_fb_table[] = {
 	{HAPTIC_OSC_CALI_TRACK, "osc_cali_err", HAPTIC_TRACK_EVENT_FRE_CALI_ERR},
 
 	{HAPTIC_MEM_ALLOC_TRACK, "mem_alloc_err", HAPTIC_TRACK_EVENT_MEM_ALLOC_ERR},
+
+	{HAPTIC_SPMI_READ_TRACK_ERR, "spmi_read_err", HAPTIC_TRACK_EVENT_DEVICE_ERR},
+	{HAPTIC_SPMI_WRITE_TRACK_ERR, "spmi_write_err", HAPTIC_TRACK_EVENT_DEVICE_ERR},
 };
 
 static int oplus_haptic_event_payload_pack(struct haptic_fb_detail *fb_info)
@@ -448,8 +451,8 @@ static ssize_t dev_event_track_show(struct device *dev, struct device_attribute 
 static ssize_t dev_event_track_store(struct device *dev, struct device_attribute *attr,
 				     const char *buf, size_t len)
 {
-	uint8_t track_type = 0;
-	uint8_t reg_addr = 0;
+	uint32_t track_type = 0;
+	uint32_t reg_addr = 0;
 	uint32_t err_code = 0;
 
 	if (sscanf(buf, "%d %x %d", &track_type, &reg_addr, &err_code) == 3) {
@@ -474,7 +477,7 @@ static ssize_t dev_fre_cail_track_show(struct device *dev, struct device_attribu
 static ssize_t dev_fre_cail_track_store(struct device *dev, struct device_attribute *attr,
 					const char *buf, size_t len)
 {
-	uint8_t track_type = 0;
+	uint32_t track_type = 0;
 	uint32_t cali_data = 0;
 	uint32_t result_flag = 0;	/* 0 is success, 1 is fail */
 	char fail_info[MAX_FAIL_INFO_LEN];
@@ -503,7 +506,7 @@ static ssize_t dev_mem_alloc_track_show(struct device *dev, struct device_attrib
 static ssize_t dev_mem_alloc_track_store(struct device *dev, struct device_attribute *attr,
 					 const char *buf, size_t len)
 {
-	uint8_t track_type = 0;
+	uint32_t track_type = 0;
 	uint32_t alloc_len = 0;
 
 	if (sscanf(buf, "%d %x", &track_type, &alloc_len) == 2) {

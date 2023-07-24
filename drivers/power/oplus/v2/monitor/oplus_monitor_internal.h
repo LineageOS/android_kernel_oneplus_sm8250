@@ -28,6 +28,7 @@ struct oplus_monitor {
 
 	struct work_struct charge_info_update_work;
 	struct work_struct wired_plugin_work;
+	struct work_struct ffc_step_change_work;
 	struct votable *fv_votable;
 	struct votable *wired_icl_votable;
 	struct votable *wired_fcc_votable;
@@ -50,6 +51,7 @@ struct oplus_monitor {
 	int batt_soh;
 	int batt_soc;
 	int ui_soc;
+	int smooth_soc;
 	int soc_load;
 	int batt_status;
 	bool batt_exist;
@@ -98,6 +100,7 @@ struct oplus_monitor {
 	bool led_on;
 	bool rechging;
 	bool ui_soc_ready;
+	int chg_cycle_status;
 
 	/* vooc */
 	bool vooc_online;

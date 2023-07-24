@@ -1091,7 +1091,8 @@ static int __init gf_init(void)
         && (FP_GOODIX_3626 != get_fpsensor_type())
         && (FP_GOODIX_3688 != get_fpsensor_type())
         && (FP_GOODIX_3636 != get_fpsensor_type())
-        && (FP_GOODIX_3956 != get_fpsensor_type())) {
+        && (FP_GOODIX_3956 != get_fpsensor_type())
+        && (FP_GOODIX_3976 != get_fpsensor_type())) {
         pr_err("%s, found not goodix sensor\n", __func__);
         status = -EINVAL;
         return status;

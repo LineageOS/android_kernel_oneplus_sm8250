@@ -451,7 +451,7 @@ static int mt6375_probe(struct platform_device *pdev)
 
 	rc = of_property_read_string(node, "oplus,tcpc_name", &tcpc_name);
 	if (rc < 0) {
-		chg_err("oplus,tcpc_name not found, rc=%d\n");
+		chg_err("oplus,tcpc_name not found, rc=%d\n", rc);
 		tcpc_name = "type_c_port0";
 	}
 	chip->tcpc = tcpc_dev_get_by_name(tcpc_name);

@@ -254,6 +254,32 @@ struct mt6895_chip {
 };
 
 #ifdef OPLUS_FEATURE_CHG_BASIC
+typedef enum {
+	NTC_BATTERY,
+	NTC_CHARGER_IC,
+	NTC_SUB_BOARD,
+	NTC_BATTERY_BTB,
+	NTC_USB_BTB,
+} NTC_TYPE;
+
+struct temp_param {
+	__s32 bts_temp;
+	__s32 temperature_r;
+};
+
+struct ntc_temp{
+	NTC_TYPE e_ntc_type;
+	int i_tap_over_critical_low;
+	int i_rap_pull_up_r;
+	int i_rap_pull_up_voltage;
+	int i_tap_min;
+	int i_tap_max;
+	unsigned int i_25c_volt;
+	unsigned int ui_dwvolt;
+	struct temp_param *pst_temp_table;
+	int i_table_size;
+};
+
 struct oplus_custom_gpio_pinctrl {
 	int vchg_trig_gpio;
 	int ccdetect_gpio;
@@ -431,10 +457,13 @@ struct mtk_charger {
 	bool is_charging;
 
 #ifdef OPLUS_FEATURE_CHG_BASIC
+	struct iio_channel	*subboard_temp_chan;
 	struct iio_channel      *chargeric_temp_chan;
 	struct iio_channel      *charger_id_chan;
 	struct iio_channel      *usb_temp_v_l_chan;
 	struct iio_channel      *usb_temp_v_r_chan;
+	struct iio_channel	*batt_btb_temp_chan;
+	struct iio_channel	*usb_btb_temp_chan;
 
 	int ccdetect_gpio;
 	int ccdetect_irq;
@@ -445,6 +474,7 @@ struct mtk_charger {
 
 	int chargeric_temp_volt;
 	int chargeric_temp;
+	int i_sub_board_temp;
 	bool support_ntc_01c_precision;
 	bool pd_svooc;
 
@@ -453,9 +483,12 @@ struct mtk_charger {
 
 	bool chrdet_state;
 	bool wd0_detect;
+	int typec_state;
 	struct delayed_work status_keep_clean_work;
+	struct delayed_work hvdcp_detect_work;
 	struct wakeup_source *status_wake_lock;
 	bool status_wake_lock_on;
+	bool hvdcp_disable;
 #endif
 };
 

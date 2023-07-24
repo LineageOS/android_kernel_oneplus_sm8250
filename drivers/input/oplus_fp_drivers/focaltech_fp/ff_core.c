@@ -55,7 +55,7 @@
 #define FF_WAKELOCK_TIMEOUT            2000
 
 /*power voltage range*/
-#define FF_VTG_MIN_UV               2800000
+#define FF_VTG_MIN_UV               3300000
 #define FF_VTG_MAX_UV               3300000
 
 /* Logging driver to logcat through uevent mechanism.    */

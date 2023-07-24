@@ -24,7 +24,6 @@
 
 #define BATT_OPEN_RETRY_COUNT	       12
 #define BATT_FGI2C_RETRY_COUNT	       2
-#define TRACK_SOC_GAP_BIG	       15
 
 enum {
 	MAIN_BATT_OVER_CURR = 1,
@@ -83,6 +82,7 @@ struct oplus_switch_chip {
 	bool mos_err_uploading;
 	int track_unbalance_high;
 	int track_unbalance_low;
+	int track_unbalance_soc;
 	bool parallel_mos_debug;
 	struct mutex track_mos_err_lock;
 	oplus_chg_track_trigger *mos_err_load_trigger;
@@ -99,6 +99,12 @@ struct oplus_switch_operations {
 	int (*switching_get_hw_enable)(void);
 	int (*switching_get_discharge_current)(void);
 	int (*switching_get_charge_enable)(void);
+	int (*switching_set_discharge_mode)(int mode);
+};
+
+enum switching_chg_mode {
+	CURRENT_REGULATION = 0,
+	NO_REGULATION_FULLY_ON,
 };
 
 enum {
@@ -134,4 +140,6 @@ void oplus_init_parallel_temp_threshold(void);
 int oplus_chg_is_parellel_ibat_over_spec(int main_temp, int sub_temp,
 					 int *target_curr);
 void oplus_chg_parellel_variables_reset(void);
+bool oplus_chg_check_is_soc_gap_big(int main_soc, int sub_soc);
+int oplus_switching_set_discharge_mode(int mode);
 #endif /* _OPLUS_GAUGE_H */

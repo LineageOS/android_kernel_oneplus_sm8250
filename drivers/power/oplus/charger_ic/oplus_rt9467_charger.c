@@ -28,8 +28,15 @@
 #include <linux/power_supply.h>
 
 #include <mt-plat/upmu_common.h>
+#include <linux/version.h>
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 19, 0))
 #include <mt-plat/charger_class.h>
 #include <mt-plat/charger_type.h>
+#else
+#include <mt-plat/v1/charger_class.h>
+#include <mt-plat/v1/charger_type.h>
+#endif
+
 #include <mt-plat/mtk_boot.h>
 #if 0
 //#ifdef CONFIG_RT_REGMAP
@@ -4018,25 +4025,26 @@ static int rt9467_get_ibat(struct charger_device *chg_dev,u32* ibat_val)
     return ret;
 }
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 19, 0))
 static int rt9467_send_hvdcp_pattern_ex(struct charger_device *chg_dev, bool up)
 {
 	struct rt9467_info *info = dev_get_drvdata(&chg_dev->dev);
 
 	dev_notice(info->dev,"%s : %d\n", __func__, up);
-   
 	return rt9467_i2c_update_bits(info, RT9467_REG_CHG_DPDM2,
 		up ? 0x20 : 0x80, 0xE0);
 }
+#endif
 
 static int rt9467_reset_hvdcp_ta_ex(struct charger_device *chg_dev)
 {
 	struct rt9467_info *info = dev_get_drvdata(&chg_dev->dev);
 
 	dev_notice(info->dev,"%s\n", __func__);
-  
 	return rt9467_i2c_update_bits(info, RT9467_REG_CHG_DPDM2, 0x80, 0xE0);
 }
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 19, 0))
 static int rt9467_hvdcp_can_enable(struct charger_device *chg_dev,bool *en)
 {
     struct rt9467_info *info = dev_get_drvdata(&chg_dev->dev);
@@ -4044,6 +4052,7 @@ static int rt9467_hvdcp_can_enable(struct charger_device *chg_dev,bool *en)
     *en = info->hvdcp_can_enabled;
 	return 0;
 }
+#endif
 
 static struct charger_ops rt9467_chg_ops = {
 	/* Normal charging */
@@ -4100,10 +4109,12 @@ static struct charger_ops rt9467_chg_ops = {
 
 	/* Event */
 	.event = rt9467_do_event,
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 19, 0))
 	/* HVDCP */
 	.send_hvdcp_pattern_ex = rt9467_send_hvdcp_pattern_ex,
 	.reset_hvdcp_ta_ex = rt9467_reset_hvdcp_ta_ex,
-    .hvdcp_can_enabled = rt9467_hvdcp_can_enable,
+	.hvdcp_can_enabled = rt9467_hvdcp_can_enable,
+#endif
 };
 
 void oplus_rt9467_dump_registers(void)

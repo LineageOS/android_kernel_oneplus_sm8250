@@ -170,8 +170,6 @@ static int oplus_qr_hooks_send_to_user(int msg_type, char *payload, int payload_
 		return -1;
 	}
 
-	printk(" qr_monitor_netlink_send_to_user, skb_len=%u,android_pid pid=%d", skbuff->len, oplus_qr_netlink_pid);
-
 	return 0;
 }
 

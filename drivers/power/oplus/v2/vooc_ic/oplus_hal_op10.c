@@ -23,16 +23,9 @@
 #include <linux/kobject.h>
 #include <linux/platform_device.h>
 #include <asm/atomic.h>
-
-/* #include <linux/xlog.h> */
-/* #include <upmu_common.h> */
-/* #include <mt-plat/mtk_gpio.h> */
 #include <linux/dma-mapping.h>
-
-/* #include <mt-plat/battery_meter.h> */
 #include <linux/module.h>
 #include <soc/oplus/device_info.h>
-
 #else
 #include <linux/i2c.h>
 #include <linux/debugfs.h>

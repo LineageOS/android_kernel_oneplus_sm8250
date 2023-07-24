@@ -109,14 +109,14 @@
 
 #define S2ASL01_COMMON1_CM_TSD_EN		0x40
 
+#define DIS_CHG_MODE_CURRENT__REGULATION_ONLY   0x00
+#define DIS_CHG_MODE_NO_REGULATION_FULLY_ON     0x3
+
+#define SINGLE_BATT_VOLT_MV                     400
+
 enum current_limiter_type {
 	LIMITER_MAIN = 0x1,
 	LIMITER_SUB = 0x2,
-};
-
-enum s2asl01_switching_chg_mode {
-	CURRENT_REGULATION = 0,
-	NO_REGULATION_FULLY_ON,
 };
 
 enum {

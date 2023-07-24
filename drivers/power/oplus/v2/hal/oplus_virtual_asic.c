@@ -714,9 +714,12 @@ static int oplus_chg_va_get_data_gpio_val(struct oplus_chg_ic_dev *ic_dev,
 	return 0;
 }
 
-static int oplus_chg_va_get_data_bit(struct oplus_chg_ic_dev *ic_dev, bool *bit)
+#define DATA_SHIFT_BIT	6
+static int oplus_chg_va_get_data(struct oplus_chg_ic_dev *ic_dev, int *data)
 {
 	struct oplus_virtual_asic_ic *va;
+	int i;
+	int bit;
 	int rc = 0;
 
 	if (ic_dev == NULL) {
@@ -725,25 +728,28 @@ static int oplus_chg_va_get_data_bit(struct oplus_chg_ic_dev *ic_dev, bool *bit)
 	}
 	va = oplus_chg_ic_get_drvdata(ic_dev);
 
-	rc = oplus_chg_va_set_clock_active(va->ic_dev);
-	if (rc < 0) {
-		chg_err("set clock active error\n");
-		return -ENODEV;
+	for (i = 0; i < 7; i++) {
+		rc = oplus_chg_va_set_clock_active(va->ic_dev);
+		if (rc < 0) {
+			chg_err("set clock active error\n");
+			return -ENODEV;
+		}
+		usleep_range(1000, 1000);
+		rc = oplus_chg_va_set_clock_sleep(va->ic_dev);
+		if (rc < 0) {
+			chg_err("set clock sleep error\n");
+			return -ENODEV;
+		}
+		usleep_range(19000, 19000);
+		bit = gpio_get_value(va->gpio.data_gpio);
+		*data |= bit << (DATA_SHIFT_BIT - i);
 	}
-	usleep_range(1000, 1000);
-	rc = oplus_chg_va_set_clock_sleep(va->ic_dev);
-	if (rc < 0) {
-		chg_err("set clock sleep error\n");
-		return -ENODEV;
-	}
-	usleep_range(19000, 19000);
-	*bit = gpio_get_value(va->gpio.data_gpio);
 
 	return 0;
 }
 
 static int oplus_chg_va_reply_data(struct oplus_chg_ic_dev *ic_dev, int data,
-				   int data_width)
+				   int data_width, int curr_ma)
 {
 	struct oplus_virtual_asic_ic *va;
 	int i;
@@ -1042,9 +1048,9 @@ static void *oplus_chg_va_get_func(struct oplus_chg_ic_dev *ic_dev,
 			OPLUS_IC_FUNC_VOOC_GET_DATA_GPIO_VAL,
 			oplus_chg_va_get_data_gpio_val);
 		break;
-	case OPLUS_IC_FUNC_VOOC_READ_DATA_BIT:
-		func = OPLUS_CHG_IC_FUNC_CHECK(OPLUS_IC_FUNC_VOOC_READ_DATA_BIT,
-					       oplus_chg_va_get_data_bit);
+	case OPLUS_IC_FUNC_VOOC_READ_DATA:
+		func = OPLUS_CHG_IC_FUNC_CHECK(OPLUS_IC_FUNC_VOOC_READ_DATA,
+					       oplus_chg_va_get_data);
 		break;
 	case OPLUS_IC_FUNC_VOOC_REPLY_DATA:
 		func = OPLUS_CHG_IC_FUNC_CHECK(OPLUS_IC_FUNC_VOOC_REPLY_DATA,

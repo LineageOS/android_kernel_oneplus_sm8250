@@ -253,7 +253,8 @@ void gf2_131_reduction(dwordvec_t out, const double_dwordvec_t temp)
 	/* reduction modulo x^131+x^8+x^3+x^2+1 */
 	/* x^160 = x^37+x^32+x^31+x^29 */
 
-	t1 = t2 = 0UL;
+	t1 = 0UL;
+	t2 = 0UL;
 	for (i = 0; i < DOUBLE_ARRAY_LEN(GF2_131)-ARRAY_LEN(GF2_131); i++) {
 		t = temp[i+ARRAY_LEN(GF2_131)];
 		t1 ^= t<<29 ^ t<<31; /* x^29+x^31 */
@@ -410,7 +411,8 @@ void gf2_163_reduction(dwordvec_t out, const double_dwordvec_t temp)
 	/* reduction modulo x^163+x^7+x^6+x^3+1 */
 	/* x^192 = x^36+x^35+x^32+x^29 */
 
-	t1 = t2 = 0UL;
+	t1 = 0UL;
+	t2 = 0UL;
 
 	for (i = 0; i < DOUBLE_ARRAY_LEN(GF2_163)-ARRAY_LEN(GF2_163); i++)
 	{

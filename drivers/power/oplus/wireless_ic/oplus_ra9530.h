@@ -79,6 +79,7 @@
 #define RA9530_REG_INT_EN								0x34
 #define RA9530_REG_INT_FLAG								0x30
 #define RA9530_REG_CHARGE_PERCENT						0x3A
+#define RA9530_REG_UVLO_THD								0xEC
 
 #define RA9530_INT_FLAG_EPT								BIT(0)
 #define RA9530_INT_FLAG_STR_DPING						BIT(1)
@@ -134,6 +135,8 @@
 #define RA9530_REG_VOLTAGE_MV							0x80 /* mv 16bit */
 #define RA9530_REG_OUTPUT_VOLTAGE_MV					0x82 /* mv 16bit */
 
+#define RA9530_REG_IDENTITY									0x5870
+
 #define RA9530_UPDATE_INTERVAL							round_jiffies_relative(msecs_to_jiffies(3000))
 #define RA9530_UPDATE_RETRY_INTERVAL					round_jiffies_relative(msecs_to_jiffies(3000))
 
@@ -183,6 +186,8 @@ struct oplus_ra9530_ic{
 
 	bool							unhealth_memory_handle_support;
 	uint16_t						boot_check_status;
+	unsigned char					*match_fw_buf;
+	int								match_fw_size;
 
 	/* RA9530 threshold parameter */
 	int								soc_threshould;
@@ -223,7 +228,6 @@ struct oplus_ra9530_ic{
 	struct pinctrl_state 			*booster_en_default;	/*for WPC*/
 
 	struct delayed_work				ra9530_update_work;  /*for WPC*/
-	struct delayed_work				idt_event_int_work;  /*for WPC*/
 	struct delayed_work				power_check_work;
 	struct work_struct				power_enable_work;
 	struct work_struct				power_switch_work;
@@ -237,9 +241,9 @@ struct oplus_ra9530_ic{
 };
 
 void ra9530_wpc_print_log(void);
-void ra9530_set_vbat_en_val(int value);
+void ra9530_set_vbat_en_val(struct oplus_ra9530_ic *chip, int value);
 int ra9530_get_vbat_en_val(void);
-void ra9530_set_booster_en_val(int value);
+void ra9530_set_booster_en_val(struct oplus_ra9530_ic *chip, int value);
 int ra9530_get_booster_en_val(void);
 bool ra9530_firmware_is_updating(void);
 bool ra9530_check_chip_is_null(void);

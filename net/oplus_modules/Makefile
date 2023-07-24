@@ -12,3 +12,7 @@ obj-$(CONFIG_OPLUS_FEATURE_STATS_CALC) += oplus_stats_calc/
 #ifdef OPLUS_FEATURE_QR_SCAN
 obj-$(CONFIG_OPLUS_FEATURE_QR_SCAN) += oplus_qr_scan/
 #endif /* OPLUS_FEATURE_QR_SCAN */
+
+#ifdef OPLUS_FEATURE_DATA_MODULE
+obj-$(CONFIG_OPLUS_FEATURE_DATA_MODULE) += data_module/
+#endif /* OPLUS_FEATURE_DATA_MODULE */

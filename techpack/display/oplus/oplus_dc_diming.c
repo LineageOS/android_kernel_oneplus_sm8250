@@ -50,6 +50,8 @@ extern int seed_mode;
 extern int dsi_panel_seed_mode(struct dsi_panel *panel, int mode);
 
 extern void send_kevent_msg(int *msg);
+int dc_apollo_enable = 0;
+EXPORT_SYMBOL(dc_apollo_enable);
 
 struct hbm_status
 {
@@ -559,9 +561,8 @@ static int sde_connector_update_hbm_enter(struct drm_connector *connector, struc
 			if (strcmp(dsi_display->panel->oplus_priv.vendor_name, "AMB655X")) {
 				if (dsi_display->config.panel_mode != DSI_OP_VIDEO_MODE) {
 					if (!strcmp(dsi_display->panel->name, "samsung ams662zs01 dsc cmd 21623")) {
-						current_vblank = drm_crtc_vblank_count(crtc) + 2;
-					}
-					else {
+						current_vblank = drm_crtc_vblank_count(crtc);
+					} else {
 						current_vblank = drm_crtc_vblank_count(crtc);
 					}
 						if (!strcmp(dsi_display->panel->oplus_priv.vendor_name, "S6E3HC3")) {
@@ -577,10 +578,9 @@ static int sde_connector_update_hbm_enter(struct drm_connector *connector, struc
 						}
 						else if (!strcmp(dsi_display->panel->name, "samsung ams662zs01 dsc cmd 21623")) {
 							ret = wait_event_timeout(*drm_crtc_vblank_waitqueue(crtc),
-								current_vblank <= drm_crtc_vblank_count(crtc),
-								msecs_to_jiffies(34));
-						}
-						else {
+								current_vblank != drm_crtc_vblank_count(crtc),
+								msecs_to_jiffies(17));
+						} else {
 							ret = wait_event_timeout(*drm_crtc_vblank_waitqueue(crtc),
 								current_vblank != drm_crtc_vblank_count(crtc),
 								msecs_to_jiffies(17));
@@ -809,7 +809,8 @@ static int sde_connector_update_hbm_exit(struct drm_connector *connector, struct
 			}
 			if (!strcmp(panel->oplus_priv.vendor_name, "AMS643YE01") ||
 				!strcmp(panel->oplus_priv.vendor_name, "AMS643YE01IN20057") ||
-				!strcmp(panel->name, "s6e3fc3_fhd_oled_cmd_samsung")) {
+				!strcmp(panel->name, "s6e3fc3_fhd_oled_cmd_samsung") ||
+				!strcmp(panel->oplus_priv.vendor_name, "SOFE03F")) {
 				if(panel->bl_config.bl_level > panel->bl_config.brightness_normal_max_level) {
 					if (!strcmp(panel->name, "samsung ams643ye01 in 20127 amoled fhd+ panel")) {
 						rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_HBM_ENTER1_SWITCH);
@@ -860,6 +861,8 @@ static int sde_connector_update_hbm_exit(struct drm_connector *connector, struct
 	}
 	return rc;
 }
+
+extern struct dc_apollo_pcc_sync dc_apollo;
 
 int sde_connector_update_hbm(struct drm_connector *connector)
 {
@@ -921,6 +924,10 @@ int sde_connector_update_hbm(struct drm_connector *connector)
 		sprintf(fingerprint_name, "OnscreenFingerprint_%s_%d",
 			fingerprint_mode ? "Enter" : "Exit", fps_period_us);
 		dsi_display->panel->is_hbm_enabled = fingerprint_mode;
+
+		if (dsi_display->panel->oplus_priv.dc_apollo_sync_enable && dsi_display->panel->is_hbm_enabled) {
+			dc_apollo.pcc_last = dsi_display->panel->oplus_priv.dc_apollo_sync_brightness_level_pcc;
+		}
 
 		SDE_ATRACE_BEGIN(fingerprint_name);
 		if (fingerprint_mode) {
@@ -1149,6 +1156,7 @@ int oplus_display_panel_set_dimlayer_enable(void *data)
 	}
 
 	if (!strcmp(display->panel->name, "samsung ams662zs01 dsc cmd 21623")) {
+		dc_apollo_enable = *dimlayer_enable;
 		pr_info("DC BKL %s\n", *dimlayer_enable?"ON":"OFF");
 		return 0;
 	}

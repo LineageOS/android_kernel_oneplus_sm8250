@@ -51,6 +51,8 @@ int backlight_smooth_enable = 1;
 
 extern int oplus_underbrightness_alpha;
 int oplus_dimlayer_fingerprint_failcount = 0;
+extern struct dc_apollo_pcc_sync dc_apollo;
+extern int oplus_backlight_wait_vsync(struct drm_encoder *drm_enc);
 extern int msm_drm_notifier_call_chain(unsigned long val, void *v);
 int oplus_dc2_alpha;
 int oplus_dimlayer_bl_enable_v3 = 0;
@@ -71,6 +73,8 @@ int oplus_dimlayer_bl_enable_v3_real;
 
 int oplus_dimlayer_bl_enable_v2_real = 0;
 bool oplus_skip_datadimming_sync = false;
+
+uint64_t serial_number_fir = 0x0;
 
 extern int oplus_debug_max_brightness;
 int oplus_seed_backlight = 0;
@@ -97,6 +101,11 @@ extern int oplus_dimlayer_bl;
 /*#ifdef OPLUS_BUG_STABILITY*/
 int dsi_cmd_log_enable = 0;
 EXPORT_SYMBOL(dsi_cmd_log_enable);
+/*#endif*/
+
+/*#ifdef OPLUS_BUG_STABILITY*/
+/* add for fix close DC flicker */
+extern int dc_apollo_enable;
 /*#endif*/
 
 /* #ifdef OPLUS_BUG_STABILITY */
@@ -273,7 +282,8 @@ bool is_support_panel_hbm_enter_send_hbm_on_cmd(const char *panel_name)
 		|| (!strcmp(panel_name, "AMB655X")) || (!strcmp(panel_name, "AMB655XL08"))
 		|| (!strcmp(panel_name, "AMB655UV01") && (display->panel->oplus_priv.is_oplus_project))
 		|| (!strcmp(display->panel->name, "samsung ams662zs01 dsc cmd 21623"))
-		|| (!strcmp(panel_name, "AMS643YE01"))) {
+		|| (!strcmp(panel_name, "AMS643YE01"))
+		|| (!strcmp(panel_name, "AMS662ZS01"))) {
 		return true;
 	} else {
 		return false;
@@ -306,6 +316,46 @@ bool is_support_panel_dc_seed_mode_flag(const char *panel_name) {
 		return true;
 	} else {
 		return false;
+	}
+}
+
+void oplus_dc_pcc_backlight (struct dsi_display *display, struct sde_connector *c_conn, int bl_lvl) {
+	int rc = 0;
+	if (display->panel->oplus_priv.dc_apollo_sync_enable) {
+		if ((display->panel->bl_config.bl_level >= display->panel->oplus_priv.sync_brightness_level
+			&& display->panel->bl_config.bl_level < display->panel->oplus_priv.dc_apollo_sync_brightness_level)
+			|| display->panel->bl_config.bl_level == 4) {
+			if (bl_lvl == display->panel->oplus_priv.dc_apollo_sync_brightness_level
+				/*&& dc_apollo_enable*/
+				&& dc_apollo.pcc_last >= display->panel->oplus_priv.dc_apollo_sync_brightness_level_pcc) {
+				rc = wait_event_timeout(dc_apollo.bk_wait, dc_apollo.dc_pcc_updated, msecs_to_jiffies(17));
+				if (!rc) {
+					pr_err("dc wait timeout\n");
+				} else {
+					oplus_backlight_wait_vsync(c_conn->encoder);
+				}
+				dc_apollo.dc_pcc_updated = 0;
+			}
+		} else if (display->panel->bl_config.bl_level < display->panel->oplus_priv.sync_brightness_level
+					&& display->panel->bl_config.bl_level > 4) {
+			if (bl_lvl == display->panel->oplus_priv.dc_apollo_sync_brightness_level
+				/*&& dc_apollo_enable*/
+				&& dc_apollo.pcc_last >= display->panel->oplus_priv.dc_apollo_sync_brightness_level_pcc_min) {
+				rc = wait_event_timeout(dc_apollo.bk_wait, dc_apollo.dc_pcc_updated, msecs_to_jiffies(17));
+				if (!rc) {
+					pr_err("dc wait timeout\n");
+				} else {
+					oplus_backlight_wait_vsync(c_conn->encoder);
+				}
+				dc_apollo.dc_pcc_updated = 0;
+			}
+		}
+		/*Display.LCD.Stability,,2022/10/25,add for pcc backlight smooths update backlgiht,ALM 4632692*/
+		if (dc_apollo_enable) {
+			rc = c_conn->ops.set_backlight(&c_conn->base,
+					c_conn->display, bl_lvl);
+			c_conn->unset_bl_level = 0;
+		}
 	}
 }
 
@@ -600,6 +650,17 @@ struct device_attribute *attr, char *buf) {
 	}
 
 	/*
+	 * To fix bug id 5552142, we do not read serial number frequently.
+	 * First read, then return the saved value.
+	 */
+	if (serial_number_fir != 0) {
+		ret = scnprintf(buf, PAGE_SIZE, "Get panel0 serial number: %llx\n",
+						serial_number_fir);
+		pr_info("%s read serial_number_fir 0x%x\n", __func__, serial_number_fir);
+		return ret;
+	}
+
+	/*
 	 * for some unknown reason, the panel_serial_info may read dummy,
 	 * retry when found panel_serial_info is abnormal.
 	 */
@@ -689,6 +750,8 @@ struct device_attribute *attr, char *buf) {
 		}
 
 		ret = scnprintf(buf, PAGE_SIZE, "Get panel serial number: %llx\n",serial_number);
+		/*Save serial_number value.*/
+		serial_number_fir = serial_number;
 		break;
 	}
 
@@ -2387,8 +2450,9 @@ int dsi_display_oplus_set_power(struct drm_connector *connector,
 		}
 		oplus_dimlayer_aod = 0;
 		oplus_dimlayer_vblank(connector->state->crtc);
-		msm_drm_notifier_call_chain(MSM_DRM_EVENT_BLANK,
-					    &notifier_data);
+		/*  A tablet Pad, add for NT36523 resume touch here */
+		if(strcmp(display->panel->name, "nt36523 lcd vid mode dsi panel"))
+			msm_drm_notifier_call_chain(MSM_DRM_EVENT_BLANK, &notifier_data);
 		break;
 	case SDE_MODE_DPMS_OFF:
 	default:
@@ -2653,6 +2717,33 @@ static ssize_t oplus_display_set_dsi_cmd_log_switch(struct device *dev,
 	sscanf(buf, "%d", &dsi_cmd_log_enable);
 	pr_err("debug for %s, buf = [%s], dsi_cmd_log_enable = %d , count = %d\n",
 				__func__, buf, dsi_cmd_log_enable, count);
+
+	return count;
+}
+
+static ssize_t oplus_display_get_dc_real_backlight(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct dsi_display *display = get_main_display();
+
+	if (!display || !display->panel) {
+		pr_err("failed get_main_display\n");
+		return sprintf(buf, "%d\n", 0);
+	}
+
+	return sprintf(buf, "%d\n", display->panel->bl_config.bl_dc_real);
+}
+
+static ssize_t oplus_display_set_dc_real_backlight(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	struct dsi_display *display = get_main_display();
+
+	if (!display || !display->panel) {
+		pr_err("%s failed get_main_display\n", __func__);
+		return count;
+	}
+	sscanf(buf, "%d", &display->panel->bl_config.bl_dc_real);
 
 	return count;
 }
@@ -3167,7 +3258,8 @@ int oplus_dimming_gamma_write(struct dsi_panel *panel)
 		return -EINVAL;
 	}
 
-	if (strcmp(panel->oplus_priv.vendor_name, "ANA6706") || !panel->oplus_priv.is_oplus_project) {
+	if (strcmp(panel->oplus_priv.vendor_name, "ANA6706") || !panel->oplus_priv.is_oplus_project ||
+		strcmp(panel->name, "samsung ams662zs01 dsc cmd 21623")) {
 		return 0;
 	}
 
@@ -3612,6 +3704,8 @@ static DEVICE_ATTR(backlight_smooth, S_IRUGO|S_IWUSR, oplus_backlight_smooth_get
 
 /*#ifdef OPLUS_BUG_STABILITY*/
 static DEVICE_ATTR(dsi_cmd_log_switch, S_IRUGO | S_IWUSR, oplus_display_get_dsi_cmd_log_switch, oplus_display_set_dsi_cmd_log_switch);
+/* Apollo DC backlight */
+static DEVICE_ATTR(dc_real_backlight, S_IRUGO | S_IWUSR, oplus_display_get_dc_real_backlight, oplus_display_set_dc_real_backlight);
 /*#endif*/
 /* fp type config */
 static DEVICE_ATTR(fp_type, S_IRUGO|S_IWUSR, oplus_ofp_get_fp_type_attr, oplus_ofp_set_fp_type_attr);
@@ -3667,6 +3761,8 @@ static struct attribute *oplus_display_attrs[] = {
 
 /*#ifdef OPLUS_BUG_STABILITY*/
 	&dev_attr_dsi_cmd_log_switch.attr,
+	/* Apollo DC backlight */
+	&dev_attr_dc_real_backlight.attr,
 /*#endif*/
 	/* fp type config */
 	&dev_attr_fp_type.attr,

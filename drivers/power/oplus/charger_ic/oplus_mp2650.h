@@ -21,6 +21,7 @@
 #endif /* CONFIG_OPLUS_CHARGER_MTK */
 #include "../oplus_charger.h"
 #include "../oplus_pps.h"
+#include "../oplus_chg_track.h"
 
 #define WPC_PRECHARGE_CURRENT								480
 #define NORMAL_CHECK_UPDATE_INTERVAL							5
@@ -584,6 +585,9 @@
 #define REG53_MP2650_ADDRESS                                 0x53
 #define REG3E_MP2650_ADDRESS                                 0x3E
 
+#define MP2650_MAX_ADDRESS			0xFFFF
+
+#define MP2762_AICL_POINT_SWITCH_THRE		7500
 #define MP2762_AICL_POINT_VOL_9V		8500
 
 #define MP2762_AICL_POINT_VOL_PHASE1		4000
@@ -594,7 +598,7 @@
 #define MP2762HW_AICL_POINT_5V_PHASE2		4520
 #define MP2762SW_AICL_POINT_5V_PHASE2		4535
 
-#define WAIT_RESUME_MAX_TRY_TIME                30
+#define WAIT_RESUME_MAX_TRY_TIME                100
 
 enum {
 	OVERTIME_AC = 0,
@@ -632,6 +636,22 @@ struct chip_mp2650 {
         struct pinctrl_state    *mps_otg_en_default;
 	atomic_t		charger_suspended;
         bool                    probe_flag;
+
+	struct mutex track_upload_lock;
+	struct mutex track_icl_err_lock;
+	u32 debug_force_icl_err;
+	bool icl_err_uploading;
+	oplus_chg_track_trigger *icl_err_load_trigger;
+	struct delayed_work icl_err_load_trigger_work;
+	char track_temp[OPLUS_CHG_TRACK_CURX_INFO_LEN];
+	char err_reason[OPLUS_CHG_TRACK_DEVICE_ERR_NAME_LEN];
+
+	struct mutex track_i2c_err_lock;
+	u32 debug_force_i2c_err;
+	bool i2c_err_uploading;
+	oplus_chg_track_trigger *i2c_err_load_trigger;
+	struct delayed_work i2c_err_load_trigger_work;
+	bool track_init_done;
 };
 
 struct oplus_chg_operations *  oplus_get_chg_ops(void);
@@ -681,6 +701,7 @@ extern int mp2650_get_termchg_current(void);
 extern void mp2650_wireless_set_mps_otg_en_val(int value);
 extern int mp2650_enable_async_mode(void);
 extern int mp2650_disable_async_mode(void);
+extern int mp2650_get_vbus_voltage(void);
 #ifdef CONFIG_OPLUS_CHARGER_MTK
 extern int battery_meter_get_charger_voltage(void);
 extern void oplus_mt_power_off(void);
@@ -726,7 +747,6 @@ extern void oplus_set_typec_sinkonly(void);
 extern bool oplus_usbtemp_condition(void);
 extern int oplus_set_bcc_curr_to_voocphy(int bcc_curr);
 extern int mp2650_otg_ilim_set(int ilim);
-extern int mp2650_get_vbus_voltage(void);
 
 extern int mp2650_enable_async_mode(void);
 extern int mp2650_disable_async_mode(void);

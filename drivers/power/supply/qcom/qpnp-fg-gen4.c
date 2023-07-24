@@ -6563,6 +6563,7 @@ static int oplus_fg_get_battery_temperature(void)
 		return DEFAULT_BATT_TEMP;
 	}
 
+	pr_err("get_PCB_Version = %d\n",get_PCB_Version());
 	if(get_PCB_Version() < DVT1){
 		return 250;
 	}

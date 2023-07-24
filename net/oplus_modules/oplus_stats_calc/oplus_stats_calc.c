@@ -38,6 +38,11 @@ static int s_debug = 0;
         }                                             \
     } while (0)
 
+
+#define UPLOAD_ONE_MAX_LEN  (3 * 1000)
+static char s_upload_magic[] = {0xFF, 0xFF, 0xFF, 0x4D, 0x41, 0x47, 0x49, 0x43};
+static u32 s_one_upload_size = UPLOAD_ONE_MAX_LEN;
+
 static spinlock_t s_stats_calc_lock;
 static DEFINE_HASHTABLE(s_iface_uid_stats_map, 8);
 
@@ -213,41 +218,69 @@ static int send_netlink_data(int type, char *data, int len) {
 
 static int send_all_stats(struct nlattr *nla) {
 	char *data = NULL;
-	int total_len = 0;
-	struct iface_uid_stats_value *pvalue = NULL;
+	u32 total_len = 0, data_len = 0;
 	struct iface_uid_stats *pos = NULL;
 	struct hlist_node *next = NULL;
-	int count = 0;
 	int pkt = 0;
 	int ret = 0;
+	u32 cur_copy_len = 0;
+	u32 send_count = 0;
+	u32 max_upload_size = s_one_upload_size;
 
 	LOGK(0, "send_stats_to_user %u", s_stats_count);
 	spin_lock_bh(&s_stats_calc_lock);
-	total_len = sizeof(s_stats_count) + sizeof(struct iface_uid_stats_value) * s_stats_count;
-	data = kmalloc(total_len, GFP_ATOMIC);
+
+	total_len = sizeof(s_upload_magic) + sizeof(u32) * 2 + sizeof(struct iface_uid_stats_value) * s_stats_count;
+	data_len = sizeof(struct iface_uid_stats_value) * s_stats_count;
+
+	data = kmalloc(max_upload_size, GFP_ATOMIC);
 	if (data == NULL) {
+		LOGK(1, "malloc %u failed!", max_upload_size);
 		spin_unlock_bh(&s_stats_calc_lock);
 		return -1;
 	}
-	memset(data, 0, total_len);
-	if (s_stats_count != 0) {
-		pvalue = (struct iface_uid_stats_value *)(data + sizeof(u32));
-		hash_for_each_safe(s_iface_uid_stats_map, pkt, next, pos, node) {
-			if (count < s_stats_count) {
-				memcpy(pvalue, &pos->value, sizeof(struct iface_uid_stats_value));
-				pvalue++;
-				count++;
+	memset(data, 0, max_upload_size);
+	memcpy(data, s_upload_magic, sizeof(s_upload_magic));
+	cur_copy_len += sizeof(s_upload_magic);
+	memcpy(data + cur_copy_len , &s_stats_count, sizeof(u32));
+	cur_copy_len += sizeof(u32);
+	memcpy(data + cur_copy_len , &data_len, sizeof(u32));
+	cur_copy_len += sizeof(u32);
+
+	hash_for_each_safe(s_iface_uid_stats_map, pkt, next, pos, node) {
+		int left_size = max_upload_size - cur_copy_len;
+
+		send_count++;
+		if (left_size < sizeof(struct iface_uid_stats_value)) {
+			ret = send_netlink_data(OPLUS_STATS_CALC_MSG_GET_ALL, data, cur_copy_len);
+			LOGK(0, "send_netlink_data size %u return %d", cur_copy_len, ret);
+			kfree(data);
+
+			data = kmalloc(max_upload_size, GFP_ATOMIC);
+			if (data == NULL) {
+				LOGK(1, "malloc %u failed!", max_upload_size);
+				spin_unlock_bh(&s_stats_calc_lock);
+				return -1;
 			}
+			memset(data, 0, max_upload_size);
+			cur_copy_len = 0;
+			memcpy(data + cur_copy_len, &pos->value, sizeof(struct iface_uid_stats_value));
+			cur_copy_len += sizeof(struct iface_uid_stats_value);
+		} else {
+			memcpy(data + cur_copy_len, &pos->value, sizeof(struct iface_uid_stats_value));
+			cur_copy_len += sizeof(struct iface_uid_stats_value);
 		}
 	}
-	LOGK(0, "get data count %d %u", count, s_stats_count);
-	memcpy(data, &count, sizeof(count));
-	spin_unlock_bh(&s_stats_calc_lock);
-	ret = send_netlink_data(OPLUS_STATS_CALC_MSG_GET_ALL, data, total_len);
-	LOGK(0, "send_netlink_data return %d", ret);
-	if (data) {
-		kfree(data);
+	if (cur_copy_len != 0) {
+		ret = send_netlink_data(OPLUS_STATS_CALC_MSG_GET_ALL, data, cur_copy_len);
+		LOGK(0, "send_netlink_data size %u return %d", cur_copy_len, ret);
 	}
+	kfree(data);
+	if (send_count != s_stats_count) {
+		LOGK(1, "warn count not match, %u-%u", send_count, s_stats_count);
+	}
+
+	spin_unlock_bh(&s_stats_calc_lock);
 	return 0;
 }
 
@@ -383,6 +416,13 @@ static struct ctl_table oplus_net_hook_sysctl_table[] = {
 	{
 		.procname   = "count",
 		.data       = &s_stats_count,
+		.maxlen     = sizeof(int),
+		.mode       = 0644,
+		.proc_handler   = proc_dointvec,
+	},
+	{
+		.procname   = "upload_size",
+		.data       = &s_one_upload_size,
 		.maxlen     = sizeof(int),
 		.mode       = 0644,
 		.proc_handler   = proc_dointvec,

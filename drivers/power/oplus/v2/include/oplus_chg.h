@@ -303,5 +303,7 @@ enum oplus_chg_wls_trx_status {
 
 bool oplus_is_power_off_charging(void);
 bool oplus_is_charger_reboot(void);
+struct timespec oplus_current_kernel_time(void);
+bool oplus_is_ptcrb_version(void);
 
 #endif /* __OPLUS_CHG_CORE_H__ */

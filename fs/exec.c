@@ -1260,6 +1260,10 @@ EXPORT_SYMBOL_GPL(__get_task_comm);
 #ifdef OPLUS_FEATURE_SCHED_ASSIST
 extern void sched_assist_target_comm(struct task_struct *task);
 #endif /* OPLUS_FEATURE_SCHED_ASSIST */
+
+#ifdef CONFIG_LOCKING_PROTECT
+extern void sched_locking_target_comm(struct task_struct *p);
+#endif
 void __set_task_comm(struct task_struct *tsk, const char *buf, bool exec)
 {
 	task_lock(tsk);
@@ -1274,6 +1278,9 @@ void __set_task_comm(struct task_struct *tsk, const char *buf, bool exec)
 #ifdef CONFIG_OPLUS_FEATURE_TPP
 	tpp_tagging(tsk);
 #endif /* CONFIG_OPLUS_FEATURE_TPP */
+#ifdef CONFIG_LOCKING_PROTECT
+	sched_locking_target_comm(tsk);
+#endif
 	task_unlock(tsk);
 	perf_event_comm(tsk, exec);
 }

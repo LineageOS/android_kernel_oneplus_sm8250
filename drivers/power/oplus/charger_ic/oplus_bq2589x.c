@@ -1309,6 +1309,7 @@ static irqreturn_t bq2589x_irq_handler(int irq, void *data)
 	prev_pg = bq->power_good;
 	bq->power_good = !!(reg_val & BQ2589X_PG_STAT_MASK);
 	chg_info("(%d, %d)\n", prev_pg, bq->power_good);
+	oplus_chg_track_check_wired_charging_break(bq->power_good);
 	oplus_bq2589x_set_mivr_by_battery_vol();
 
 	if (dumpreg_by_irq)
@@ -1666,6 +1667,38 @@ static int bq2589x_detect_device(struct bq2589x *bq)
 	}
 
 	return ret;
+}
+
+static void register_charger_devinfo(struct bq2589x *bq)
+{
+#ifndef CONFIG_DISABLE_OPLUS_FUNCTION
+	int ret = 0;
+	char *version;
+	char *manufacture;
+
+	if(!bq) {
+		chg_err("No bq2589x device found!\n");
+		return;
+        }
+	switch(bq->part_no) {
+	case BQ2589X_PART_NO:
+		version = "bq2589x";
+		manufacture = "TI";
+        	break;
+	default:
+		version = "sy6970";
+		manufacture = "silergy corp";
+		break;
+	}
+	if (strcmp(bq->chg_dev_name, "primary_chg") == 0) {
+		ret = register_device_proc("charger", version, manufacture);
+	} else {
+		ret = register_device_proc("secondary_charger", version, manufacture);
+	}
+	if(ret) {
+		pr_err("register_charger_devinfo failed\n");
+	}
+#endif
 }
 
 static void bq2589x_dump_regs(struct bq2589x *bq)
@@ -3611,6 +3644,7 @@ static int bq2589x_charger_probe(struct i2c_client *client,
 	bq2589x_disable_batfet_rst(bq);
 	/*Enable AICL for sy6970*/
 	bq2589x_enable_ico(bq, true);
+	register_charger_devinfo(bq);
 
 	INIT_DELAYED_WORK(&bq->bq2589x_aicr_setting_work, aicr_setting_work_callback);
 	INIT_DELAYED_WORK(&bq->bq2589x_vol_convert_work, vol_convert_work);

@@ -530,6 +530,7 @@ struct smb_charger {
 	struct delayed_work hvdcp_disable_work;
 	struct delayed_work regist_pd;
 	int qc_abnormal_check_count;
+	int real_chg_type;
 #endif
 
 #ifdef OPLUS_FEATURE_CHG_BASIC

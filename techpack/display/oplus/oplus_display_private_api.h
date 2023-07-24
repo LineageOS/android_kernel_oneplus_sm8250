@@ -96,4 +96,7 @@ bool oplus_panel_hbm_exit_check_wait_vblank(const char *vendor);
 bool oplus_panel_support_exit_global_hbm(struct dsi_panel *panel);
 
 bool oplus_panel_support_global_hbm_switch(struct dsi_panel *panel, u32 bl_lvl);
+
+void oplus_dc_pcc_backlight (struct dsi_display *display, struct sde_connector *c_conn, int bl_lvl);
+
 #endif /* _OPLUS_DISPLAY_PRIVATE_API_H_ */

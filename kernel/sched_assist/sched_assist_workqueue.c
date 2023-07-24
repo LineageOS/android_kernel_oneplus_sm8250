@@ -12,24 +12,28 @@
 
 int is_uxwork(struct work_struct *work)
 {
-	if(!sysctl_sched_assist_enabled)
+	if (!sysctl_sched_assist_enabled)
 		return 0;
 
 	return work->ux_work;
 }
 
-inline int set_uxwork(struct work_struct *work)
+inline bool set_uxwork(struct work_struct *work)
 {
-	if(!sysctl_sched_assist_enabled)
+	if (!sysctl_sched_assist_enabled)
 		return false;
-	return work->ux_work = 1;
+
+	work->ux_work = 1;
+	return true;
 }
 
-inline int unset_uxwork(struct work_struct *work)
+inline bool unset_uxwork(struct work_struct *work)
 {
-	if(!sysctl_sched_assist_enabled)
+	if (!sysctl_sched_assist_enabled)
 		return false;
-	return work->ux_work = 0;
+
+	work->ux_work = 0;
+	return true;
 }
 
 inline void set_ux_worker_task(struct task_struct *task)

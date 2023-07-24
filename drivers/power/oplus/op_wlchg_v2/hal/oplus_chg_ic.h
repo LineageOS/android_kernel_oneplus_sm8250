@@ -99,6 +99,9 @@ struct oplus_chg_ic_buck_ops {
 	int (*chg_set_aicl_enable)(struct oplus_chg_ic_dev *, bool);
 	int (*chg_set_aicl_rerun)(struct oplus_chg_ic_dev *);
 	int (*chg_set_vindpm)(struct oplus_chg_ic_dev *, int);
+	int (*wls_set_bcc_max_curr)(struct oplus_chg_ic_dev *, int);
+	int (*wls_set_bcc_min_curr)(struct oplus_chg_ic_dev *, int);
+	int (*wls_set_bcc_stop_curr)(struct oplus_chg_ic_dev *, int);
 };
 
 struct oplus_chg_ic_cp_ops {

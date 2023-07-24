@@ -259,25 +259,25 @@ __maybe_unused static int oplus_vooc_get_gpio_ap_data(struct oplus_chg_ic_dev *v
 
 int oplus_vooc_read_ap_data(struct oplus_chg_ic_dev *vooc_ic)
 {
-	bool bit;
+	int data;
 	int rc;
 
 	if (vooc_ic == NULL) {
 		chg_err("vooc_ic is NULL\n");
-		return 0;
+		return -ENODEV;
 	}
 
-	rc = oplus_chg_ic_func(vooc_ic, OPLUS_IC_FUNC_VOOC_READ_DATA_BIT, &bit);
+	rc = oplus_chg_ic_func(vooc_ic, OPLUS_IC_FUNC_VOOC_READ_DATA, &data);
 	if (rc < 0) {
 		chg_err("get data bit error, rc=%d\n", rc);
-		return 0;
+		return rc;
 	}
 
-	return (int)bit;
+	return data;
 }
 
 void oplus_vooc_reply_data(struct oplus_chg_ic_dev *vooc_ic, int ret_info,
-			   int device_type, int data_width)
+			   int device_type, int data_width, int curr_ma)
 {
 	int data;
 	int rc;
@@ -290,13 +290,13 @@ void oplus_vooc_reply_data(struct oplus_chg_ic_dev *vooc_ic, int ret_info,
 	data = (ret_info << 1) | (device_type & BIT(0));
 
 	rc = oplus_chg_ic_func(vooc_ic, OPLUS_IC_FUNC_VOOC_REPLY_DATA, data,
-			       data_width);
+			       data_width, curr_ma);
 	if (rc < 0)
 		chg_err("reply data error, rc=%d\n", rc);
 }
 
 void oplus_vooc_reply_data_no_type(struct oplus_chg_ic_dev *vooc_ic,
-				   int ret_info, int data_width)
+				   int ret_info, int data_width, int curr_ma)
 {
 	int rc;
 
@@ -306,7 +306,7 @@ void oplus_vooc_reply_data_no_type(struct oplus_chg_ic_dev *vooc_ic,
 	}
 
 	rc = oplus_chg_ic_func(vooc_ic, OPLUS_IC_FUNC_VOOC_REPLY_DATA, ret_info,
-			       data_width);
+			       data_width, curr_ma);
 	if (rc < 0)
 		chg_err("reply data error, rc=%d\n", rc);
 }
@@ -490,4 +490,25 @@ int oplus_hal_vooc_init(struct oplus_chg_ic_dev *vooc_ic)
 	oplus_vooc_set_clock_sleep(vooc_ic);
 
 	return 0;
+}
+
+int set_chg_auto_mode(struct oplus_chg_ic_dev *vooc_ic, bool enable)
+{
+	int rc;
+
+	if (vooc_ic == NULL) {
+		chg_err("vooc_ic is NULL\n");
+		return -ENODEV;
+	}
+
+	rc = oplus_chg_ic_func(vooc_ic,
+			       OPLUS_IC_FUNC_VOOCPHY_SET_CHG_AUTO_MODE,
+			       enable);
+	if (rc == -ENOTSUPP)
+		return 0;
+	else if (rc < 0)
+		chg_info("failed to %s chg auto mode, rc=%d\n",
+			 enable ? "enable" : "disable", rc);
+
+	return rc;
 }

@@ -867,6 +867,8 @@ config GUP_BENCHMARK
 config ARCH_HAS_PTE_SPECIAL
 	bool
 
+source "mm/damon/Kconfig"
+
 # multi-gen LRU {
 config LRU_GEN
 	bool "Multi-Gen LRU"
@@ -942,11 +944,30 @@ config PHYSICAL_ANTI_FRAGMENTATION
 	 Turn on the function of Physical memory anti-fragmentation.
 #endif /* OPLUS_FEATURE_MULTI_FREEAREA */
 
+config KSHRINK_SLABD
+	bool "enable async shrink_lruvecd"
+	default n
+	help
+	  enable async shrink_lruvecd
+
+
 config DYNAMIC_TUNNING_SWAPPINESS
 	bool "tunning swappiess depends on file_pages size"
 	default n
 	help
 	  tunning swappiess depends on file_pages size
+
+config SHRINK_LRU_TRYLOCK
+	bool "enable async shrink_lruvecd"
+	default n
+	help
+	  enable async shrink_lruvecd
+
+config OOM_REAPER_RECLAIM_MEMORY
+	bool "enable oom_reaper to reclaim memory"
+	default n
+	help
+	  enable oom_reaper to reclaim memory
 
 #ifdef OPLUS_FEATURE_MEMLEAK_DETECT
 source "mm/malloc_track/Kconfig"
@@ -961,3 +982,13 @@ config FORCE_ALLOC_FROM_DMA_ZONE
 	  always using ZONE_DMA32 memory.
 
 	  If unsure, say "n".
+config LOOK_AROUND
+	bool "look around"
+	default n
+	help
+	  look aroud pages when rmap lru page
+config MAPPED_PROTECT
+	bool "mapped protect"
+	default n
+	help
+	  protect multi-mapped pages

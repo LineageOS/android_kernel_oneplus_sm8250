@@ -2,11 +2,9 @@
 #define __OPLUS_CHG_COMM_H__
 
 #include <oplus_mms.h>
-#ifdef CONFIG_OPLUS_CHG_DYNAMIC_CONFIG
-#include <oplus_chg_cfg.h>
-#endif
 
 #define FFC_CHG_STEP_MAX			4
+#define AGAIN_FFC_CYCLY_THR_COUNT		2
 #define BATT_TEMP_HYST				20
 #define BATT_VOL_HYST				50
 #define OPCHG_PWROFF_FORCE_UPDATE_BATT_TEMP	500
@@ -69,6 +67,9 @@ enum comm_topic_item {
 	COMM_ITEM_UNWAKELOCK,
 	COMM_ITEM_POWER_SAVE,
 	COMM_ITEM_RECHGING,
+	COMM_ITEM_FFC_STEP,
+	COMM_ITEM_SMOOTH_SOC,
+	COMM_ITEM_CHG_CYCLE_STATUS,
 };
 
 enum oplus_chg_ffc_status {
@@ -78,6 +79,19 @@ enum oplus_chg_ffc_status {
 	FFC_IDLE,
 };
 
+enum aging_ffc_version {
+	AGING_FFC_NOT_SUPPORT,
+	AGING_FFC_V1,
+	AGING_FFC_VERSION_MAX
+};
+
+typedef enum {
+	CHG_CYCLE_VOTER__NONE		= 0,
+	CHG_CYCLE_VOTER__ENGINEER	= (1 << 0),
+	CHG_CYCLE_VOTER__USER		= (1 << 1),
+}OPLUS_CHG_CYCLE_VOTER;
+
+int oplus_comm_get_vbatt_over_threshold(struct oplus_mms *topic);
 int oplus_comm_switch_ffc(struct oplus_mms *topic);
 const char *oplus_comm_get_temp_region_str(enum oplus_temp_region temp_region);
 int read_signed_data_from_node(struct device_node *node,
@@ -86,8 +100,12 @@ int read_signed_data_from_node(struct device_node *node,
 int read_unsigned_data_from_node(struct device_node *node,
 				 const char *prop_str, u32 *addr,
 				 int len_max);
-#ifdef CONFIG_OPLUS_CHG_DYNAMIC_CONFIG
-int oplus_comm_set_config(struct oplus_mms *topic, struct oplus_chg_param_head *param_head);
-#endif
+
+int oplus_comm_get_wired_aging_ffc_offset(struct oplus_mms *topic, int step);
+int oplus_comm_get_current_wired_ffc_cutoff_fv(struct oplus_mms *topic, int step);
+int oplus_comm_get_wired_ffc_cutoff_fv(struct oplus_mms *topic, int step,
+	enum oplus_ffc_temp_region temp_region);
+int oplus_comm_get_wired_ffc_step_max(struct oplus_mms *topic);
+int oplus_comm_get_wired_aging_ffc_version(struct oplus_mms *topic);
 
 #endif /* __OPLUS_CHG_COMM_H__ */

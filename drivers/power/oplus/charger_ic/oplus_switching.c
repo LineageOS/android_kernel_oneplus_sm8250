@@ -142,6 +142,17 @@ int oplus_switching_set_discharge_current(int current_ma)
 	return 0;
 }
 
+int oplus_switching_set_discharge_mode(int mode)
+{
+	if (!g_switching_chip || !g_switching_chip->switch_ops ||
+		!g_switching_chip->switch_ops->switching_set_discharge_mode) {
+		chg_err("fail\n");
+		return -1;
+	} else {
+		return g_switching_chip->switch_ops->switching_set_discharge_mode(mode);
+	}
+}
+
 int oplus_switching_get_if_need_balance_bat(int vbat0_mv, int vbat1_mv)
 {
 	int diff_volt = 0;
@@ -162,7 +173,7 @@ int oplus_switching_get_if_need_balance_bat(int vbat0_mv, int vbat1_mv)
 		return -1;
 	} else {
 		diff_volt = abs(vbat0_mv - vbat1_mv);
-		if (chip->sub_batt_temperature == FG_I2C_ERROR || chip->temperature == FG_I2C_ERROR) {
+		if (chip->sub_batt_temperature == FG_I2C_ERROR || chip->main_batt_temperature == FG_I2C_ERROR) {
 			if (fg_error_count <= BATT_FGI2C_RETRY_COUNT)
 				fg_error_count++;
 			else
@@ -196,7 +207,8 @@ int oplus_switching_get_if_need_balance_bat(int vbat0_mv, int vbat1_mv)
 			    && (chip->sw_sub_batt_full || chip->hw_sub_batt_full_by_sw)
 			    && !(chip->sw_full || chip->hw_full_by_sw)
 			    && chip->charger_exist
-			    && diff_volt < g_switching_chip->parallel_vbat_gap_full) {
+			    && diff_volt < g_switching_chip->parallel_vbat_gap_full
+			    && chip->mmi_chg) {
 		    		error_reason |= REASON_SUB_BATT_FULL;
 			}
 			if (diff_volt >= g_switching_chip->parallel_vbat_gap_abnormal) {
@@ -204,7 +216,8 @@ int oplus_switching_get_if_need_balance_bat(int vbat0_mv, int vbat1_mv)
 			}
 			if ((pre_error_reason & REASON_SUB_BATT_FULL)
 			    && !oplus_switching_get_hw_enable()
-			    && diff_volt > g_switching_chip->parallel_vbat_gap_full) {
+			    && (diff_volt > g_switching_chip->parallel_vbat_gap_full
+			    || !chip->mmi_chg)) {
 				error_reason &= ~REASON_SUB_BATT_FULL;
 				chg_err("sub full,but diff_volt > %d need to recovery MOS\n", g_switching_chip->parallel_vbat_gap_full);
 			}
@@ -284,36 +297,42 @@ int oplus_switching_set_balance_bat_status(int status)
 	case PARALLEL_NOT_NEED_BALANCE_BAT__START_CHARGE:
 		oplus_switching_hw_enable(1);
 		oplus_switching_set_discharge_current(2800);
+		oplus_switching_set_discharge_mode(NO_REGULATION_FULLY_ON);
 		oplus_switching_set_current(2800);
 		oplus_switching_enable_charge(1);
 		break;
 	case PARALLEL_NEED_BALANCE_BAT_STATUS1__STOP_CHARGE:
 		oplus_switching_hw_enable(1);
 		oplus_switching_set_discharge_current(500);
+		oplus_switching_set_discharge_mode(CURRENT_REGULATION);
 		oplus_switching_set_current(500);
 		oplus_switching_enable_charge(1);
 		break;
 	case PARALLEL_NEED_BALANCE_BAT_STATUS2__STOP_CHARGE:
 		oplus_switching_hw_enable(1);
 		oplus_switching_set_discharge_current(1000);
+		oplus_switching_set_discharge_mode(CURRENT_REGULATION);
 		oplus_switching_set_current(1000);
 		oplus_switching_enable_charge(1);
 		break;
 	case PARALLEL_NEED_BALANCE_BAT_STATUS3__STOP_CHARGE:
 		oplus_switching_hw_enable(1);
 		oplus_switching_set_discharge_current(2800);
+		oplus_switching_set_discharge_mode(NO_REGULATION_FULLY_ON);
 		oplus_switching_set_current(2800);
 		oplus_switching_enable_charge(1);
 		break;
 	case PARALLEL_NEED_BALANCE_BAT_STATUS4__STOP_CHARGE:
 		oplus_switching_hw_enable(1);
 		oplus_switching_set_discharge_current(2800);
+		oplus_switching_set_discharge_mode(NO_REGULATION_FULLY_ON);
 		oplus_switching_set_current(2800);
 		oplus_switching_enable_charge(1);
 		break;
 	case PARALLEL_NEED_BALANCE_BAT_STATUS5__STOP_CHARGE:
 		oplus_switching_hw_enable(1);
 		oplus_switching_set_discharge_current(200);
+		oplus_switching_set_discharge_mode(CURRENT_REGULATION);
 		oplus_switching_set_current(200);
 		oplus_switching_enable_charge(1);
 		break;
@@ -403,6 +422,10 @@ static int oplus_switching_parse_dt(struct oplus_switch_chip *chip)
 	rc = of_property_read_u32(node, "track_unbalance_low", &chip->track_unbalance_low);
 	if (rc) {
 		chip->track_unbalance_low = 0;
+	}
+	rc = of_property_read_u32(node, "track_unbalance_soc", &chip->track_unbalance_soc);
+	if (rc) {
+		chip->track_unbalance_soc = 100;
 	}
 	temp_node = of_get_child_by_name(node, "parallel_bat_table");
 	chip->parallel_bat_data = devm_kzalloc(chip->dev, BATTERY_STATUS__INVALID * sizeof(struct parallel_bat_table), GFP_KERNEL);
@@ -611,6 +634,10 @@ int oplus_chg_track_parallel_mos_error(int reason)
 			  OPLUS_CHG_TRACK_CURX_INFO_LEN - index,
 			  "main_sub_temp %d %d, ",
 			  chip->main_batt_temperature, chip->sub_batt_temperature);
+	index += snprintf(&(g_switching_chip->mos_err_load_trigger->crux_info[index]),
+			  OPLUS_CHG_TRACK_CURX_INFO_LEN - index,
+			  "mos %s, ",
+			  oplus_switching_get_hw_enable() ? "on" : "off");
 	schedule_delayed_work(&g_switching_chip->parallel_mos_trigger_work, 0);
 	chg_err("upload parallel_charging_unbalance\n");
 
@@ -680,8 +707,7 @@ void oplus_switching_init(struct oplus_switch_chip *chip, int type)
 	oplus_switching_parse_dt(chip);
 
 	oplus_chg_parellel_variables_reset();
-	if (g_switching_chip->ctrl_type == PARALLEL_MOS_CTRL)
-		mos_track_init(chip);
+	mos_track_init(chip);
 }
 
 int oplus_switching_support_parallel_chg(void)
@@ -1019,6 +1045,8 @@ int oplus_chg_is_parellel_ibat_over_spec(int main_temp, int sub_temp, int *targe
 	int sub_tstatus = 0;
 	static bool init_temp_thr = false;
 	static unsigned int unbalance_count;
+	static int pre_main_tstatus = 0;
+	static int pre_sub_tstatus = 0;
 
 	if (!chip) {
 		chg_err("chip not ready\n");
@@ -1031,6 +1059,15 @@ int oplus_chg_is_parellel_ibat_over_spec(int main_temp, int sub_temp, int *targe
 	}
 
 	oplus_chg_check_parallel_tbatt_status(main_temp, sub_temp, &main_tstatus, &sub_tstatus);
+	if (main_tstatus != pre_main_tstatus) {
+		pre_main_tstatus = main_tstatus;
+		chip->pre_spec_index = -1;
+	}
+	if (sub_tstatus != pre_sub_tstatus) {
+		pre_sub_tstatus = sub_tstatus;
+		chip->pre_sub_spec_index = -1;
+	}
+
 	if (!batt_temp_table[main_tstatus]
 	    || !batt_temp_table[sub_tstatus]
 	    || !chip->parallel_bat_data
@@ -1142,5 +1179,32 @@ int oplus_chg_is_parellel_ibat_over_spec(int main_temp, int sub_temp, int *targe
 		  *target_curr, curr_need_change);
 
 	return curr_need_change;
+}
+
+bool oplus_chg_check_is_soc_gap_big(int main_soc, int sub_soc)
+{
+	struct oplus_chg_chip *charger_chip = oplus_chg_get_chg_struct();
+	struct oplus_switch_chip *chip = g_switching_chip;
+	static bool track_soc_gap_big;
+
+	if (!chip || !charger_chip) {
+		chg_err("chip not ready");
+		return false;
+	}
+
+	if (abs(main_soc - sub_soc) > chip->track_unbalance_soc
+	    && !track_soc_gap_big) {
+		track_soc_gap_big = true;
+		oplus_chg_track_parallel_mos_error(REASON_SOC_GAP_TOO_BIG);
+		charger_chip->parallel_error_flag |= REASON_SOC_GAP_TOO_BIG;
+		chg_err("soc gap too big: main %d, sub %d, gap %d",
+			main_soc, sub_soc, chip->track_unbalance_soc);
+		return true;
+	} else if (abs(main_soc - sub_soc) < chip->track_unbalance_soc) {
+		track_soc_gap_big = false;
+		charger_chip->parallel_error_flag &= ~REASON_SOC_GAP_TOO_BIG;
+	}
+
+	return false;
 }
 

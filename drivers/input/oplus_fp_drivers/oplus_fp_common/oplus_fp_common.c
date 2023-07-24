@@ -565,6 +565,8 @@ exit:
     dev_err(dev, "fp_data probe failed ret = %d\n", ret);
     if (fp_data) {
         devm_kfree(dev, fp_data);
+        fp_data = NULL;
+        fp_data_ptr = NULL;
     }
 
     return ret;

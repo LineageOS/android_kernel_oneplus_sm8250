@@ -307,7 +307,6 @@ static int bq2560x_write_byte(struct bq2560x *bq, u8 reg, u8 data)
 	if (ret) {
 		pr_err("Failed: reg=%02X, ret=%d\n", reg, ret);
 	}
-
 	return ret;
 }
 
@@ -1465,6 +1464,43 @@ static int bq2560x_detect_device(struct bq2560x* bq)
     return ret;
 }
 
+static void register_charger_devinfo(struct bq2560x* bq)
+{
+#ifndef CONFIG_DISABLE_OPLUS_FUNCTION
+	int ret = 0;
+	char *version;
+	char *manufacture;
+
+	if(!bq) {
+		chg_err("No bq2560x device found!\n");
+		return;
+        }
+	switch (bq->part_no) {
+	case 0x00:
+		version = "bq25600";
+		manufacture = "TI";
+		break;
+	case 0x02:
+		version = "bq25601";
+		manufacture = "TI";
+		break;
+	default:
+		version = "unknown";
+		manufacture = "UNKNOWN";
+		break;
+	}
+	if (strcmp(g_bq->chg_dev_name, "primary_chg") == 0) {
+		ret = register_device_proc("charger", version, manufacture);
+	}
+	else {
+		ret = register_device_proc("secondary_charger",version,manufacture);
+	}
+	if (ret) {
+          pr_err("register_charger_devinfo failed\n");
+        }
+#endif
+}
+
 #ifdef CONFIG_TCPC_CLASS
 static int bq2560x_get_charging_status(struct bq2560x *bq, enum bq2560x_charging_status *chg_stat)
 {
@@ -1958,6 +1994,8 @@ static irqreturn_t bq2560x_irq_handler(int irq, void *data)
 	pr_notice("bq2560x_irq_handler:(%d,%d)\n",prev_pg,bq->power_good);
 	oplus_bq2560x_dump_registers();
 
+	oplus_chg_track_check_wired_charging_break(bq->power_good);
+
 	if (oplus_vooc_get_fastchg_started() == true) {
 		chg_err("oplus_vooc_get_fastchg_started = true!(%d %d)\n", prev_pg, bq->power_good);
 		return IRQ_HANDLED;
@@ -2437,9 +2475,10 @@ int oplus_bq2560x_set_input_current_limit(int current_ma)
 	get_monotonic_boottime(&g_bq->ptime[1]);
 	diff = timespec_sub(g_bq->ptime[1], g_bq->ptime[0]);
 	g_bq->aicr = cur_ma;
-	if (cur_ma && diff.tv_sec < 3) {
-		ms = (3 - diff.tv_sec)*1000;
+	if (cur_ma && diff.tv_sec < 1) {
+		ms = (1 - diff.tv_sec)*1000;
 		cancel_delayed_work(&g_bq->bq2560x_aicr_setting_work);
+		//ms = 1000;
 		pr_info("delayed work %d ms", ms);
 		schedule_delayed_work(&g_bq->bq2560x_aicr_setting_work, msecs_to_jiffies(ms));
 	} else {
@@ -3251,6 +3290,7 @@ static int bq2560x_charger_probe(struct i2c_client *client,
 
 	bq->oplus_chg_type = POWER_SUPPLY_TYPE_UNKNOWN;
 	bq->pre_current_ma = -1;
+	register_charger_devinfo(bq);
 
 #ifndef CONFIG_TCPC_CLASS
 	if (strcmp(bq->chg_dev_name, "primary_chg") == 0) {

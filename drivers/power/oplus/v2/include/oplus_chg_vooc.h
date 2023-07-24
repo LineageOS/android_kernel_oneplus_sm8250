@@ -5,9 +5,6 @@
 #include <oplus_mms.h>
 #include <oplus_strategy.h>
 #include <oplus_hal_vooc.h>
-#ifdef CONFIG_OPLUS_CHG_DYNAMIC_CONFIG
-#include <oplus_chg_cfg.h>
-#endif
 
 #define FASTCHG_FW_INTERVAL_INIT 1000 /* 1S */
 
@@ -54,20 +51,37 @@ enum {
 	BCC_SOC_MAX,
 };
 
-#define sid_to_adapter_id(sid) ((sid >> 24) & 0xff)
-#define sid_to_adapter_power_vooc(sid) ((sid >> 16) & 0xff)
-#define sid_to_adapter_power_svooc(sid) ((sid >> 8) & 0xff)
-#define sid_to_adapter_type(sid) ((enum oplus_adapter_type)((sid >> 4) & 0xf))
-#define sid_to_adapter_chg_type(sid) ((enum oplus_adapter_chg_type)(sid & 0xf))
-#define adapter_info_to_sid(id, power_vooc, power_svooc, adapter_type, adapter_chg_type) \
-	(((id & 0xff) << 24) | ((power_vooc & 0xff) << 16) | \
-	 ((power_svooc & 0xff) << 8) | ((adapter_type & 0xf) << 4) | \
-	 (adapter_chg_type & 0xf))
+/*
+ * sid format:
+ * +--------+--------+--------+--------+
+ * | 31  24 | 23   8 | 7    4 | 3    0 |
+ * +--------+--------+--------+--------+
+ *     |         |       |        |
+ *     |         |       |        +---> adapter chg_type
+ *     |         |       +------------> adapter type
+ *     |         +--------------------> adapter power
+ *     +------------------------------> adapter id
+ */
+#define sid_to_adapter_id(sid) (((sid) >> 24) & 0xff)
+#define sid_to_adapter_power(sid) (((sid) >> 8) & 0xffff)
+#define sid_to_adapter_type(sid) ((enum oplus_adapter_type)(((sid) >> 4) & 0xf))
+#define sid_to_adapter_chg_type(sid) ((enum oplus_adapter_chg_type)((sid) & 0xf))
+#define adapter_info_to_sid(id, power, adapter_type, adapter_chg_type) \
+	((((id) & 0xff) << 24) | (((power) & 0xffff) << 8) | \
+	 (((adapter_type) & 0xf) << 4) | ((adapter_chg_type) & 0xf))
 
-#define ABNORMAL_ADAPTER_BREAK_CHECK_TIME 1500
-#define VOOC_TEMP_OVER_COUNTS	2
-#define VOOC_TEMP_RANGE_THD	20
-#define COOL_REANG_SWITCH_LIMMIT_SOC 90
+#define ABNORMAL_ADAPTER_BREAK_CHECK_TIME	1500
+#define VOOC_TEMP_OVER_COUNTS			2
+#define VOOC_TEMP_RANGE_THD			20
+#define COOL_REANG_SWITCH_LIMMIT_SOC		90
+
+enum {
+        NO_VOOCPHY = 0,
+        ADSP_VOOCPHY,
+        AP_SINGLE_CP_VOOCPHY,
+        AP_DUAL_CP_VOOCPHY,
+        INVALID_VOOCPHY,
+};
 
 enum oplus_adapter_type {
 	ADAPTER_TYPE_UNKNOWN,
@@ -92,19 +106,6 @@ enum oplus_fast_chg_status {
 	CHARGER_STATUS_FAST_DUMMY,
 	CHARGER_STATUS_SWITCH_TEMP_RANGE,
 	CHARGER_STATUS_TIMEOUT_RETRY,
-};
-
-enum oplus_adapter_power {
-	ADAPTER_POWER_UNKNOWN,
-	ADAPTER_POWER_15W,
-	ADAPTER_POWER_20W,
-	ADAPTER_POWER_30W,
-	ADAPTER_POWER_33W,
-	ADAPTER_POWER_50W,
-	ADAPTER_POWER_65W,
-	ADAPTER_POWER_80W,
-	ADAPTER_POWER_100W,
-	ADAPTER_POWER_150W,
 };
 
 enum oplus_vooc_limit_level {
@@ -211,9 +212,9 @@ struct batt_bcc_curve {
 	bool exit;
 };
 
-#define BATT_BCC_ROW_MAX        13
-#define BATT_BCC_COL_MAX        7
-#define BATT_BCC_MAX            6
+#define BATT_BCC_ROW_MAX	13
+#define BATT_BCC_COL_MAX	7
+#define BATT_BCC_MAX		6
 
 struct batt_bcc_curves {
 	struct batt_bcc_curve batt_bcc_curve[BATT_BCC_ROW_MAX];
@@ -222,11 +223,12 @@ struct batt_bcc_curves {
 
 /* vooc API */
 uint32_t oplus_vooc_get_project(struct oplus_mms *topic);
+uint32_t oplus_vooc_get_voocphy_support(struct oplus_mms *topic);
 void oplus_api_switch_normal_chg(struct oplus_mms *topic);
 int oplus_api_vooc_set_reset_sleep(struct oplus_mms *topic);
 void oplus_api_vooc_turn_off_fastchg(struct oplus_mms *topic);
-#ifdef CONFIG_OPLUS_CHG_DYNAMIC_CONFIG
-int oplus_vooc_set_config(struct oplus_mms *topic, struct oplus_chg_param_head *param_head);
-#endif
+int oplus_vooc_current_to_level(struct oplus_mms *topic, int curr);
+int oplus_vooc_level_to_current(struct oplus_mms *topic, int level);
+int oplus_vooc_get_batt_curve_current(struct oplus_mms *topic);
 
 #endif /* __OPLUS_CHG_VOOC_H__ */

@@ -56,13 +56,10 @@
 #define AFE_PORT_ID_TFADSP_TX_TERT     AFE_PORT_ID_TERTIARY_MI2S_TX
 
 /*Add for tdm mode vi feedback*/
-static bool smartpa_tdm_port_id_flag = 0;
 static int32_t afe_port_id_tfa_rx = AFE_PORT_ID_TFADSP_RX;
 static int32_t afe_port_id_tfa_tx = AFE_PORT_ID_TFADSP_TX;
 #define  AFE_PORT_RX    0
 #define  AFE_PORT_TX	1
-#define  TDM_FLAG       1
-bool get_smartpa_tdm_port_id_flag(void);
 #endif /*OPLUS_FEATURE_TFA98XX_VI_FEEDBACK*/
 
 /* zhenyu.dong@MM.AUDIO.DRIVER.CODEC
@@ -79,6 +76,15 @@ int smartpa_id = 0;
 #define AFE_PARAM_ID_SMARTPA_PM_SET_PARAM               0x10012D1B
 #define AFE_PARAM_ID_SMARTPA_PM_RESULT                  0x10012D1C
 #endif /* OPLUS_FEATURE_SMARTPA_PM */
+
+#ifdef OPLUS_ARCH_EXTENDS
+/* modify for race condition while receiving adsp response */
+#define AFE_NOWAIT_TOKEN    2048
+#define TDM_FLAG            1
+static int smartpa_tdm_port_id_flag = 0;
+#endif /* OPLUS_ARCH_EXTENDS */
+
+
 
 #define WAKELOCK_TIMEOUT	5000
 #define AFE_CLK_TOKEN	1024
@@ -1362,11 +1368,29 @@ static int32_t afe_callback(struct apr_client_data *data, void *priv)
 					atomic_set(&this_afe.clk_state, 0);
 					wake_up(&this_afe.clk_wait);
 				} else {
+					#ifdef OPLUS_ARCH_EXTENDS
+					if (TDM_FLAG == smartpa_tdm_port_id_flag) {
+						if (data->token != AFE_NOWAIT_TOKEN) {
+							atomic_set(&this_afe.state, 0);
+							if (afe_token_is_valid(data->token))
+								wake_up(&this_afe.wait[data->token]);
+							else
+								return -EINVAL;
+						}
+					} else {
+						atomic_set(&this_afe.state, 0);
+						if (afe_token_is_valid(data->token))
+							wake_up(&this_afe.wait[data->token]);
+						else
+							return -EINVAL;
+					}
+					#else
 					atomic_set(&this_afe.state, 0);
 					if (afe_token_is_valid(data->token))
 						wake_up(&this_afe.wait[data->token]);
 					else
 						return -EINVAL;
+					#endif
 				}
 				break;
 			case AFE_SERVICE_CMD_REGISTER_RT_PORT_DRIVER:
@@ -7176,7 +7200,16 @@ int afe_pseudo_port_start_nowait(u16 port_id)
 	start.hdr.pkt_size = sizeof(start);
 	start.hdr.src_port = 0;
 	start.hdr.dest_port = 0;
-	start.hdr.token = 0;
+	#ifdef OPLUS_ARCH_EXTENDS
+	/*modify for race condition while receiving adsp response */
+	if (TDM_FLAG == smartpa_tdm_port_id_flag) {
+		start.hdr.token = AFE_NOWAIT_TOKEN;
+	} else {
+		start.hdr.token = 0;
+	}
+	#else
+		start.hdr.token = 0;
+	#endif
 	start.hdr.opcode = AFE_PSEUDOPORT_CMD_START;
 	start.port_id = port_id;
 	start.timing = 1;
@@ -7265,11 +7298,28 @@ int afe_pseudo_port_stop_nowait(u16 port_id)
 	stop.hdr.pkt_size = sizeof(stop);
 	stop.hdr.src_port = 0;
 	stop.hdr.dest_port = 0;
+	#ifdef OPLUS_ARCH_EXTENDS
+	/*modify for race condition while receiving adsp response */
+	if (TDM_FLAG == smartpa_tdm_port_id_flag) {
+		stop.hdr.token = AFE_NOWAIT_TOKEN;
+	} else {
+		stop.hdr.token = 0;
+	}
+	#else
 	stop.hdr.token = 0;
+	#endif /* OPLUS_ARCH_EXTENDS */
 	stop.hdr.opcode = AFE_PSEUDOPORT_CMD_STOP;
 	stop.port_id = port_id;
 	stop.reserved = 0;
+	#ifdef OPLUS_ARCH_EXTENDS
+	if (TDM_FLAG != smartpa_tdm_port_id_flag) {
+		/*modify for race condition while receiving adsp response */
+		stop.hdr.token = index;
+	}
+	#else
+	/*modify for race condition while receiving adsp response */
 	stop.hdr.token = index;
+	#endif /* OPLUS_ARCH_EXTENDS */
 
 	ret = afe_apr_send_pkt(&stop, NULL);
 	if (ret)
@@ -7782,7 +7832,16 @@ int afe_cmd_memory_map_nowait(int port_id, phys_addr_t dma_addr_p,
 	mregion->hdr.pkt_size = sizeof(mregion);
 	mregion->hdr.src_port = 0;
 	mregion->hdr.dest_port = 0;
+	#ifdef OPLUS_ARCH_EXTENDS
+	/*modify for race condition while receiving adsp response */
+	if (TDM_FLAG == smartpa_tdm_port_id_flag) {
+		mregion->hdr.token = AFE_NOWAIT_TOKEN;
+	} else {
+		mregion->hdr.token = 0;
+	}
+	#else
 	mregion->hdr.token = 0;
+	#endif /* OPLUS_ARCH_EXTENDS */
 	mregion->hdr.opcode = AFE_SERVICE_CMD_SHARED_MEM_MAP_REGIONS;
 	mregion->mem_pool_id = ADSP_MEMORY_MAP_SHMEM8_4K_POOL;
 	mregion->num_regions = 1;
@@ -7951,7 +8010,16 @@ int afe_cmd_memory_unmap_nowait(u32 mem_map_handle)
 	mregion.hdr.pkt_size = sizeof(mregion);
 	mregion.hdr.src_port = 0;
 	mregion.hdr.dest_port = 0;
+	#ifdef OPLUS_ARCH_EXTENDS
+	/* modify for race condition while receiving adsp response */
+	if (TDM_FLAG == smartpa_tdm_port_id_flag) {
+		mregion.hdr.token = AFE_NOWAIT_TOKEN;
+	} else {
+		mregion.hdr.token = 0;
+	}
+	#else
 	mregion.hdr.token = 0;
+	#endif /* OPLUS_ARCH_EXTENDS */
 	mregion.hdr.opcode = AFE_SERVICE_CMD_SHARED_MEM_UNMAP_REGIONS;
 	mregion.mem_map_handle = mem_map_handle;
 
@@ -9087,7 +9155,16 @@ int afe_port_stop_nowait(int port_id)
 	stop.hdr.pkt_size = sizeof(stop);
 	stop.hdr.src_port = 0;
 	stop.hdr.dest_port = 0;
+	#ifdef OPLUS_ARCH_EXTENDS
+	/*modify for race condition while receiving adsp response */
+	if (TDM_FLAG == smartpa_tdm_port_id_flag) {
+		stop.hdr.token = AFE_NOWAIT_TOKEN;
+	} else {
+		stop.hdr.token = 0;
+	}
+	#else
 	stop.hdr.token = 0;
+	#endif /* OPLUS_ARCH_EXTENDS */
 	stop.hdr.opcode = AFE_PORT_CMD_DEVICE_STOP;
 	stop.port_id = port_id;
 	stop.reserved = 0;
@@ -11396,8 +11473,19 @@ static int afe_unmap_cal_data(int32_t cal_type,
 	atomic_set(&this_afe.mem_map_cal_handles[cal_index],
 		cal_block->map_data.q6map_handle);
 	atomic_set(&this_afe.mem_map_cal_index, cal_index);
+	#ifdef OPLUS_ARCH_EXTENDS
+	/* CR 3091485 | smmu fault of afe_cmd_memory_unmap_nowait during the stability*/
+	if (TDM_FLAG == smartpa_tdm_port_id_flag) {
+		ret = afe_cmd_memory_unmap(
+			cal_block->map_data.q6map_handle);
+	} else {
+		ret = afe_cmd_memory_unmap_nowait(
+		cal_block->map_data.q6map_handle);
+	}
+	#else
 	ret = afe_cmd_memory_unmap_nowait(
 		cal_block->map_data.q6map_handle);
+	#endif /* OPLUS_ARCH_EXTENDS */
 	atomic_set(&this_afe.mem_map_cal_index, -1);
 	if (ret < 0) {
 		pr_err("%s: unmap did not work! cal_type %i ret %d\n",
@@ -11648,7 +11736,7 @@ int send_tfa_cal_apr(void *buf, int cmd_size, bool bRead)
 		port_id = AFE_PORT_ID_TFADSP_RX_TERT;
 	}
 	/*Add for tdm mode iv feedback*/
-	if (TDM_FLAG == get_smartpa_tdm_port_id_flag()) {
+	if (TDM_FLAG == smartpa_tdm_port_id_flag) {
 		port_id = afe_port_id_tfa_rx;
 	}
 #endif /* OPLUS_FEATURE_TFA98XX_VI_FEEDBACK */
@@ -11767,7 +11855,7 @@ int send_tfa_cal_apr(void *buf, int cmd_size, bool bRead)
 	#ifdef OPLUS_ARCH_EXTENDS
 	/*modified for sync the command*/
 	// Force each communication to be remapped
-	if (TDM_FLAG == get_smartpa_tdm_port_id_flag()) {
+	if (TDM_FLAG == smartpa_tdm_port_id_flag) {
 		if (0 != tfa_cal->map_data.map_handle) {
 			result = afe_unmap_rtac_block(&tfa_cal->map_data.map_handle);
 		}
@@ -11803,7 +11891,7 @@ int send_tfa_cal_in_band(void *buf, int cmd_size)
 		port_id = AFE_PORT_ID_TFADSP_RX_TERT;
 	}
 	/*Add for tdm mode iv feedback*/
-	if (TDM_FLAG == get_smartpa_tdm_port_id_flag()) {
+	if (TDM_FLAG == smartpa_tdm_port_id_flag) {
 		port_id = afe_port_id_tfa_rx;
 	}
 #endif /* OPLUS_FEATURE_TFA98XX_VI_FEEDBACK */
@@ -11836,7 +11924,7 @@ int send_tfa_cal_set_bypass(void *buf, int cmd_size)
 		port_id = AFE_PORT_ID_TFADSP_RX_TERT;
 	}
 	/*Add for tdm mode iv feedback*/
-	if (TDM_FLAG == get_smartpa_tdm_port_id_flag()) {
+	if (TDM_FLAG == smartpa_tdm_port_id_flag) {
 		port_id = afe_port_id_tfa_rx;
 	}
 #endif /* OPLUS_FEATURE_TFA98XX_VI_FEEDBACK */
@@ -11869,7 +11957,7 @@ int send_tfa_cal_set_tx_enable(void *buf, int cmd_size)
 		port_id = AFE_PORT_ID_TFADSP_TX_TERT;
 	}
 	/*Add for tdm mode iv feedback*/
-	if (TDM_FLAG == get_smartpa_tdm_port_id_flag()) {
+	if (TDM_FLAG == smartpa_tdm_port_id_flag) {
 		port_id = afe_port_id_tfa_tx;
 	}
 #endif /* OPLUS_FEATURE_TFA98XX_VI_FEEDBACK */
@@ -11906,6 +11994,7 @@ int get_smartpa_id(void)
 	return smartpa_id;
 }
 EXPORT_SYMBOL(get_smartpa_id);
+
 void set_smartpa_info(int port_id_flag, int mi2s_id)
 {
 	smartpa_tdm_port_id_flag = port_id_flag;
@@ -11918,12 +12007,6 @@ void set_smartpa_info(int port_id_flag, int mi2s_id)
 	return ;
 }
 EXPORT_SYMBOL(set_smartpa_info);
-
-bool get_smartpa_tdm_port_id_flag(void)
-{
-	return smartpa_tdm_port_id_flag;
-}
-EXPORT_SYMBOL(get_smartpa_tdm_port_id_flag);
 #endif /* OPLUS_FEATURE_TFA98XX_VI_FEEDBACK */
 
 int __init afe_init(void)

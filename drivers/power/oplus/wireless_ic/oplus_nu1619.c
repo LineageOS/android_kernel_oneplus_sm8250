@@ -255,13 +255,13 @@ static int nu1619_get_extern_cmd(struct oplus_nu1619_ic *chip)
 	return 0;
 }
 
-static int nu1619_get_real_soc(int *soc)
+static int nu1619_get_ui_soc(int *ui_soc)
 {
 	if (!g_oplus_chip) {
 		chg_err("g_oplus_chip is null\n");
 		return -ENODEV;
 	}
-	*soc = g_oplus_chip->soc;
+	*ui_soc = g_oplus_chip->ui_soc;
 
 	return 0;
 }
@@ -304,7 +304,7 @@ static int nu1619_get_batt_temp_soc_cmd(struct oplus_nu1619_ic *chip)
 	u8 buf[3];
 
 	chg_err("<~WPC~><~VRY~> nu1619_get_batt_temp_soc_cmd----------->\n");
-	nu1619_get_real_soc(&soc);
+	nu1619_get_ui_soc(&soc);
 	nu1619_get_batt_temp(&temp);
 	buf[0] = (temp >> 8) & 0xff;
 	buf[1] = temp & 0xff;
@@ -819,13 +819,36 @@ static int nu1619_set_tx_Q_value(struct oplus_nu1619_ic *chip)
 {
 	int q_value = 0x41;
 
-	if (chip->nu1619_chg_status.dock_version == 0x00
-			|| chip->nu1619_chg_status.dock_version == 0x01)
+	switch (chip->nu1619_chg_status.dock_version) {
+	case DOCK_OAWV00:
+	case DOCK_OAWV01:
 		q_value = 0x41;
-	else if (chip->nu1619_chg_status.dock_version == 0x02)
+		break;
+	case DOCK_OAWV02:
+	case DOCK_OAWV03:
+	case DOCK_THIRD:
 		q_value = 0x46;
-	chg_err("<~WPC~>nu1619_set_tx_Q_value[0x%x]----------->\n", q_value);
+		break;
+	case DOCK_OAWV04:
+	case DOCK_OAWV05:
+	case DOCK_OAWV06:
+	case DOCK_OAWV07:
+	case DOCK_OAWV08:
+	case DOCK_OAWV09:
+	case DOCK_OAWV10:
+	case DOCK_OAWV11:
+	case DOCK_OAWV16:
+	case DOCK_OAWV17:
+	case DOCK_OAWV18:
+	case DOCK_OAWV19:
+		q_value = 0x46;
+		break;
+	default:
+		q_value = 0x41;
+		break;
+	}
 
+	chg_err("<~WPC~>nu1619_set_tx_Q_value[0x%x]----------->\n", q_value);
 	nu1619_write_reg(chip, 0x0000, 0x38);
 	nu1619_write_reg(chip, 0x0001, 0x48);
 	nu1619_write_reg(chip, 0x0002, 0x00);
@@ -4881,6 +4904,10 @@ static void nu1619_charge_set_target_ichg(struct oplus_nu1619_ic *chip)
 	case ADAPTER_TYPE_THIRD_PARTY:
 	case ADAPTER_TYPE_SVOOC:
 	case ADAPTER_TYPE_SVOOC_50W:
+		if ((chip->nu1619_chg_status.dock_version == DOCK_THIRD) && (chip->nu1619_chg_status.adapter_power == ADAPTER_POWER_THIRD_20W)) {
+			if (target_ichg >= WPC_20W_DOCK_CURR_MAX_MA)
+				target_ichg = WPC_20W_DOCK_CURR_MAX_MA;
+		}
 		target_ichg_to_input_current(vbatt, target_ichg, svooc_table, i, input_current);
 		break;
 	case ADAPTER_TYPE_VOOC:
@@ -5364,25 +5391,7 @@ static int oplus_wpc_set_input_current(struct oplus_nu1619_ic *chip)
 
 int nu1619_charge_set_max_current_by_adapter_power(struct oplus_nu1619_ic *chip)
 {
-	if (chip->nu1619_chg_status.dock_version == DOCK_THIRD) {
-		switch (chip->nu1619_chg_status.adapter_power) {
-		case ADAPTER_POWER_THIRD_50W:
-			if (chip->nu1619_chg_status.fastchg_current_limit > chip->nu1619_chg_status.wpc_chg_param.svooc_50w_iout_ma)
-				chip->nu1619_chg_status.fastchg_current_limit = chip->nu1619_chg_status.wpc_chg_param.svooc_50w_iout_ma;
-			break;
-		case ADAPTER_POWER_THIRD_40W:
-			if (chip->nu1619_chg_status.fastchg_current_limit > chip->nu1619_chg_status.wpc_chg_param.svooc_40w_iout_ma)
-				chip->nu1619_chg_status.fastchg_current_limit = chip->nu1619_chg_status.wpc_chg_param.svooc_40w_iout_ma;
-			break;
-		case ADAPTER_POWER_THIRD_30W:
-		case ADAPTER_POWER_THIRD_20W:
-			if (chip->nu1619_chg_status.fastchg_current_limit > chip->nu1619_chg_status.wpc_chg_param.vooc_temp_normal_fastchg_ma)
-				chip->nu1619_chg_status.fastchg_current_limit = chip->nu1619_chg_status.wpc_chg_param.vooc_temp_normal_fastchg_ma;
-			break;
-		default:
-			break;
-		}
-	} else {
+	if (chip->nu1619_chg_status.dock_version != DOCK_THIRD) {
 		switch (chip->nu1619_chg_status.adapter_power) {
 		case ADAPTER_POWER_65W:
 			if (nu1619_test_charging_status() == 4) {
@@ -11444,7 +11453,22 @@ static int nu1619_wpc_get_max_wireless_power_ower(void)
 		base_wireless_power = 40;
 		break;
 	case DOCK_OAWV02:
+	case DOCK_OAWV03:
+	case DOCK_OAWV04:
+	case DOCK_OAWV05:
+	case DOCK_OAWV06:
+	case DOCK_OAWV07:
+	case DOCK_OAWV08:
+	case DOCK_OAWV09:
 		base_wireless_power = 50;
+		break;
+	case DOCK_OAWV10:
+	case DOCK_OAWV11:
+	case DOCK_OAWV16:
+	case DOCK_OAWV17:
+	case DOCK_OAWV18:
+	case DOCK_OAWV19:
+		base_wireless_power = 100;
 		break;
 	default:
 		base_wireless_power = 15;

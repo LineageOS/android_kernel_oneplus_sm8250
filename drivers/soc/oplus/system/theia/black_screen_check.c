@@ -8,7 +8,7 @@
 
 #define BLACKSCREEN_COUNT_FILE    "/data/oplus/log/bsp/blackscreen_count.txt"
 #define BLACK_MAX_WRITE_NUMBER            50
-#define BLACK_SLOW_STATUS_TIMEOUT_MS    20000
+#define BLACK_SLOW_STATUS_TIMEOUT_MS    5000
 
 #define BLACK_DEBUG_PRINTK(a, arg...)\
     do{\
@@ -40,6 +40,13 @@ int black_screen_timer_restart(void)
         BLACK_DEBUG_PRINTK("black_screen_timer_restart:g_black_data.status = %d return\n",g_black_data.status);
         return g_black_data.status;
     }
+
+	/* Remove for MTK functioning */
+	if (!is_system_boot_completed()) {
+		BLACK_DEBUG_PRINTK("boot not complete, %s just return\n", __func__);
+		/* return -1; */
+	}
+
 #ifdef CONFIG_DRM_MSM
     if(g_black_data.blank == MSM_DRM_BLANK_POWERDOWN)
 #else

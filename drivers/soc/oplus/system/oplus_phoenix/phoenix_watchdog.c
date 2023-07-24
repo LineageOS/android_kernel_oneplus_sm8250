@@ -26,6 +26,7 @@
 #define DEFAULT_PHX_WD_PET_TIME         (60 * 4)
 
 static int hang_oplus_main_on = 1;   //default on
+static int phx_boot_mode = 1;
 int hang_oplus_recovery_method = RESTART_AND_RECOVERY;
 static int phx_hlos_wd_pet_time = DEFAULT_PHX_WD_PET_TIME;
 static char buildvariant[20];
@@ -139,6 +140,7 @@ int phx_is_long_time(void)
     }
     return 1;
 }
+EXPORT_SYMBOL(phx_is_long_time);
 
 static int phx_is_boot_into_native(void)
 {
@@ -196,34 +198,15 @@ static int phoenix_watchdog_kthread(void *dummy)
 
 static int phx_is_normal_mode_qcom(void)
 {
-    int i;
-    char *substr;
-    char boot_mode[MAX_CMD_LENGTH + 1];
-    const char * const normal_boot_mode_list[] = {"normal", "reboot", "kernel"};
-    substr =  strstr(boot_command_line, "androidboot.mode=");
-    if (substr)
-    {
-        substr += strlen("androidboot.mode=");
-        for (i=0; substr[i] != ' ' && i < MAX_CMD_LENGTH && substr[i] != '\0'; i++)
-        {
-            boot_mode[i] = substr[i];
-        }
-        boot_mode[i] = '\0';
-
-        if( MSM_BOOT_MODE__NORMAL != get_boot_mode())
-        {
-            return 0;
-        }
-
-        for( i = 0; i < ARRAY_SIZE(normal_boot_mode_list); i++)
-        {
-            if(!strcmp(boot_mode, normal_boot_mode_list[i]))
-            {
-                return 1;
-            }
-        }
-    }
-    return 0;
+#if IS_ENABLED(CONFIG_OPLUS_SYSTEM_KERNEL_QCOM)
+	if (op_is_monitorable_boot()) {
+		return 1;
+	} else {
+		return 0;
+	}
+#else
+	return 1;
+#endif /* CONFIG_OPLUS_SYSTEM_KERNEL_QCOM */
 }
 
 //copy mtk_boot_common.h
@@ -271,23 +254,35 @@ static int phx_is_qcom_platform(void)
     return 0;
 }
 
+int phx_get_normal_mode(void)
+{
+	return phx_boot_mode;
+}
+EXPORT_SYMBOL(phx_get_normal_mode);
+
+bool phx_is_userdebug(void)
+{
+	return is_userdebug();
+}
+EXPORT_SYMBOL(phx_is_userdebug);
+
 static int __init phx_is_normal_mode(void)
 {
-    return phx_is_qcom_platform()?phx_is_normal_mode_qcom():phx_is_normal_mode_mtk();
+	phx_boot_mode = phx_is_qcom_platform()?phx_is_normal_mode_qcom():phx_is_normal_mode_mtk();
+	return phx_boot_mode;
 }
 
 static int __init phoenix_hlos_watchdog_init(void)
 {
-    int ret = 0;
-    PHX_KLOG_INFO("phoenix hlos watchdog: %s\n", hang_oplus_main_on ? "on" : "off");
-    if(hang_oplus_main_on && phx_is_normal_mode())
-    {
-        reinitialze_pet_time_for_debug_build();
-        PHX_KLOG_INFO("phoenix hlos watchdog pet time: %d\n", phx_hlos_wd_pet_time);
-        kthread_run(phoenix_watchdog_kthread, NULL, "phoenix_hlos_watchdog");
-    }
+	int ret = 0;
+	PHX_KLOG_INFO("phoenix hlos watchdog: %s\n", hang_oplus_main_on ? "on" : "off");
+	if (hang_oplus_main_on && phx_is_normal_mode()) {
+		reinitialze_pet_time_for_debug_build();
+		PHX_KLOG_INFO("phoenix hlos watchdog pet time: %d\n", phx_hlos_wd_pet_time);
+		kthread_run(phoenix_watchdog_kthread, NULL, "phoenix_hlos_watchdog");
+	}
 
-    return ret;
+	return ret;
 }
 arch_initcall_sync(phoenix_hlos_watchdog_init);
 

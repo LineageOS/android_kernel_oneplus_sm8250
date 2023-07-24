@@ -82,6 +82,21 @@ extern bool oplus_ffl_trigger_finish;
 #ifdef OPLUS_BUG_STABILITY
 static struct dsi_display *primary_display;
 static struct dsi_display *secondary_display;
+
+/* A tablet Pad, add for FPC cause splash screen issue */
+#include <linux/time.h>
+
+#define RECORD_COUNT 50
+int continue_esd_count = 3;
+int record_count_occurr = 10;
+int esd_time_region = 60 * 60;
+long esd_time_buffer[RECORD_COUNT];
+int esd_occurred_count = 0;
+int store_index = 0;
+int dsi_panel_need_rewrite_reg = 0;
+bool dsi_panel_is_after_panel_enabled = false;
+bool dsi_panel_need_reset_count = true;
+extern char *saved_command_line;
 #endif /* OPLUS_BUG_STABILITY */
 
 static char dsi_display_primary[MAX_CMDLINE_PARAM_LEN];
@@ -1084,6 +1099,68 @@ static int dsi_display_status_bta_request(struct dsi_display *display)
 	return rc;
 }
 
+#ifdef OPLUS_BUG_STABILITY
+/* A tablet Pad, modify esd */
+static int dsi_display_status_check_error_flag(struct dsi_display *display)
+{
+	int rc = 1;
+	int read_value = 0;
+	int read_value_slave =0;
+	int no_check = 1;
+
+	if (display == NULL)
+		return rc;
+
+	if (gpio_is_valid(display->panel->esd_config.esd_error_flag_gpio)
+		&& gpio_is_valid(display->panel->esd_config.esd_error_flag_gpio_slave)) {
+		rc = gpio_request(display->panel->esd_config.esd_error_flag_gpio, "error-flag-gpio");
+		if (rc < 0) {
+			pr_err("%s: request esd_error_flag_gpio[%d] fail, rc=%d\n",
+				__func__, display->panel->esd_config.esd_error_flag_gpio, rc);
+			return no_check ;
+		}
+		rc = gpio_direction_input(display->panel->esd_config.esd_error_flag_gpio);
+		if (rc < 0) {
+			pr_err("%s: input  esd_error_flag_gpio[%d] fail, rc=%d\n",
+				__func__, display->panel->esd_config.esd_error_flag_gpio, rc);
+			return no_check ;
+		}
+
+		rc = gpio_request(display->panel->esd_config.esd_error_flag_gpio_slave, "error-flag-gpio-slave");
+		if (rc < 0) {
+			pr_err("%s: request esd_error_flag_gpio_slave[%d] fail, rc=%d\n",
+				__func__, display->panel->esd_config.esd_error_flag_gpio_slave, rc);
+			return no_check ;
+		}
+		rc = gpio_direction_input(display->panel->esd_config.esd_error_flag_gpio_slave);
+		if (rc < 0) {
+			pr_err("%s: input esd_error_flag_gpio_slave[%d] fail, rc=%d\n",
+				__func__, display->panel->esd_config.esd_error_flag_gpio_slave, rc);
+			return no_check ;
+		}
+		read_value = gpio_get_value(display->panel->esd_config.esd_error_flag_gpio);
+		read_value_slave = gpio_get_value(display->panel->esd_config.esd_error_flag_gpio_slave);
+		pr_info("first:read_value=%d, read_value_slave=%d\n", read_value, read_value_slave);
+		if (read_value || read_value_slave) {
+			msleep(100);
+			read_value = gpio_get_value(display->panel->esd_config.esd_error_flag_gpio);
+			read_value_slave = gpio_get_value(display->panel->esd_config.esd_error_flag_gpio_slave);
+			pr_info("second:read_value=%d, read_value_slave=%d\n", read_value, read_value_slave);
+			if (read_value || read_value_slave) {
+				pr_err("%s:reading erro flag gpio is failing, rc = %d\n", __func__, rc);
+				gpio_free(display->panel->esd_config.esd_error_flag_gpio);
+				gpio_free(display->panel->esd_config.esd_error_flag_gpio_slave);
+				return -EINVAL;
+			}
+		}
+		gpio_free(display->panel->esd_config.esd_error_flag_gpio);
+		gpio_free(display->panel->esd_config.esd_error_flag_gpio_slave);
+	}
+
+	return no_check;
+}
+#endif /* OPLUS_BUG_STABILITY */
+
 static int dsi_display_status_check_te(struct dsi_display *display)
 {
 	int rc = 1;
@@ -1111,6 +1188,13 @@ int dsi_display_check_status(struct drm_connector *connector, void *display,
 	u32 status_mode;
 	int rc = 0x1, ret;
 	u32 mask;
+#ifdef OPLUS_BUG_STABILITY
+	/* A tablet Pad, add for FPC cause splash screen issue */
+	static int dsi_panel_err_flag_continue_count = 0;
+	static int count = 0;
+	struct timeval now;
+	int esd_tmp;
+#endif/*OPLUS_BUG_STABILITY*/
 
 	if (!dsi_display || !dsi_display->panel)
 		return -EINVAL;
@@ -1170,7 +1254,84 @@ int dsi_display_check_status(struct drm_connector *connector, void *display,
 		rc = dsi_display_status_bta_request(dsi_display);
 	} else if (status_mode == ESD_MODE_PANEL_TE) {
 		rc = dsi_display_status_check_te(dsi_display);
-	} else {
+	}
+#ifdef OPLUS_BUG_STABILITY
+	/* A tablet Pad, modify esd */
+	else if (status_mode == ESD_MODE_PANEL_ERROR_FLAG) {
+	        rc = dsi_display_status_check_error_flag(dsi_display);
+		/* A tablet Pad, add for FPC cause splash screen issue */
+		if (rc > 0) {
+			dsi_panel_err_flag_continue_count = 0;
+		} else {
+			if (panel->nt36523w_old_fpc) {
+				if ( dsi_panel_need_rewrite_reg == 0) {
+					if (dsi_panel_need_reset_count) {
+						esd_occurred_count = 0;
+						dsi_panel_err_flag_continue_count = 0;
+						store_index = 0;
+						dsi_panel_need_reset_count = false;
+					}
+					esd_occurred_count++;
+					DSI_INFO("panel esd_occurred_count %d\n",esd_occurred_count);
+					do_gettimeofday(&now);
+					esd_time_buffer[store_index] = now.tv_sec;
+
+					/*3 times continue trigger rewrite*/
+					dsi_panel_err_flag_continue_count++;
+					if (dsi_panel_err_flag_continue_count == continue_esd_count) {
+						DSI_INFO("3 times continue error set dsi_panel_need_rewrite_reg = 1\n");
+						dsi_panel_need_rewrite_reg = 1;
+						dsi_panel_err_flag_continue_count = 0;
+						count++;
+						mm_fb_display_kevent_named(MM_FB_KEY_RATELIMIT_1H,
+							"DisplayDriverID@@424$$ err flag continue 3 times. count = %d\n", count);
+					}
+
+					/*10 times in 1 hour trigger rewrite*/
+					if (esd_occurred_count < record_count_occurr) {
+						DSI_INFO("panel %d get value = %ld\n", store_index,esd_time_buffer[store_index]);
+						store_index++;
+					} else {
+						esd_tmp = esd_time_buffer[store_index] - esd_time_buffer[(store_index + 1) % record_count_occurr];
+						DSI_INFO("panel >10 store_index= %ld,%ld, value =%ld, %ld, result = %ld\n",
+								store_index,
+								((store_index+1) % record_count_occurr),
+								esd_time_buffer[store_index],
+								esd_time_buffer[(store_index + 1) % record_count_occurr],
+								esd_tmp);
+						if (esd_tmp < esd_time_region) {
+							dsi_panel_need_rewrite_reg = 1;
+							count++;
+							DSI_INFO("panel rewrite ++++++ \n");
+							mm_fb_display_kevent_named(MM_FB_KEY_RATELIMIT_1H,
+								"DisplayDriverID@@425$$ 10 times ESD occurred in one hour. count = %d, ESD total - %d\n",
+								count, esd_occurred_count);
+						}
+						store_index = (store_index + 1) % record_count_occurr;
+						DSI_INFO("panel >10 store_index =%d\n", store_index);
+					}
+				}
+				if (dsi_panel_need_rewrite_reg == 1) {
+					if (dsi_panel_need_reset_count) {
+						dsi_panel_err_flag_continue_count = 0;
+						dsi_panel_need_reset_count = false;
+					}
+
+					/*3 times continue trigger rewrite*/
+					dsi_panel_err_flag_continue_count++;
+					if (dsi_panel_err_flag_continue_count == continue_esd_count) {
+						DSI_INFO("3 times continue error set dsi_panel_need_rewrite_reg = 2\n");
+						dsi_panel_need_rewrite_reg = 2;
+						count++;
+						mm_fb_display_kevent_named(MM_FB_KEY_RATELIMIT_1H,
+							"DisplayDriverID@@426$$ err flag continue 3 times. count = %d\n", count);
+					}
+				}
+			}
+		}
+	}
+#endif /* OPLUS_BUG_STABILITY */
+	else {
 		DSI_WARN("Unsupported check status mode: %d\n", status_mode);
 		panel->esd_config.esd_enabled = false;
 	}
@@ -5863,6 +6024,16 @@ int dsi_display_dev_probe(struct platform_device *pdev)
 		primary_display = display;
 	else
 		secondary_display = display;
+
+	/* A tablet Pad, add for FPC cause splash screen issue */
+	if (strstr(saved_command_line, "panel_err=1") != NULL) {
+		DSI_ERR("judge for cmdline : dsi_panel_need_rewrite_reg = 1\n");
+		dsi_panel_need_rewrite_reg = 1;
+	}
+	if (strstr(saved_command_line, "panel_err=2") != NULL) {
+		DSI_ERR("judge for cmdline : dsi_panel_need_rewrite_reg = 2\n");
+		dsi_panel_need_rewrite_reg = 2;
+	}
 #endif /* OPLUS_BUG_STABILITY */
 
 	/* initialize display in firmware callback */
@@ -8281,6 +8452,11 @@ extern u32 oplus_onscreenfp_vblank_count;
 int dsi_display_post_enable(struct dsi_display *display)
 {
 	int rc = 0;
+#ifdef OPLUS_BUG_STABILITY
+	/*  A tablet Pad, add for NT36523 resume touch here */
+	int blank;
+	struct msm_drm_notifier notifier_data;
+#endif
 
 	if (!display) {
 		DSI_ERR("Invalid params\n");
@@ -8317,6 +8493,17 @@ int dsi_display_post_enable(struct dsi_display *display)
 	if (display->config.panel_mode == DSI_OP_CMD_MODE)
 		dsi_display_clk_ctrl(display->dsi_clk_handle,
 			DSI_ALL_CLKS, DSI_CLK_OFF);
+#ifdef OPLUS_BUG_STABILITY
+	/*  A tablet Pad, add for NT36523 resume touch here */
+	if(!strcmp(display->panel->name, "nt36523 lcd vid mode dsi panel")) {
+		blank = MSM_DRM_BLANK_UNBLANK;
+		notifier_data.data = &blank;
+		notifier_data.id = 0;
+		DSI_INFO("nt36523 lcd start resume touch\n");
+		msm_drm_notifier_call_chain(MSM_DRM_EVENT_BLANK,
+								&notifier_data);
+	}
+#endif
 
 	mutex_unlock(&display->display_lock);
 	return rc;

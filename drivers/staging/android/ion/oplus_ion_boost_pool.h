@@ -9,6 +9,9 @@
 
 #define LOWORDER_WATER_MASK (64*4)
 
+extern struct kmem_cache *boost_ion_info_cachep;
+extern bool create_kmemcache_ion_info_success;
+
 struct ion_boost_pool {
 	char *name;
 	struct task_struct *tsk, *prefill_tsk;

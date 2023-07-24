@@ -1,6 +1,8 @@
 #ifndef __OPLUS_CHG_SYMBOL_H__
 #define __OPLUS_CHG_SYMBOL_H__
 
+#ifdef OPLUS_CHG_KO_BUILD
+
 #if __and(IS_MODULE(CONFIG_OPLUS_CHG), IS_MODULE(CONFIG_OPLUS_CHG_V2))
 
 #include <linux/kconfig.h>
@@ -27,6 +29,7 @@
 
 #define oplus_chg_wake_update_work oplus_chg_wake_update_work_v1
 #define oplus_chg_check_chip_is_null oplus_chg_check_chip_is_null_v1
+#define oplus_chg_check_ui_soc oplus_chg_check_ui_soc_v1
 #define oplus_is_vooc_project oplus_is_vooc_project_v1
 #define oplus_chg_show_vooc_logo_ornot oplus_chg_show_vooc_logo_ornot_v1
 #define oplus_get_prop_status oplus_get_prop_status_v1
@@ -49,4 +52,15 @@
 #endif /* CONFIG_OPLUS_CHARGER_MTK6895S */
 
 #endif /* CONFIG_OPLUS_CHG & CONFIG_OPLUS_CHG_V2 */
+
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_FAULT_INJECT_CHG)
+#define oplus_gauge_get_batt_soc oplus_gauge_get_batt_soc_v1
+#define oplus_gauge_get_batt_mvolts oplus_gauge_get_batt_mvolts_v1
+#define oplus_gauge_get_batt_mvolts_2cell_max oplus_gauge_get_batt_mvolts_2cell_max_v1
+#define oplus_gauge_get_batt_mvolts_2cell_min oplus_gauge_get_batt_mvolts_2cell_min_v1
+#define oplus_gauge_get_batt_current oplus_gauge_get_batt_current_v1
+#endif
+
+#endif /* OPLUS_CHG_KO_BUILD */
+
 #endif /* __OPLUS_CHG_SYMBOL_H__ */

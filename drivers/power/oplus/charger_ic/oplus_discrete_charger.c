@@ -185,7 +185,8 @@ static DEFINE_MUTEX(pd_select_pdo_v);
 #define OPLUS_NOT_SUPPORT_CCDETECT		0
 
 extern struct oplus_chg_operations  sgm41511_chg_ops;
-
+extern int sy6970_adc_read_charge_current(void);
+extern int oplus_usbtemp_monitor_common_new_method(void *data);
 static int charger_ic__det_flag = 0;
 
 int get_charger_ic_det(struct oplus_chg_chip *chip)
@@ -217,6 +218,11 @@ void set_charger_ic(int sel)
 static bool is_ext_mp2650_chg_ops(void)
 {
 	return (strncmp(oplus_chg_ops_name_get(), "ext-mp2650", CHG_OPS_LEN) == 0);
+}
+
+static bool is_ext_sy6970_chg_ops(void)
+{
+	return (strncmp(oplus_chg_ops_name_get(), "ext-sy6970", 64) == 0);
 }
 
 static bool is_ext_sy6974b_chg_ops(void)
@@ -896,6 +902,8 @@ static void oplus_ccdetect_work(struct work_struct *work)
 		oplus_ccdetect_enable();
 		oplus_wake_up_usbtemp_thread();
 	} else {
+		oplus_chg_clear_abnormal_adapter_var();
+
 		if (g_oplus_chip)
 			g_oplus_chip->usbtemp_check = oplus_usbtemp_condition();
 
@@ -957,6 +965,7 @@ void oplus_ccdetect_enable(void)
 
 	/* set DRP mode */
 	if (chg != NULL && chg->tcpc != NULL) {
+		pm_wakeup_dev_event(chg->dev, 2000, true);
 		tcpm_typec_change_role_postpone(chg->tcpc, TYPEC_ROLE_TRY_SNK, true);
 		pr_err("%s: set drp", __func__);
 	} else if (chg != NULL && chg->external_cclogic) {
@@ -982,6 +991,7 @@ void oplus_ccdetect_disable(void)
 
 	/* set SINK mode */
 	if (chg != NULL && chg->tcpc != NULL) {
+		pm_wakeup_dev_event(chg->dev, 2000, true);
 		tcpm_typec_change_role_postpone(chg->tcpc,TYPEC_ROLE_SNK, true);
 		pr_err("%s: set sink", __func__);
 	} else if (chg != NULL && chg->external_cclogic) {
@@ -1283,7 +1293,14 @@ EXPORT_SYMBOL(oplus_usbtemp_condition);
 
 static void oplus_usbtemp_thread_init(void)
 {
-	oplus_usbtemp_kthread =
+	if (!g_oplus_chip)
+		return;
+
+	if (g_oplus_chip->support_usbtemp_protect_v2)
+		oplus_usbtemp_kthread =
+			kthread_run(oplus_usbtemp_monitor_common_new_method, g_oplus_chip, "usbtemp_kthread");
+	else
+		oplus_usbtemp_kthread =
 			kthread_run(oplus_usbtemp_monitor_common, g_oplus_chip, "usbtemp_kthread");
 	if (IS_ERR(oplus_usbtemp_kthread)) {
 		chg_err("failed to cread oplus_usbtemp_kthread\n");
@@ -1292,10 +1309,17 @@ static void oplus_usbtemp_thread_init(void)
 
 void oplus_wake_up_usbtemp_thread(void)
 {
+	if (!g_oplus_chip)
+		return;
+
 	if (oplus_usbtemp_check_is_support() == true) {
 		g_oplus_chip->usbtemp_check = oplus_usbtemp_condition();
-		if (g_oplus_chip->usbtemp_check)
-			wake_up_interruptible(&g_oplus_chip->oplus_usbtemp_wq);
+		if (g_oplus_chip->usbtemp_check) {
+			if (g_oplus_chip->support_usbtemp_protect_v2)
+				wake_up_interruptible(&g_oplus_chip->oplus_usbtemp_wq_new_method);
+			else
+				wake_up_interruptible(&g_oplus_chip->oplus_usbtemp_wq);
+		}
 	}
 }
 
@@ -1892,9 +1916,16 @@ int oplus_chg_set_pd_config(void)
 }
 
 #define OPLUS_SVID 0x22d9
+uint32_t pd_svooc_abnormal_adapter[] = {
+	0x20002,
+	0x10002,
+	0x10001,
+	0x40001,
+};
+
 int oplus_get_adapter_svid(void)
 {
-	int i = 0;
+	int i = 0, j = 0;
 	uint32_t vdos[VDO_MAX_NR] = {0};
 	struct tcpc_device *tcpc_dev = tcpc_dev_get_by_name("type_c_port0");
 	struct tcpm_svid_list svid_list= {0, {0}};
@@ -1923,6 +1954,13 @@ int oplus_get_adapter_svid(void)
 	if ((vdos[0] & 0xFFFF) == OPLUS_SVID) {
 		g_oplus_chip->pd_svooc = true;
 		chg_err("match svid and this is oplus adapter 11\n");
+		for (j = 0; j < ARRAY_SIZE(pd_svooc_abnormal_adapter); j++) {
+			if (pd_svooc_abnormal_adapter[j] == vdos[2]) {
+				chg_err("This is oplus gnd abnormal adapter %x %x \n", vdos[1], vdos[2]);
+				g_oplus_chip->is_abnormal_adapter = true;
+				break;
+			}
+		}
 	}
 
 
@@ -2422,7 +2460,7 @@ int qpnp_get_prop_charger_voltage_now(void)
 
 	if (is_ext_mp2650_chg_ops()) {
 		chg_vol = mp2650_get_vbus_voltage();
-	} else if (is_ext_sy6974b_chg_ops()) {
+	} else if (is_ext_sy6974b_chg_ops() || is_ext_sy6970_chg_ops()) {
 		if (!chip->charger_exist && !chip->ac_online)
 			return 0;
 		if (oplus_chg_get_voocphy_support() == AP_SINGLE_CP_VOOCPHY
@@ -2436,8 +2474,6 @@ int qpnp_get_prop_charger_voltage_now(void)
 				usleep_range(CP_ADC_DELAY_MIN_US, CP_ADC_DELAY_MAX_US);
 			}
 			chg_vol = oplus_voocphy_get_cp_vbus();
-		} else {
-			chg_err("get chg_vol interface null\n");
 		}
 	} else if (is_ext_sgm41512_chg_ops()) {
 		if (oplus_chg_get_voocphy_support() == AP_SINGLE_CP_VOOCPHY
@@ -2458,6 +2494,16 @@ int qpnp_get_prop_charger_voltage_now(void)
 	return chg_vol;
 }
 
+int oplus_chg_get_subcurrent(void)
+{
+	if (g_oplus_chip && g_oplus_chip->sub_chg_ops
+		&& g_oplus_chip->sub_chg_ops->get_charger_current) {
+		return g_oplus_chip->sub_chg_ops->get_charger_current();
+	}
+	return 0;
+}
+EXPORT_SYMBOL(oplus_chg_get_subcurrent);
+
 int qpnp_get_prop_ibus_now(void)
 {
 	int ibus = -1;
@@ -2474,6 +2520,8 @@ int qpnp_get_prop_ibus_now(void)
 		ibus = -1;
 	} else if (is_ext_sgm41512_chg_ops()) {
 		ibus = -1;
+	} else if (is_ext_sy6970_chg_ops()) {
+		ibus = oplus_gauge_get_batt_current() + sy6970_adc_read_charge_current();
 	}
 	return ibus;
 }
@@ -2686,7 +2734,7 @@ static int discrete_charger_probe(struct platform_device *pdev)
 	}
 #endif
 #endif
-
+	device_init_wakeup(chg->dev, 1);
 	chg_err("discrete charger probed successfully\n");
 
 	return rc;
@@ -2720,6 +2768,9 @@ static void discrete_charger_shutdown(struct platform_device *pdev)
 	if(!g_oplus_chip) {
 		return;
 	}
+
+	if (chg->pd_active)
+		oplus_pdo_select(PDO_5V_VBUS_MV, PDO_5V_IBUS_MA);
 
 	if (g_oplus_chip) {
 		oplus_vooc_reset_mcu();

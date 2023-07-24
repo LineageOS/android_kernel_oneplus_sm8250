@@ -49,4 +49,13 @@ if OPLUS_CHG_V2
 source "drivers/power/oplus/v2/Kconfig"
 endif
 
+source "drivers/power/oplus/test-kit/Kconfig"
+
 endif #OPLUS_CHARGER
+
+config OPLUS_CHARGER_WIRELESS_RA9530
+	bool "OPLUS charger wireless pen 9530 ic"
+	help
+	  Say Y to include support
+
+source "drivers/power/oplus/config/Kconfig"

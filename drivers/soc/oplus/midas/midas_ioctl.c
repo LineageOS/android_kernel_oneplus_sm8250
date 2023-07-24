@@ -289,7 +289,8 @@ long midas_dev_ioctl(struct file *filp,
 
 	ioctl = &midas_ioctls[nr];
 
-	out_size = in_size = _IOC_SIZE(cmd);
+	in_size = _IOC_SIZE(cmd);
+	out_size = in_size;
 	if ((cmd & IOC_IN) == 0)
 		in_size = 0;
 	if ((cmd & IOC_OUT) == 0)

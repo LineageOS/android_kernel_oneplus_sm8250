@@ -2302,6 +2302,34 @@ static void sy6974b_init_work_handler(struct work_struct *work)
 	return;
 }
 
+static void register_charger_devinfo(struct chip_sy6974b *chip)
+{
+#ifndef CONFIG_DISABLE_OPLUS_FUNCTION
+	int ret = 0;
+	char *version;
+	char *manufacture;
+
+	if (!chip) {
+		chg_err("chip is null\n");
+		return;
+	}
+	if (chip->is_sy6974b) {
+		version = "sy6974b";
+		manufacture = "Silergy Corp.";
+	} else if (chip->is_bq25601d) {
+		version = "bq25601d";
+		manufacture = "Texas Instruments";
+	} else {
+		version = "unknown";
+		manufacture = "UNKNOWN";
+	}
+	ret = register_device_proc("charger", version, manufacture);
+	if (ret) {
+		pr_err("register_charger_devinfo fail\n");
+	}
+#endif
+}
+
 static int sy6974b_charger_probe(struct i2c_client *client,
 					const struct i2c_device_id *id)
 {
@@ -2359,6 +2387,7 @@ static int sy6974b_charger_probe(struct i2c_client *client,
 		ret = -ENOTSUPP;
 		goto err_parse_dt;
 	}
+	register_charger_devinfo(chip);
 	oplus_chg_ops_register("ext-sy6974b", &sy6974b_chg_ops);
 	sy6974b_dump_registers();
 	sy6974b_reset_charger();

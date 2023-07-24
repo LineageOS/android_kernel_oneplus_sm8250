@@ -493,6 +493,8 @@ struct mtk_charger {
 
 	int chargeric_temp_volt;
 	int chargeric_temp;
+	int chargeric_temp_cal;
+	int battery_btb_temp_cal;
 	bool support_ntc_01c_precision;
 
 	struct tcpc_device *tcpc;
@@ -505,6 +507,7 @@ struct mtk_charger {
 	bool status_wake_lock_on;
 /*.add for doki disable hvdcp func .*/
 	bool hvdcp_disabled;
+	bool ntc_switch_used;
 #endif
 };
 

@@ -14,7 +14,12 @@
 
 #include <linux/interrupt.h>
 #include <linux/i2c.h>
+#include <linux/version.h>
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 19, 0))
 #include <mt-plat/charger_type.h>
+#else
+#include <mt-plat/v1/charger_type.h>
+#endif
 #ifdef CONFIG_OPLUS_CHARGER_MTK
 #include <linux/slab.h>
 #include <linux/irq.h>
@@ -36,7 +41,9 @@
 #elif defined(CONFIG_OPLUS_CHARGER_MTK6763) || defined(CONFIG_CHARGER_SY6974)
 #include <linux/module.h>
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 19, 0))
 #include <mt-plat/mtk_gpio.h>
+#endif
 
 #include <mt-plat/mtk_rtc.h>
 

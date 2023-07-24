@@ -57,7 +57,8 @@
 #define P9418_PRIVATE_DATA_REG								0x14
 #define P9418_REG_CURRENT_MA	 							0X6E /* ma 16bit */
 #define P9418_REG_VOLTAGE_MV								0X70 /* mv 16bit */
-
+#define P9418_REG_PING										0x2C /* for ato ping */
+#define P9418_PING_SUCC										BIT(4)
 #define P9418_REG_IDENTITY									0x5870
 
 #define P9418_UPDATE_INTERVAL							round_jiffies_relative(msecs_to_jiffies(3000))
@@ -116,6 +117,7 @@ struct oplus_p9418_ic{
 	int							tx_current;
 	int							tx_voltage;
 	int							rx_soc;
+	int							ping_succ_time;
 	/* P9418 status parameter */
 	char						int_flag_data[4];
 	unsigned int				idt_fw_version;
@@ -146,11 +148,22 @@ struct oplus_p9418_ic{
 	struct work_struct			power_switch_work;
 	struct mutex				flow_mutex;
 	struct wakeup_source		*bus_wakelock;
+	struct mutex				power_enable_mutex;
 	u64			tx_start_time;
 	u64			upto_ble_time;		/* enable tx to get mac time(ms) */
 	u64			charger_done_time;	/* enable tx to charger done time(min) */
 	uint32_t		power_expired_time;	/* charger done expired time(min) */
+	unsigned char *wls_pen_fwdata;
+	unsigned int wireless_ic_id;
+	int pen_fw_lenth;
+	u32 pen_support_track;
 	struct delayed_work check_point_dwork;
+
+	int debug_pen_match_state_trigger;
+	oplus_chg_track_trigger pen_match_state_trigger;
+	struct delayed_work pen_match_state_work;
+	struct mutex track_upload_lock;
+	char err_reason[OPLUS_CHG_TRACK_DEVICE_ERR_NAME_LEN];
 };
 
 void p9418_wpc_print_log(void);
@@ -161,6 +174,13 @@ int p9418_get_booster_en_val(void);
 bool p9418_firmware_is_updating(void);
 bool p9418_check_chip_is_null(void);
 void p9418_ept_type_detect_func(struct oplus_p9418_ic *chip);
+
+#ifndef CONFIG_OPLUS_CHARGER_MTK
+extern struct blocking_notifier_head hall_notifier;
+#else
+extern int wireless_register_notify(struct notifier_block *nb);
+extern int wireless_unregister_notify(struct notifier_block *nb);
+#endif
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0))
 int p9418_driver_init(void);

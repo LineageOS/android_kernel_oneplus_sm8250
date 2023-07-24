@@ -12,6 +12,8 @@
 #include "oplus_mm_kevent.h"
 #include <linux/version.h>
 
+#define MM_FB_VERSION        "1.0.1"
+
 static void mm_fb_kevent_upload_jobs(struct work_struct *work);
 
 static LIST_HEAD(mm_kevent_list);
@@ -22,9 +24,13 @@ static struct workqueue_struct *mm_kevent_wq = NULL;
 static int mm_kevent_len = 0;
 static bool mm_fb_init = false;
 #define CAUSENAME_SIZE 128
-static char fid[CAUSENAME_SIZE]={"12345678"};
+static char fid[CAUSENAME_SIZE] = {"12345678"};
 
-#define LIMIT_UPLOAD_TIME_MS    10000 /*ms*/
+#define FB_LEVEL_VALUE_MAX_LEN        8
+
+const char level_tag[FB_LEVEL_MAX][FB_LEVEL_VALUE_MAX_LEN] =
+		{"none", "low", "high", "error", "fatal", "test"};
+
 struct limit_upload_frq {
 	unsigned int last_id;
 	ktime_t last_time;
@@ -35,6 +41,7 @@ struct mm_kevent {
 	struct list_head head;
 	enum OPLUS_MM_DIRVER_FB_EVENT_MODULE module;
 	unsigned int event_id;
+	unsigned int level;
 	struct mutex lock;
 	int count;
 	int count_total;
@@ -203,6 +210,7 @@ static void mm_fb_kevent_upload_work(struct work_struct *work)
 				#define PAYLOAD(fmt, ...) \
 					if (sizeof(payload) > cnt) \
 					cnt += scnprintf(payload + cnt, sizeof(payload) - cnt, fmt, ##__VA_ARGS__);
+				PAYLOAD("fb_level@@%s$$", level_tag[new_kevent->level]);
 				PAYLOAD("func@@%s$$", new_kevent->name);
 				PAYLOAD("%s", new_kevent->payload ? new_kevent->payload : "NULL");
 			} else {
@@ -217,7 +225,9 @@ static void mm_fb_kevent_upload_work(struct work_struct *work)
 		kevent->count_total = 1;
 		new_kevent = NULL;
 		mm_kevent_len++;
+		mutex_lock(&mm_kevent_lock);
 		list_add_tail(&kevent->head, &mm_kevent_list);
+		mutex_unlock(&mm_kevent_lock);
 		goto done;
 	}
 
@@ -258,8 +268,8 @@ static void mm_fb_kevent_upload_jobs(struct work_struct *work)
 				kevent->count_limit = 4096;
 			}
 		} else if (!kevent->rate_limit_ms || (kevent->rate_limit_ms &&
-						      ktime_before(ktime_get(), ktime_add_ms(kevent->last_upload,
-								      kevent->rate_limit_ms)))) {
+				ktime_before(ktime_get(), ktime_add_ms(kevent->last_upload,
+				kevent->rate_limit_ms)))) {
 			continue;
 		}
 
@@ -269,6 +279,7 @@ static void mm_fb_kevent_upload_jobs(struct work_struct *work)
 			if (sizeof(payload) > cnt) \
 				cnt += scnprintf(payload + cnt, sizeof(payload) - cnt, fmt, ##__VA_ARGS__);
 		if (OPLUS_MM_DIRVER_FB_EVENT_AUDIO == kevent->module) {
+			PAYLOAD("fb_level@@%s$$", level_tag[kevent->level]);
 			PAYLOAD("func@@%s$$", kevent->name);
 			PAYLOAD("CT@@%d$$", kevent->count);
 			PAYLOAD("%s", kevent->payload ? kevent->payload : "NULL");
@@ -307,54 +318,53 @@ static void mm_fb_kevent_upload_recv_user(int type, int flags, char *data)
 }
 
 /* queue a  delaywork to upload the feedback info, can used in interrupt function or timeliness requirement place*/
-int upload_mm_fb_kevent_limit(enum OPLUS_MM_DIRVER_FB_EVENT_MODULE module,
-			      unsigned int event_id,
-		     const char *name, int rate_limit_ms, unsigned int delay_s, char *payload)
+int upload_mm_fb_kevent_limit(mm_fb_param *param)
 {
 	struct mm_kevent *kevent = NULL;
 	int size;
 	char buf[MAX_PAYLOAD_DATASIZE] = {0};
 
-	if (!mm_fb_init || !mm_kevent_wq) {
-		pr_err("%s: error: not init or mm_kevent_wq is null\n", __func__);
+	if (!mm_fb_init || !mm_kevent_wq || !param) {
+		pr_err("%s: error: not init or mm_kevent_wq or param is null\n", __func__);
 		return -EINVAL;
 	}
 
-	if(is_relation_event_limit(event_id)) {
-		pr_info("%s: relation event has feedback before, not feedback %u\n", __func__, event_id);
+	if ((param->level != FB_FATAL) && (param->level != FB_TEST) && \
+			is_relation_event_limit(param->event_id)) {
+		pr_info("%s: relation event has feedback before, not feedback %u\n", __func__, param->event_id);
 		return -EINVAL;
 	}
-	size = strlen(name) + sizeof(*kevent) + 1;
+	size = strlen(param->fn_ln) + sizeof(*kevent) + 1;
 	kevent = kzalloc(size, GFP_ATOMIC);
 	if (!kevent) {
 		return -ENOMEM;
 	}
 
-	kevent->module = module;
-	kevent->event_id = event_id;
+	kevent->module = param->module;
+	kevent->event_id = param->event_id;
+	kevent->level = (param->level >= FB_LEVEL_MAX) ? FB_ERROR : param->level;
 	kevent->count_limit = 1;
 	kevent->last_upload = ktime_get();
 	kevent->first = ktime_get();
 	kevent->last = ktime_get();
-	kevent->rate_limit_ms = rate_limit_ms;
-	memcpy(kevent->name, name, strlen(name) + 1);
-	if (OPLUS_AUDIO_EVENTID_ADSP_CRASH == event_id) {
-		calc_fid(payload);
-		scnprintf(buf, MAX_PAYLOAD_DATASIZE, "EventField@@%s$$%s",
-				fid, payload ? payload : "NULL");
+	kevent->rate_limit_ms = param->limit_ms;
+	memcpy(kevent->name, param->fn_ln, strlen(param->fn_ln) + 1);
+	if (OPLUS_AUDIO_EVENTID_ADSP_CRASH == param->event_id) {
+		calc_fid(param->payload);
+		scnprintf(buf, MAX_PAYLOAD_DATASIZE, "EventField@@%s$$%s", fid, param->payload);
 		kevent->payload = kmemdup(buf, strlen(buf) + 1, GFP_ATOMIC);
 	} else {
-		kevent->payload = kmemdup(payload, strlen(payload) + 1, GFP_ATOMIC);
+		kevent->payload = kmemdup(param->payload, strlen(param->payload) + 1, GFP_ATOMIC);
 	}
 	mutex_init(&kevent->lock);
 	INIT_DELAYED_WORK(&kevent->dwork, mm_fb_kevent_upload_work);
-	if (delay_s > 0) {
-		printk(KERN_INFO "%s:feedback delay %d second\n", __func__, delay_s);
-		queue_delayed_work(mm_kevent_wq, &kevent->dwork, delay_s * HZ);
+	if (param->delay_s > 0) {
+		printk(KERN_INFO "%s:feedback delay %d second\n", __func__, param->delay_s);
+		queue_delayed_work(mm_kevent_wq, &kevent->dwork, param->delay_s * HZ);
 	} else {
 		queue_delayed_work(mm_kevent_wq, &kevent->dwork, 0);
 	}
-	printk(KERN_INFO "%s:event_id=%d,payload:%s\n", __func__, event_id, payload);
+	printk(KERN_INFO "%s:event_id=%d,payload:%s\n", __func__, param->event_id, param->payload);
 
 	return 0;
 }
@@ -415,7 +425,7 @@ int upload_mm_fb_kevent_to_atlas_limit(unsigned int event_id,
 		user_msg_info->tag[strlen(ATLAS_FB_EVENT)] = 0;
 	}
 
-	snprintf(event_id_str, sizeof(event_id_str) - 1, "%d", event_id);
+	snprintf(event_id_str, sizeof(event_id_str) - 1, "%u", event_id);
 	memcpy(user_msg_info->event_id, event_id_str, strlen(event_id_str));
 
 	user_msg_info->len = len + 1;
@@ -437,54 +447,125 @@ _exit:
 }
 EXPORT_SYMBOL(upload_mm_fb_kevent_to_atlas_limit);
 
+enum {
+	TAG_ID = 0,
+	TAG_LEVEL,
+	TAG_DELAY,
+	TAG_LIMIT,
+	TAG_FN_LN,
+	TAG_MAX
+};
 #define MM_FB_EVENTID_LEN   5
-#define MM_FB_HAL_LIMIT    (30*1000)
+#define MM_FB_HAL_LIMIT     (300 * 1000)
 #define IS_DIGITAL(x) (((x) >= '0') && ((x) <= '9'))
 static ssize_t mm_fb_write(struct file *file,
 				const char __user *buf,
 				size_t count,
 				loff_t *lo)
 {
-	char *r_buf;
-	unsigned int event_id = 0;
-	int len, i;
+	mm_fb_param param;
+	char *r_buf = NULL;
+	char *p1 = NULL;
+	char *p2 = NULL;
+	unsigned int tags[TAG_MAX] = {0, 0, 0, 0};
+	unsigned int tag_num = 0;
+	char tag_fn_ln[MAX_FUNC_LINE_SIZE] = {0};
+	unsigned int fn_ln_len = 0;
+	unsigned int offset = 0;
+	unsigned int len = 0;
+	int idx = 0;
 
 	if (!mm_fb_init) {
 		pr_err("%s: error, module not init\n", __func__);
-		return -EINVAL;
+		return count;
 	}
 
 	r_buf = (char *)kzalloc(MAX_PAYLOAD_DATASIZE, GFP_KERNEL);
 	if (!r_buf) {
+		pr_err("%s: kzalloc failed\n", __func__);
 		return count;
 	}
 
 	if (copy_from_user(r_buf, buf,
-			   MAX_PAYLOAD_DATASIZE > count ? count : MAX_PAYLOAD_DATASIZE)) {
+			MAX_PAYLOAD_DATASIZE > count ? count : MAX_PAYLOAD_DATASIZE)) {
 		goto exit;
 	}
 
 	r_buf[MAX_PAYLOAD_DATASIZE - 1] ='\0'; /*make sure last bype is eof*/
 	len = strlen(r_buf);
-	printk(KERN_INFO "%s: mm_kevent fb len=%d, data=%s\n", __func__, len, r_buf);
-	if (len < (MM_FB_EVENTID_LEN + 2)) {
-		printk(KERN_INFO "%s: mm_kevent fb data len=%d is error\n", __func__, len);
-		goto exit;
-	}
+	printk(KERN_INFO "%s: mm_kevent fb len=%d, payload=%s\n", __func__, len, r_buf);
 
-	for (i = 0; i < MM_FB_EVENTID_LEN; i++) {
-		if (IS_DIGITAL(r_buf[i])) {
-			event_id = event_id*10 + r_buf[i] - '0';
-		} else {
-			printk(KERN_INFO "%s: mm_kevent fb eventid is error, data=%s\n", __func__,
-			       r_buf);
+	/* new format: "#event_id:level:delay:limit:func-line#payload info" */
+	if (r_buf[0] == '#') {
+		p1 = r_buf + 1;
+		p2 = strchr(r_buf + 1, '#');
+		if (!p2 || ((p2 - p1 + 2) > len)) {
+			printk(KERN_INFO "%s: format invalid, need #event_id:level:delay:limit:func-line#\n", __func__);
 			goto exit;
 		}
+		offset = p2 - p1 + 2;
+
+		while ((p1 < p2) && (tag_num < TAG_MAX)) {
+			if (IS_DIGITAL(*p1) && (tag_num < TAG_FN_LN)) {
+				tags[tag_num] = tags[tag_num] * 10 + *p1 - '0';
+			} else if ((*p1 == ':') && (tag_num < TAG_FN_LN)) {
+				tag_num++;
+			} else if (tag_num == TAG_FN_LN) {
+				fn_ln_len = p2 - p1;
+				fn_ln_len = fn_ln_len > (MAX_FUNC_LINE_SIZE - 1) ? (MAX_FUNC_LINE_SIZE - 1) : fn_ln_len;
+				memcpy(tag_fn_ln, p1, fn_ln_len);
+				tag_fn_ln[fn_ln_len] = '\0';
+				fn_ln_len += 1;
+				break;
+			} else {
+				printk(KERN_INFO "%s: format invalid, need #event_id:level:delay:limit:func-line#\n", __func__);
+				goto exit;
+			}
+			p1++;
+		}
+
+		if (tag_num != TAG_FN_LN) {
+			printk(KERN_INFO "%s: format invalid, need #event_id:level:delay:limit:func-line#\n", __func__);
+			goto exit;
+		}
+		if ((tags[TAG_ID] < OPLUS_AUDIO_EVENTID_ADSP_CRASH) || (tags[TAG_ID] > OPLUS_MM_EVENTID_MAX)) {
+			printk(KERN_INFO "%s: event_id=%u invalid\n", __func__, tags[TAG_ID]);
+			goto exit;
+		}
+		if (tags[TAG_LEVEL] >= FB_LEVEL_MAX) {
+			printk(KERN_INFO "%s: level=%u invalid, set error level\n", __func__, tags[TAG_LEVEL]);
+			tags[TAG_LEVEL] = FB_ERROR;
+		}
+		if (tags[TAG_LIMIT] == 0) {
+			printk(KERN_INFO "%s: limit=%u invalid, set default limit\n", __func__, tags[TAG_LIMIT]);
+			tags[TAG_LIMIT] = MM_FB_HAL_LIMIT;
+		}
+		param.module = OPLUS_MM_DIRVER_FB_EVENT_AUDIO;
+		param.event_id = tags[TAG_ID];
+		param.level = tags[TAG_LEVEL];
+		param.delay_s = tags[TAG_DELAY];
+		param.limit_ms = tags[TAG_LIMIT] * 1000;
+		memcpy(param.fn_ln, tag_fn_ln, fn_ln_len);
+		memcpy(param.payload, r_buf + offset, len - offset);
+		param.payload[len - offset] = '\0';
+		upload_mm_fb_kevent_limit(&param);
+	} else { /* old format: "event_id:payload info" */
+		for (idx = 0; idx < MM_FB_EVENTID_LEN; idx++) {
+			if (IS_DIGITAL(r_buf[idx])) {
+				tags[TAG_ID] = tags[TAG_ID]*10 + r_buf[idx] - '0';
+			} else {
+				printk(KERN_INFO "%s: mm_kevent fb event_id is error\n", __func__);
+				goto exit;
+			}
+		}
+
+		if (r_buf[idx] != ':') {
+			printk(KERN_INFO "%s: format invalid, need event_id:\n", __func__);
+			goto exit;
+		}
+		upload_mm_fb_kevent_to_atlas_limit(tags[TAG_ID], r_buf + MM_FB_EVENTID_LEN + 1,
+				MM_FB_HAL_LIMIT);
 	}
-
-	upload_mm_fb_kevent_to_atlas_limit(event_id, r_buf + MM_FB_EVENTID_LEN + 1,
-					   MM_FB_HAL_LIMIT);
-
 exit:
 	kfree(r_buf);
 	return count;
@@ -577,7 +658,7 @@ int mm_fb_kevent_init(void)
 	}
 
 	mm_fb_init = true;
-	pr_info("%s: init success\n", __func__);
+	pr_info("%s: init success, version:%s\n", __func__, MM_FB_VERSION);
 
 	return 0;
 

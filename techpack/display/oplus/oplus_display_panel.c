@@ -95,6 +95,8 @@ static const struct panel_ioctl_desc panel_ioctls[] = {
 	#endif /* OPLUS_FEATURE_AOD_RAMLESS */
 	PANEL_IOCTL_DEF(PANEL_IOCTL_SET_FP_TYPE, oplus_ofp_set_fp_type),
 	PANEL_IOCTL_DEF(PANEL_IOCTL_GET_FP_TYPE, oplus_ofp_get_fp_type),
+	/* Apollo DC backlight */
+	PANEL_IOCTL_DEF(PANEL_IOCTL_SET_DC_REAL_BACKLIGHT, oplus_display_panel_set_dc_real_brightness),
 };
 
 int oplus_display_fix_apollo_level(void)

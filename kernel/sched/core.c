@@ -50,7 +50,9 @@
 #if IS_ENABLED(CONFIG_OPLUS_FEATURE_CPU_JANKINFO)
 #include <linux/cpu_jankinfo/sa_jankinfo.h>
 #endif
-
+#ifdef CONFIG_LOCKING_PROTECT
+#include <linux/sched_assist/sched_assist_locking.h>
+#endif
 DEFINE_PER_CPU_SHARED_ALIGNED(struct rq, runqueues);
 
 #ifdef CONFIG_SCHED_DEBUG
@@ -4546,7 +4548,9 @@ static void __sched notrace __schedule(bool preempt)
 		++*switch_count;
 
 		trace_sched_switch(preempt, prev, next);
-
+#ifdef CONFIG_LOCKING_PROTECT
+		locking_state_systrace_c(cpu_of(rq), next);
+#endif
 #if defined(OPLUS_FEATURE_TASK_CPUSTATS) && defined(CONFIG_OPLUS_SCHED)
 		update_wake_tid(prev, next, running_runnable);
 		update_running_start_time(prev, next);
@@ -7489,6 +7493,9 @@ void __init sched_init(void)
 #ifdef OPLUS_FEATURE_SCHED_ASSIST
 		ux_init_rq_data(rq);
 #endif /* OPLUS_FEATURE_SCHED_ASSIST */
+#ifdef CONFIG_LOCKING_PROTECT
+		locking_init_rq_data(rq);
+#endif
 #ifdef CONFIG_FAIR_GROUP_SCHED
 		root_task_group.shares = ROOT_TASK_GROUP_LOAD;
 		INIT_LIST_HEAD(&rq->leaf_cfs_rq_list);

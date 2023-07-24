@@ -1354,7 +1354,7 @@ static bool zy0603_afi_update_done(void)
 	}
 
 	if (gauge_ic->batt_zy0603 && gauge_ic->afi_count > 0 && !gauge_ic->afi_update_done) {
-		printk(KERN_ERR "[%s] return for afi_update_done not finished\n");
+		chg_info("return for afi_update_done not finished\n");
 		return false;
 	} else {
 		return true;
@@ -4787,8 +4787,8 @@ static int bq28z610_set_bcc_debug_parameters(struct oplus_chg_ic_dev *ic_dev, co
 				__func__, bcc_debug_mode);
 		}
 		strncpy(bcc_debug_buf, buf + 8, strlen(buf) - 8);
-		printk(KERN_ERR "%s bcc_debug_buf:%s, temp_buf\n",
-			__func__, bcc_debug_buf, temp_buf);
+		chg_info("bcc_debug_buf:%s, temp_buf:%s\n",
+			 bcc_debug_buf, temp_buf);
 		return ret;
 	}
 #endif

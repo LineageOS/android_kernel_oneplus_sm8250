@@ -26,8 +26,6 @@
 #include <linux/math64.h>
 #include <linux/power_supply.h>
 #include <mt-plat/upmu_common.h>
-#include <mt-plat/charger_class.h>
-#include <mt-plat/charger_type.h>
 #include <mt-plat/mtk_boot.h>
 
 #include "../../mediatek/charger/mtk_charger_intf.h"
@@ -35,7 +33,16 @@
 #define _BQ25890H_
 #include "oplus_bq2589x_reg.h"
 #include <linux/time.h>
+
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 19, 0))
 #include <soc/oplus/oplus_project.h>
+#include <mt-plat/charger_class.h>
+#include <mt-plat/charger_type.h>
+#else
+#include <soc/oplus/system/oplus_project.h>
+#include <mt-plat/v1/charger_class.h>
+#include <mt-plat/v1/charger_type.h>
+#endif
 
 extern void set_charger_ic(int sel);
 extern unsigned int is_project(int project);
@@ -622,7 +629,9 @@ int bq2589x_force_dpdm(struct bq2589x *bq)
 
 	pr_info("Force DPDM %s\n", !ret ?  "successfully" : "failed");
 	bq2589x_set_input_current_limit(bq, 1400);
-	g_oplus_chip->sub_chg_ops->input_current_write(600);
+	if ((g_oplus_chip != NULL) && (g_oplus_chip->is_double_charger_support)) {
+		g_oplus_chip->sub_chg_ops->input_current_write(600);
+	}
 	return ret;
 
 }
@@ -1559,7 +1568,9 @@ static int bq2589x_set_otg(struct charger_device *chg_dev, bool en)
 	pr_err("%s OTG %s\n", en ? "enable" : "disable",
 	       !ret ? "successfully" : "failed");
 
-	power_supply_changed(g_oplus_chip->usb_psy);
+	if (g_oplus_chip != NULL) {
+		power_supply_changed(g_oplus_chip->usb_psy);
+	}
 
 	return ret;
 }
@@ -2066,9 +2077,8 @@ int oplus_bq2589x_set_aicr(int current_ma)
 	else
 		g_bq->pre_current_ma = current_ma;
 
-	if(chip->is_double_charger_support)
+	if ((g_oplus_chip != NULL) && (g_oplus_chip->is_double_charger_support))
 		chip->sub_chg_ops->input_current_write(0);
-
 
 	dev_info(g_bq->dev, "%s usb input max current limit=%d\n", __func__,current_ma);
 	aicl_point_temp = aicl_point = 4500;
@@ -2154,7 +2164,7 @@ int oplus_bq2589x_set_aicr(int current_ma)
 		goto aicl_end;
 
 aicl_pre_step:
-	if(chip->is_double_charger_support){
+	if ((g_oplus_chip != NULL) && (g_oplus_chip->is_double_charger_support)) {
 		if(usb_icl[i]>1000){
 			bq2589x_set_input_current_limit(g_bq, usb_icl[i]*current_percent/100);
 			chip->sub_chg_ops->input_current_write(usb_icl[i]*(100-current_percent)/100);

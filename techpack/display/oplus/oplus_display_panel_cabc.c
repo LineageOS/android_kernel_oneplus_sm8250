@@ -13,7 +13,7 @@
 #include "oplus_display_panel_cabc.h"
 
 u32 oplus_last_backlight = 0;
-static int cabc_mode = 1;
+static int cabc_mode = 0;
 static int cabc_mode_backup = 1;
 static int cabc_lock_flag = 0;
 DEFINE_MUTEX(oplus_cabc_lock);

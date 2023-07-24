@@ -1324,33 +1324,33 @@ static bool oplus_usbtemp_check_is_support(void)
 
 static int oplus_dischg_gpio_init(struct oplus_chg_chip *chip)
 {
-       if (!chip) {
-               chg_err("oplus_chip not ready!\n");
-               return -EINVAL;
-       }
+	if (!chip) {
+		chg_err("oplus_chip not ready!\n");
+		return -EINVAL;
+	}
 
-       chip->normalchg_gpio.pinctrl = devm_pinctrl_get(chip->dev);
+	chip->normalchg_gpio.pinctrl = devm_pinctrl_get(chip->dev);
 
-       if (IS_ERR_OR_NULL(chip->normalchg_gpio.pinctrl)) {
-               chg_err("get dischg_pinctrl fail\n");
-               return -EINVAL;
-       }
+	if (IS_ERR_OR_NULL(chip->normalchg_gpio.pinctrl)) {
+		chg_err("get dischg_pinctrl fail\n");
+		return -EINVAL;
+	}
 
-       chip->normalchg_gpio.dischg_enable = pinctrl_lookup_state(chip->normalchg_gpio.pinctrl, "dischg_enable");
-       if (IS_ERR_OR_NULL(chip->normalchg_gpio.dischg_enable)) {
-               chg_err("get dischg_enable fail\n");
-               return -EINVAL;
-       }
+	chip->normalchg_gpio.dischg_enable = pinctrl_lookup_state(chip->normalchg_gpio.pinctrl, "dischg_enable");
+	if (IS_ERR_OR_NULL(chip->normalchg_gpio.dischg_enable)) {
+		chg_err("get dischg_enable fail\n");
+		return -EINVAL;
+	}
 
-       chip->normalchg_gpio.dischg_disable = pinctrl_lookup_state(chip->normalchg_gpio.pinctrl, "dischg_disable");
-       if (IS_ERR_OR_NULL(chip->normalchg_gpio.dischg_disable)) {
-               chg_err("get dischg_disable fail\n");
-               return -EINVAL;
-       }
+	chip->normalchg_gpio.dischg_disable = pinctrl_lookup_state(chip->normalchg_gpio.pinctrl, "dischg_disable");
+	if (IS_ERR_OR_NULL(chip->normalchg_gpio.dischg_disable)) {
+		chg_err("get dischg_disable fail\n");
+		return -EINVAL;
+	}
 
-       pinctrl_select_state(chip->normalchg_gpio.pinctrl, chip->normalchg_gpio.dischg_disable);
+	pinctrl_select_state(chip->normalchg_gpio.pinctrl, chip->normalchg_gpio.dischg_disable);
 
-       return 0;
+	return 0;
 }
 
 

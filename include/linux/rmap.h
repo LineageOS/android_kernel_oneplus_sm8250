@@ -12,6 +12,9 @@
 #include <linux/memcontrol.h>
 #include <linux/highmem.h>
 
+#ifdef CONFIG_MAPPED_PROTECT
+extern bool update_mapped_mul(struct page *page, bool inc_size);
+#endif
 extern int isolate_lru_page(struct page *page);
 extern void putback_lru_page(struct page *page);
 #if defined(OPLUS_FEATURE_PROCESS_RECLAIM) && defined(CONFIG_PROCESS_RECLAIM_ENHANCE)
@@ -220,6 +223,12 @@ void hugepage_add_new_anon_rmap(struct page *, struct vm_area_struct *,
 
 static inline void page_dup_rmap(struct page *page, bool compound)
 {
+#ifdef CONFIG_MAPPED_PROTECT
+	if (!compound) {
+		update_mapped_mul(page, true);
+		return;
+	}
+#endif
 	atomic_inc(compound ? compound_mapcount_ptr(page) : &page->_mapcount);
 }
 

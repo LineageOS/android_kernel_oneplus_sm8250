@@ -463,16 +463,23 @@ static int silfp_set_spi(struct silfp_data *fp_dev, bool enable)
         return ret;
     }
 
-    if ( enable && !atomic_read(&fp_dev->spionoff_count) ) {
-        atomic_inc(&fp_dev->spionoff_count);
+    if (enable) {
+        if (!atomic_read(&fp_dev->spionoff_count)) {
         mt_spi_enable_master_clk(fp_dev->spi);
         /*	clk_prepare_enable(ms->clk_main); */
         //ret = clk_enable(ms->clk_main);
+        }
+        atomic_inc(&fp_dev->spionoff_count);
     } else if (atomic_read(&fp_dev->spionoff_count)) {
         atomic_dec(&fp_dev->spionoff_count);
+        if (!atomic_read(&fp_dev->spionoff_count)) {
         mt_spi_disable_master_clk(fp_dev->spi);
         /*	clk_disable_unprepare(ms->clk_main); */
         //clk_disable(ms->clk_main);
+        }
+        ret = 0;
+    } else {
+        LOG_MSG_DEBUG(ERR_LOG, "unpaired enable/disable %d, [%s]\n",enable,__func__);
         ret = 0;
     }
     LOG_MSG_DEBUG(DBG_LOG, "[%s] done (%d).\n",__func__,ret);

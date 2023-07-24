@@ -227,6 +227,20 @@ static struct miscdevice mdmfeature_device = {
         MISC_DYNAMIC_MINOR, "mdmfeature", &mdmfeature_device_fops
 };
 
+#ifdef CONFIG_OPLUS_FEATURE_QCOM_SMEM_INTI
+void mdmfeature_init_smem(void)
+{
+        int ret;
+
+        ret = qcom_smem_alloc(QCOM_SMEM_HOST_ANY, SMEM_OPLUS_FEATURE_MAP,
+                SMEM_OPLUS_FEATURE_MAP_SZ);
+
+        if (ret < 0 && ret != -EEXIST) {
+                pr_err("%s:unable to allocate dp_info \n", __func__);
+                return;
+        }
+}
+#endif
 
 #if IS_MODULE(CONFIG_OPLUS_FEATURE_SIMCARDNUM)
 extern char sim_card_num[];
@@ -234,6 +248,11 @@ extern char sim_card_num[];
 static int __init mdmfeature_init(void)
 {
         int ret = -1;
+
+#ifdef CONFIG_OPLUS_FEATURE_QCOM_SMEM_INTI
+        mdmfeature_init_smem();
+#endif
+
         manifest_parent = proc_mkdir("oplusManifest", NULL);
 #if IS_MODULE(CONFIG_OPLUS_FEATURE_SIMCARDNUM)
         if (sim_card_num[0] == '0') {

@@ -21,6 +21,7 @@ enum wired_topic_item {
 	WIRED_ITEM_CHARGER_VOL_MAX,
 	WIRED_ITEM_CHARGER_VOL_MIN,
 	WIRED_TIME_ABNORMAL_ADAPTER,
+	WIRED_TIME_TYPEC_STATE,
 };
 
 enum oplus_wired_cc_detect_status {
@@ -73,6 +74,8 @@ int oplus_wired_set_pd_config(u32 pdo);
 int oplus_wired_get_usb_temp_volt(int *vol_l, int *vol_r);
 int oplus_wired_get_usb_temp(int *temp_l, int *temp_r);
 bool oplus_wired_usb_temp_check_is_support(void);
+int oplus_wired_get_usb_btb_temp(void);
+int oplus_wired_get_batt_btb_temp(void);
 enum oplus_chg_typec_port_role_type oplus_wired_get_typec_mode(void);
 int oplus_wired_set_typec_mode(enum oplus_chg_typec_port_role_type mode);
 int oplus_wired_set_otg_switch_status(bool en);

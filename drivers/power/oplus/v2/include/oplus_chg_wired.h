@@ -1,10 +1,6 @@
 #ifndef __OPLUS_CHG_WIRED_H__
 #define __OPLUS_CHG_WIRED_H__
 
-#ifdef CONFIG_OPLUS_CHG_DYNAMIC_CONFIG
-#include <oplus_chg_cfg.h>
-#endif
-
 enum oplus_wired_charge_mode {
 	OPLUS_WIRED_CHG_MODE_UNKNOWN,
 	OPLUS_WIRED_CHG_MODE_SDP,
@@ -30,8 +26,5 @@ enum oplus_wired_vbus_vol {
 
 const char *oplus_wired_get_chg_type_str(enum oplus_chg_usb_type);
 const char *oplus_wired_get_chg_mode_region_str(enum oplus_wired_charge_mode);
-#ifdef CONFIG_OPLUS_CHG_DYNAMIC_CONFIG
-int oplus_wired_set_config(struct oplus_mms *topic, struct oplus_chg_param_head *param_head);
-#endif
 
 #endif /* __OPLUS_CHG_WIRED_H__ */

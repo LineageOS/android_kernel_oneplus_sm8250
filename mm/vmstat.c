@@ -1323,6 +1323,10 @@ const char * const vmstat_text[] = {
 	"speculative_pgfault_anon",
 	"speculative_pgfault_file",
 #endif
+#ifdef CONFIG_LOOK_AROUND
+	"skipped_rmap_by_lookaround",
+	"rmap_not_skipped_by_lookaround",
+#endif
 #endif /* CONFIG_VM_EVENT_COUNTERS */
 };
 #endif /* CONFIG_PROC_FS || CONFIG_SYSFS || CONFIG_NUMA */

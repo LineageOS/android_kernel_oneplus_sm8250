@@ -55,6 +55,17 @@
 #define MAX_BUF_LEN (2048)
 #define CAUSENAME_SIZE 128
 
+typedef struct bsp_fb_work_struct {
+	struct delayed_work dwork;
+	spinlock_t lock;
+	int tag_id;
+	char event_id[15];
+	char reason[256U];
+} bsp_fb_work_struct;
+
+static bsp_fb_work_struct *bsp_fb_dwork = NULL;
+static struct workqueue_struct *bsp_kevent_wq = NULL;
+
 struct packets_pool {
 	struct list_head packets;
 	struct task_struct *flush_task;
@@ -76,6 +87,7 @@ static char *const _tag[FB_MAX_TYPE + 1] = {
 	"fb_storage",
 	"PSW_BSP_SENSOR",
 	"fb_boot",
+	"PSW_BSP_CAMERA",
 };
 static char fid[CAUSENAME_SIZE]={""};
 
@@ -381,28 +393,60 @@ static unsigned int BKDRHash(char *str, unsigned int len)
 	return hash;
 }
 
-int oplus_kevent_fb_str(fb_tag tag_id, const char *event_id, unsigned char *str)
+static int oplus_subsystem_schedule_kevent_fb_work(fb_tag tag_id, const char *event_id, unsigned char *str)
 {
 	unsigned char payload[1024] = {0x00};
 	unsigned int hashid = 0;
 	int ret = 0;
 	char strHashSource[CAUSENAME_SIZE] = {0x00};
-/*
+	/*struct timespec64 ts64;*/
 	unsigned long rdm = 0;
-	rdm = get_random_u64();
+
+	/*ktime_get_coarse_real_ts64(&ts64);*/
+	get_random_bytes(&rdm, sizeof(unsigned long));
+
 	snprintf(strHashSource, CAUSENAME_SIZE, "%s %lu", str, rdm);
-*/
-	snprintf(strHashSource, CAUSENAME_SIZE, "%s", str);
 	hashid = BKDRHash(strHashSource, strlen(strHashSource));
-/*
+
 	memset(fid, 0 , CAUSENAME_SIZE);
 	snprintf(fid, CAUSENAME_SIZE, "%u", hashid);
-*/
+
 	ret = snprintf(payload, sizeof(payload),
-			"NULL$$EventField@@%u$$FieldData@@%s$$detailData@@%s",  hashid, str,
+			"NULL$$EventField@@%s$$FieldData@@%s$$detailData@@%s",  fid, str,
 			_tag[tag_id]);
-	pr_err("%s, payload= %s, ret=%d\n", __func__, payload, ret);
+	pr_info("payload= %s, ret=%d\n", payload, ret);
 	return oplus_kevent_fb(tag_id, event_id, payload);
+}
+
+static void oplus_kevent_fb_upload_work(struct work_struct *work)
+{
+	struct delayed_work *dwork = to_delayed_work(work);
+	bsp_fb_work_struct *bsp_kevent = container_of(dwork, struct bsp_fb_work_struct, dwork);
+
+	oplus_subsystem_schedule_kevent_fb_work(bsp_kevent->tag_id, bsp_kevent->event_id, bsp_kevent->reason);
+}
+
+int oplus_kevent_fb_str(fb_tag tag_id, const char *event_id, unsigned char *str)
+{
+	if (!bsp_kevent_wq) {
+		pr_err("%s: error: not init or bsp_kevent_wq is null\n", __func__);
+		return -EINVAL;
+	}
+
+	spin_lock(&bsp_fb_dwork->lock);
+	memset((void*)&bsp_fb_dwork->event_id, 0, sizeof(bsp_fb_dwork->event_id));
+	memset((void*)&bsp_fb_dwork->reason, 0, sizeof(bsp_fb_dwork->reason));
+
+	strlcpy((char*)&bsp_fb_dwork->event_id, event_id, sizeof(bsp_fb_dwork->event_id));
+	strlcpy((char*)&bsp_fb_dwork->reason, str, sizeof(bsp_fb_dwork->reason));
+	bsp_fb_dwork->tag_id = tag_id;
+	spin_unlock(&bsp_fb_dwork->lock);
+
+	if (bsp_kevent_wq) {
+		queue_delayed_work(bsp_kevent_wq, &bsp_fb_dwork->dwork, 1);
+	}
+
+	return 0;
 }
 EXPORT_SYMBOL(oplus_kevent_fb_str);
 
@@ -546,6 +590,23 @@ static int __init kernel_fb_init(void)
 
 	pr_err("%s\n", __func__);
 
+	bsp_kevent_wq = create_singlethread_workqueue("bsp_kevent_wq");
+	if (bsp_kevent_wq == NULL) {
+		pr_err("bsp_kevent_wq alloc fail\n");
+		ret = -ENOMEM;
+		goto failed_create_wq;
+	}
+
+	bsp_fb_dwork = kzalloc(sizeof(bsp_fb_work_struct), GFP_ATOMIC);
+	if (!bsp_fb_dwork) {
+		pr_err("bsp_kevent_wq alloc fail\n");
+		ret = -ENOMEM;
+		goto failed_alloc_dwork;
+	}
+
+	spin_lock_init(&bsp_fb_dwork->lock);
+	INIT_DELAYED_WORK(&bsp_fb_dwork->dwork, oplus_kevent_fb_upload_work);
+
 	g_pkts = (struct packets_pool *)kzalloc(sizeof(struct packets_pool),
 			GFP_KERNEL);
 
@@ -596,15 +657,25 @@ failed_proc_create_data:
 failed_kthread_create:
 	genl_unregister_family(&oplus_fb_kevent_family);
 failed_genl_register_family:
-	kfree(g_pkts->flush_task);
+	kfree(g_pkts);
 failed_kzalloc:
+	kfree(bsp_fb_dwork);
+failed_alloc_dwork:
+	destroy_workqueue(bsp_kevent_wq);
+failed_create_wq:
 	return ret;
 }
 
 static void __exit kernel_fb_exit(void)
 {
+	kfree(bsp_fb_dwork);
+	bsp_fb_dwork = NULL;
+	if (bsp_kevent_wq) {
+		destroy_workqueue(bsp_kevent_wq);
+		bsp_kevent_wq = NULL;
+	}
 	genl_unregister_family(&oplus_fb_kevent_family);
-	kfree(g_pkts->flush_task);
+	kfree(g_pkts);
 	return;
 }
 

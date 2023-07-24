@@ -47,6 +47,7 @@ struct page_info {
 	bool from_pool;
 	unsigned int order;
 	struct list_head list;
+	bool from_boost_kmem_cache;
 };
 
 int order_to_index(unsigned int order);

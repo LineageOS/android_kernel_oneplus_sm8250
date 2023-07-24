@@ -41,6 +41,7 @@
 extern int chg_init_done;
 extern int typec_dir;
 extern struct oplus_chg_chip *g_oplus_chip;
+extern void oplus_enable_device_mode(bool enable);
 //#define TYPEC_PM_OP
 
 /******************************************************************************
@@ -264,6 +265,10 @@ struct sgm7220_info {
 bool __attribute__((weak)) oplus_get_otg_switch_status(void)
 {
 	return false;
+}
+
+void __attribute__((weak)) oplus_enable_device_mode(bool enable)
+{
 }
 
 struct sgm7220_info *gchip = NULL;
@@ -793,7 +798,7 @@ void oplus_notify_device_mode(bool enable)
 	struct sgm7220_info *info = gchip;
 
 	if (!info) {
-		pr_err("[%s]  sgm7220_info or oplus_chip is null\n", __func__);
+		oplus_enable_device_mode(enable);
 		return;
 	}
 

@@ -8,6 +8,9 @@
 
 #include <linux/completion.h>
 #include <linux/mutex.h>
+#if IS_ENABLED(CONFIG_OPLUS_DYNAMIC_CONFIG_CHARGER)
+#include <oplus_cfg.h>
+#endif
 #ifdef CONFIG_OPLUS_CHG_OOS
 #include <linux/oem/oplus_chg.h>
 #include <linux/oem/oplus_chg_voter.h>
@@ -52,6 +55,7 @@
 #define CAMERA_VOTER		"CAMERA_VOTER"
 #define CALL_VOTER		"CALL_VOTER"
 #define COOL_DOWN_VOTER		"COOL_DOWN_VOTER"
+#define BCC_CURRENT_VOTER	"BCC_CURRENT_VOTER"
 #define RX_IIC_VOTER		"RX_IIC_VOTER"
 #define TIMEOUT_VOTER		"TIMEOUT_VOTER"
 #define CHG_DONE_VOTER		"CHG_DONE_VOTER"
@@ -204,8 +208,11 @@
 #define WLS_VOOC_PWR_MAX_MW		15000
 
 #define WLS_MAX_STEP_CHG_ENTRIES	8
+#define BCC_MAX_STEP_ENTRIES	5
 
 #define WLS_SKIN_TEMP_MAX		500
+
+#define WLS_BCC_STOP_CURR_NUM	5
 
 #define CHARGE_FULL_FAN_THREOD_LO	350
 #define CHARGE_FULL_FAN_THREOD_HI	380
@@ -230,7 +237,7 @@
 #define WLS_RECEIVE_POWER_PD65W		50000
 
 #define WLS_COOL_DOWN_LEVEL_MAX		32
-#define WLS_BASE_NUM_MAX		16
+#define WLS_BASE_NUM_MAX		32
 #define WLS_TRX_ERR_REASON_LEN	16
 
 #define WLS_QUIET_MODE_UNKOWN	-1
@@ -257,6 +264,7 @@
 #define FAN_PWM_PULSE_IN_SILENT_MODE_THR			(FAN_PWM_PULSE_IN_FASTCHG_MODE_V08_15 - 1)
 
 /*#define WLS_QI_DEBUG*/
+/*#define PM_REG_DEBUG*/
 
 struct oplus_chg_wls;
 
@@ -469,6 +477,13 @@ struct oplus_chg_wls_status {
 	int cool_down;
 	bool trx_close_delay;
 #endif
+	int bcc_current;
+	int wls_bcc_max_curr;
+	int wls_bcc_min_curr;
+	int wls_bcc_stop_curr;
+	int bcc_curve_idx;
+	int bcc_true_idx;
+	int bcc_temp_range;
 
 	unsigned long cep_ok_wait_timeout;
 	unsigned long fastchg_retry_timer;
@@ -536,6 +551,13 @@ struct oplus_chg_wls_range_data {
 	int32_t need_wait;
 } __attribute__ ((packed));
 
+struct oplus_chg_wls_bcc_data {
+	uint32_t max_batt_volt;
+	uint32_t max_curr;
+	uint32_t min_curr;
+	int32_t exit;
+}__attribute__((packed));
+
 enum {
 	WLS_FAST_TEMP_0_TO_50,
 	WLS_FAST_TEMP_50_TO_120,
@@ -557,6 +579,29 @@ enum {
 	OPLUS_WLS_SKEWING_EPP_PLUS,
 	OPLUS_WLS_SKEWING_AIRVOOC,
 	OPLUS_WLS_SKEWING_MAX,
+};
+
+enum {
+	WLS_BCC_TEMP_0_TO_50,
+	WLS_BCC_TEMP_50_TO_120,
+	WLS_BCC_TEMP_120_TO_160,
+	WLS_BCC_TEMP_160_TO_400,
+	WLS_BCC_TEMP_400_TO_440,
+	WLS_BCC_TEMP_MAX,
+};
+
+enum {
+	WLS_BCC_STOP_0_TO_30,
+	WLS_BCC_STOP_30_TO_70,
+	WLS_BCC_STOP_70_TO_90,
+	WLS_BCC_STOP_MAX,
+};
+
+enum {
+	WLS_BCC_SOC_0_TO_30,
+	WLS_BCC_SOC_30_TO_70,
+	WLS_BCC_SOC_70_TO_90,
+	WLS_BCC_SOC_MAX,
 };
 
 struct oplus_chg_wls_skin_range_data {
@@ -581,6 +626,15 @@ struct oplus_chg_wls_fcc_step {
 struct oplus_chg_wls_fcc_steps {
         struct oplus_chg_wls_fcc_step fcc_step[WLS_FAST_TEMP_MAX];
 } __attribute__((packed));
+
+struct oplus_chg_wls_bcc_step {
+	int max_step;
+	struct oplus_chg_wls_bcc_data bcc_step[BCC_MAX_STEP_ENTRIES];
+}__attribute__((packed));
+
+struct oplus_chg_wls_bcc_steps {
+	struct oplus_chg_wls_bcc_step bcc_step[WLS_BCC_TEMP_MAX];
+}__attribute__((packed));
 
 struct oplus_chg_wls_non_ffc_step {
 	int max_step;
@@ -647,6 +701,9 @@ struct oplus_chg_wls_dynamic_config {
 	int32_t fastchg_max_soc;
 	int32_t cool_down_12v_thr;
 	int32_t verity_curr_max_ma;
+	uint32_t bcc_stop_curr_0_to_30[WLS_BCC_STOP_CURR_NUM];
+	uint32_t bcc_stop_curr_30_to_70[WLS_BCC_STOP_CURR_NUM];
+	uint32_t bcc_stop_curr_70_to_90[WLS_BCC_STOP_CURR_NUM];
 } __attribute__ ((packed));
 
 struct oplus_chg_wls_fod_cal_data {
@@ -705,6 +762,8 @@ struct oplus_chg_wls {
 	struct delayed_work wls_clear_trx_work;
 #endif
 	struct delayed_work wls_skewing_work;
+	struct delayed_work wls_bcc_curr_update_work;
+	struct delayed_work wls_vout_err_work;
 	struct wakeup_source *rx_wake_lock;
 	struct wakeup_source *trx_wake_lock;
 	struct mutex connect_lock;
@@ -730,6 +789,8 @@ struct oplus_chg_wls {
 	struct oplus_chg_wls_status wls_status;
 	struct oplus_chg_wls_static_config static_config;
 	struct oplus_chg_wls_dynamic_config dynamic_config;
+	struct oplus_chg_wls_bcc_step wls_bcc_step;
+	struct oplus_chg_wls_bcc_steps bcc_steps[WLS_BCC_SOC_MAX];
 	struct oplus_chg_wls_fcc_step wls_fcc_step;
 	struct oplus_chg_wls_fcc_steps fcc_steps[WLS_FAST_SOC_MAX];
 	struct oplus_chg_wls_fcc_steps fcc_third_part_steps[WLS_FAST_SOC_MAX];
@@ -750,6 +811,10 @@ struct oplus_chg_wls {
 	struct completion msg_ack;
 	struct wls_dev_cmd cmd;
 
+#if IS_ENABLED(CONFIG_OPLUS_DYNAMIC_CONFIG_CHARGER)
+	struct oplus_cfg debug_cfg;
+#endif
+
 	u8 *fw_buf;
 	int fw_size;
 	bool fw_upgrade_by_buf;
@@ -768,6 +833,8 @@ struct oplus_chg_wls {
 	bool support_get_tx_pwr;
 	bool support_epp_plus;
 	bool support_tx_boost;
+	bool support_wls_and_tx_boost;
+	bool support_wls_chg_bcc;
 	bool rx_wake_lock_on;
 	bool trx_wake_lock_on;
 	bool usb_present;
@@ -791,13 +858,14 @@ struct oplus_chg_wls {
 	const char *wls_chg_fw_name;
 	int32_t wls_power_mw;
 	u32 wls_phone_id;
+	unsigned int wls_bcc_fcc_to_icl_factor;
 	oplus_chg_track_trigger trx_info_load_trigger;
 	struct delayed_work trx_info_load_trigger_work;
+	struct mutex track_upload_lock;
+	bool rx_err_uploading;
+	oplus_chg_track_trigger *rx_err_load_trigger;
+	struct delayed_work rx_err_load_trigger_work;
 };
-
-#ifdef CONFIG_OPLUS_CHG_DYNAMIC_CONFIG
-int oplus_chg_wls_set_config(struct oplus_chg_mod *wls_ocm, u8 *buf);
-#endif /* CONFIG_OPLUS_CHG_DYNAMIC_CONFIG */
 
 #ifdef OPLUS_CHG_DEBUG
 ssize_t oplus_chg_wls_upgrade_fw_show(struct device *dev,

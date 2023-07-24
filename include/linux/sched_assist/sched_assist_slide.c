@@ -89,6 +89,23 @@ static u64 calc_freq_ux_load(struct task_struct *p, u64 wallclock)
 	return max(freq_exec_load, freq_ravg_load);
 }
 
+bool slide_boost_scene(void)
+{
+	return sysctl_slide_boost_enabled || sysctl_input_boost_enabled
+		|| sched_assist_scene(SA_ANIM) || sched_assist_scene(SA_GPU_COMPOSITION);
+}
+
+bool slide_rt_boost(struct task_struct *p)
+{
+#ifdef CONFIG_OPLUS_UX_IM_FLAG
+	if (p->ux_im_flag == IM_FLAG_SURFACEFLINGER || p->ux_im_flag == IM_FLAG_RENDERENGINE) {
+		if (slide_boost_scene())
+			return true;
+	}
+#endif
+	return false;
+}
+
 void _slide_find_start_cpu(struct root_domain *rd, struct task_struct *p, int *start_cpu)
 {
 	if (task_util(p) >= sysctl_boost_task_threshold ||
@@ -228,6 +245,20 @@ enum hrtimer_restart input_boost_timeout(struct hrtimer *timer)
 		sysctl_input_boost_enabled = 0;
 	}
 	return HRTIMER_NORESTART;
+}
+int slide_boost_ctrl_handler(struct ctl_table *table, int write, void __user *buffer,
+			size_t *lenp, loff_t *ppos)
+{
+	int result;
+	result = proc_dointvec(table, write, buffer, lenp, ppos);
+	if (!write)
+		goto out;
+	if (sysctl_input_boost_enabled && sysctl_slide_boost_enabled) {
+		disable_input_boost_timer();
+		sysctl_input_boost_enabled = 0;
+	}
+out:
+	return result;
 }
 
 int sysctl_sched_assist_input_boost_ctrl_handler(struct ctl_table * table, int write,

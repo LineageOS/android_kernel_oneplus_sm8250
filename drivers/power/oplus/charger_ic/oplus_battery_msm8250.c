@@ -2301,6 +2301,11 @@ static int oplus_chg_get_charger_type(void)
 	}
 
 	if (POWER_SUPPLY_TYPE_UNKNOWN == chg->real_charger_type) {
+		if ((chg->typec_mode == POWER_SUPPLY_TYPEC_SINK || chg->typec_mode == POWER_SUPPLY_TYPEC_SINK_POWERED_CABLE)
+			&& chip->vbatt_num == 2) {
+			chg_debug("oplus_chg_get_charger_type: chg->typec_mode = sink return!\n");
+			goto get_type_done;
+		}
 		smblib_update_usb_type(chg);
 		chg_debug("update_usb_type: get_charger_type=%d\n", chg->real_charger_type);
 	}
@@ -7256,10 +7261,12 @@ irqreturn_t usb_plugin_irq_handler(int irq, void *data)
 	struct smb_charger *chg = irq_data->parent_data;
 #ifdef OPLUS_FEATURE_CHG_BASIC//Fanhong.Kong@ProDrv.CHG,add 2018/06/02 for SVOOC OTG	
 	struct oplus_chg_chip *chip = g_oplus_chip;
+	int typec_mode;
 
+	typec_mode = smblib_get_prop_typec_mode(chg);
 	if (oplus_is_use_external_boost() || (chip->vbatt_num == 2)) {
-		if (chg->typec_mode == POWER_SUPPLY_TYPEC_SINK ||
-		    chg->typec_mode == POWER_SUPPLY_TYPEC_SINK_POWERED_CABLE) {
+		if (typec_mode == POWER_SUPPLY_TYPEC_SINK ||
+		    typec_mode == POWER_SUPPLY_TYPEC_SINK_POWERED_CABLE) {
 			pr_info("%s:chg->typec_mode = sink return!\n", __func__);
 			return IRQ_HANDLED;
 		}
@@ -12737,6 +12744,7 @@ static int smb5_usb_get_prop(struct power_supply *psy,
 	struct smb5 *chip = power_supply_get_drvdata(psy);
 	struct smb_charger *chg = &chip->chg;
 	int rc = 0;
+	enum power_supply_type charger_type = POWER_SUPPLY_TYPE_UNKNOWN;
 	val->intval = 0;
 
 	switch (psp) {
@@ -12749,8 +12757,8 @@ static int smb5_usb_get_prop(struct power_supply *psy,
 			rc = smblib_get_prop_usb_present(chg, val);
 		else
 			rc = smblib_get_usb_online(chg, val);
-		if ((oplus_chg_get_charger_type() == POWER_SUPPLY_TYPE_USB)
-				|| (oplus_chg_get_charger_type() == POWER_SUPPLY_TYPE_USB_CDP)) {
+		charger_type = oplus_chg_get_charger_type();
+		if ((charger_type == POWER_SUPPLY_TYPE_USB) || (charger_type == POWER_SUPPLY_TYPE_USB_CDP)) {
 			val->intval = 1;
 		}
 #else
@@ -13080,6 +13088,7 @@ static int smb5_usb_port_get_prop(struct power_supply *psy,
 	struct smb5 *chip = power_supply_get_drvdata(psy);
 	struct smb_charger *chg = &chip->chg;
 	int rc = 0;
+	enum power_supply_type charger_type = POWER_SUPPLY_TYPE_UNKNOWN;
 
 	switch (psp) {
 	case POWER_SUPPLY_PROP_TYPE:
@@ -13092,8 +13101,8 @@ static int smb5_usb_port_get_prop(struct power_supply *psy,
 		else
 			rc = smblib_get_prop_usb_online(chg, val);
 
-		if ((oplus_chg_get_charger_type() == POWER_SUPPLY_TYPE_USB)
-				|| (oplus_chg_get_charger_type() == POWER_SUPPLY_TYPE_USB_CDP)) {
+		charger_type = oplus_chg_get_charger_type();
+		if ((charger_type == POWER_SUPPLY_TYPE_USB) || (charger_type == POWER_SUPPLY_TYPE_USB_CDP)) {
 			val->intval = 1;
 		}
 #else
@@ -16702,14 +16711,16 @@ int oplus_chg_set_pd_config(void)
 {
 	int ret = 0;
 	struct oplus_chg_chip *chip = g_oplus_chip;
-	int cnt_pd_retry = 0;
-	
+	int cnt_pd_retry = 0, charger_volt = 0;
+
 	if (!chip) {
 		return -1;
 	}
 	if(chip->pd_svooc){
 		return 0;
 	}
+	/*** wait 300ms for pd_active = true,then subtype = CHARGER_SUBTYPE_PD ****/
+	msleep(300);
 	mutex_lock(&pd_select_pdo_v);
 #ifdef OPLUS_CUSTOM_OP_DEF
 	if (chip->vbatt_num == 1) {
@@ -16733,12 +16744,15 @@ int oplus_chg_set_pd_config(void)
 		oplus_chg_config_charger_vsys_threshold(0x02);//set Vsys Skip threshold 104%
 		oplus_chg_enable_burst_mode(false);
 		ret = oplus_pdo_select(9000, 2000);
-		printk(KERN_ERR "%s: vbus[%d], ibus[%d], ret[%d]\n", __func__, 9000, 2000, ret);
-		while ((ret != 0) && (cnt_pd_retry < 5)) {
-			msleep(200);
+		charger_volt = usbtemp_get_charger_voltage_now();
+		printk(KERN_ERR "%s: vbus[%d], ibus[%d], ret[%d], charger_volt=%d\n", __func__, 9000, 2000, ret, charger_volt);
+		while ((charger_volt < 7500) && (cnt_pd_retry < 5)) {
+			msleep(150);
 			ret = oplus_pdo_select(9000, 2000);
+			msleep(50);
+			charger_volt = usbtemp_get_charger_voltage_now();
 			cnt_pd_retry++;
-			printk(KERN_ERR "%s: vbus[%d], ibus[%d], ret[%d], retry_cnt[%d]\n", __func__, 9000, 2000, ret, cnt_pd_retry);
+			printk(KERN_ERR "%s: vbus[%d], ibus[%d], ret[%d], retry_cnt[%d], charger_volt=%d\n", __func__, 9000, 2000, ret, cnt_pd_retry, charger_volt);
 		}
 		msleep(300);
 		oplus_chg_unsuspend_charger();

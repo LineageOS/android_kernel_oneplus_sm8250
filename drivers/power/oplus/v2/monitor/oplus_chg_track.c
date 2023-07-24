@@ -31,6 +31,7 @@
 #include <oplus_chg_module.h>
 #include <oplus_mms_gauge.h>
 #include <oplus_chg_vooc.h>
+#include <oplus_chg_comm.h>
 #include "oplus_monitor_internal.h"
 #include "oplus_chg_track.h"
 
@@ -304,6 +305,10 @@ struct oplus_chg_track_status {
 	int chg_normal_full_time;
 	int chg_report_full_time;
 	bool has_judge_speed;
+	bool aging_ffc_trig;
+	int aging_ffc_judge_vol[FFC_CHG_STEP_MAX];
+	int aging_ffc_start_time;
+	int aging_ffc_to_full_time;
 	int chg_plugin_utc_t;
 	int chg_plugout_utc_t;
 	int rechg_counts;
@@ -341,6 +346,7 @@ struct oplus_chg_track_status {
 	char wls_break_crux_info[OPLUS_CHG_TRACK_CURX_INFO_LEN];
 
 	bool mmi_chg;
+	bool once_mmi_chg;
 	bool chg_speed_is_slow;
 	bool tbatt_warm_once;
 	bool tbatt_cold_once;
@@ -366,6 +372,7 @@ struct oplus_chg_track_status {
 	int wls_skew_effect_cnt;
 	bool chg_verity;
 	char chg_abnormal_reason[OPLUS_CHG_TRACK_CHG_ABNORMAL_REASON_LENS];
+	int once_chg_cycle_status;
 };
 
 struct oplus_chg_track {
@@ -463,6 +470,7 @@ oplus_chg_track_get_charger_type(struct oplus_monitor *monitor,
 static int oplus_chg_track_obtain_wls_break_sub_crux_info(
 	struct oplus_chg_track *track_chip, char *crux_info);
 static int oplus_chg_track_upload_trigger_data(oplus_chg_track_trigger data);
+static bool oplus_chg_track_get_mmi_chg(void);
 
 #if defined(CONFIG_OPLUS_FEATURE_FEEDBACK) || \
 	defined(CONFIG_OPLUS_FEATURE_FEEDBACK_MODULE) || \
@@ -1305,6 +1313,7 @@ oplus_chg_track_record_charger_info(struct oplus_monitor *monitor,
 {
 	int index = 0;
 	char cool_down_pack[OPLUS_CHG_TRACK_COOL_DOWN_PACK_LEN] = { 0 };
+	int i;
 
 	if (monitor == NULL || p_trigger_data == NULL || track_status == NULL)
 		return;
@@ -1474,6 +1483,31 @@ oplus_chg_track_record_charger_info(struct oplus_monitor *monitor,
 			  OPLUS_CHG_TRACK_CURX_INFO_LEN - index,
 			  "$$plugout_utc_t@@%d",
 			  track_status->chg_plugout_utc_t);
+
+	if (track_status->aging_ffc_trig && index < OPLUS_CHG_TRACK_CURX_INFO_LEN) {
+		index += snprintf(&(p_trigger_data->crux_info[index]), OPLUS_CHG_TRACK_CURX_INFO_LEN - index,
+				  "$$aging_ffc@@%d", track_status->aging_ffc_trig);
+		for (i = 0; i < FFC_CHG_STEP_MAX; i++) {
+			if (track_status->aging_ffc_judge_vol[i] <= 0 ||
+			    index >= OPLUS_CHG_TRACK_CURX_INFO_LEN)
+				break;
+			index += snprintf(&(p_trigger_data->crux_info[index]),
+					  OPLUS_CHG_TRACK_CURX_INFO_LEN - index,
+					  ",%d", track_status->aging_ffc_judge_vol[i]);
+		}
+		if (track_status->aging_ffc_to_full_time && index < OPLUS_CHG_TRACK_CURX_INFO_LEN) {
+			index += snprintf(&(p_trigger_data->crux_info[index]), OPLUS_CHG_TRACK_CURX_INFO_LEN - index,
+					  "$$aging_ffc_t@@%d", track_status->aging_ffc_to_full_time);
+		}
+	}
+
+	index += snprintf(&(p_trigger_data->crux_info[index]),
+			  OPLUS_CHG_TRACK_CURX_INFO_LEN - index,
+			  "$$mmi_chg@@%d", track_status->once_mmi_chg);
+
+	index += snprintf(&(p_trigger_data->crux_info[index]),
+			  OPLUS_CHG_TRACK_CURX_INFO_LEN - index,
+			  "$$chg_cycle_status@@%d", track_status->once_chg_cycle_status);
 
 	oplus_chg_track_record_general_info(monitor, track_status,
 					    p_trigger_data, index);
@@ -1776,6 +1810,8 @@ static int oplus_chg_track_init(struct oplus_chg_track *track_dev)
 	chip->track_status.cool_down_effect_cnt = 0;
 	chip->track_status.wls_need_upload = false;
 	chip->track_status.wired_need_upload = false;
+	chip->track_status.once_mmi_chg = false;
+	chip->track_status.once_chg_cycle_status = CHG_CYCLE_VOTER__NONE;
 
 	memset(&(chip->track_status.fastchg_break_info), 0,
 	       sizeof(chip->track_status.fastchg_break_info));
@@ -2298,6 +2334,7 @@ static int
 oplus_chg_track_cal_chg_common_mesg(struct oplus_monitor *monitor,
 				    struct oplus_chg_track_status *track_status)
 {
+	bool mmi_chg = false;
 	if (monitor == NULL || track_status == NULL)
 		return -1;
 
@@ -2315,9 +2352,18 @@ oplus_chg_track_cal_chg_common_mesg(struct oplus_monitor *monitor,
 
 	/* TODO: wireless support */
 
-	chg_info("chg_max_temp:%d, batt_max_temp:%d, batt_max_curr:%d, batt_max_vol:%d\n",
+	mmi_chg = oplus_chg_track_get_mmi_chg();
+	if (!track_status->once_mmi_chg && !mmi_chg)
+		track_status->once_mmi_chg = true;
+
+	if (!track_status->once_chg_cycle_status && monitor->chg_cycle_status)
+		track_status->once_chg_cycle_status = monitor->chg_cycle_status;
+
+	chg_info("chg_max_temp:%d, batt_max_temp:%d, batt_max_curr:%d, "
+		"batt_max_vol:%d, once_mmi_chg:%d, once_chg_cycle_status:%d\n",
 		track_status->chg_max_temp, track_status->batt_max_temp,
-		track_status->batt_max_curr, track_status->batt_max_vol);
+		track_status->batt_max_curr, track_status->batt_max_vol,
+		track_status->once_mmi_chg, track_status->once_chg_cycle_status);
 
 	return 0;
 }
@@ -3083,6 +3129,44 @@ int oplus_chg_track_cal_tbatt_status(struct oplus_monitor *monitor)
 	return 0;
 }
 
+int oplus_chg_track_aging_ffc_check(struct oplus_monitor *monitor, int step)
+{
+	struct oplus_chg_track *track_chip;
+	struct oplus_chg_track_status *track_status;
+	int rc;
+	int cutoff_fv;
+
+	if (!monitor)
+		return -EINVAL;
+	track_chip = monitor->track;
+	if (!track_chip)
+		return -EINVAL;
+	track_status = &track_chip->track_status;
+
+	if (step >= FFC_CHG_STEP_MAX) {
+		chg_err("step(=%d) is too big\n", step);
+		return -EINVAL;
+	} else if (step < 0) {
+		chg_err("step(=%d) is too small\n", step);
+		return -EINVAL;
+	}
+
+	if (monitor->wired_online) {
+		if (step == 0)
+			track_status->aging_ffc_start_time = oplus_chg_track_get_local_time_s();
+		rc = oplus_comm_get_wired_aging_ffc_offset(monitor->comm_topic, step);
+		if (rc <= 0)
+			return rc;
+		track_status->aging_ffc_trig = true;
+		cutoff_fv = oplus_comm_get_current_wired_ffc_cutoff_fv(monitor->comm_topic, step);
+		if (cutoff_fv < 0)
+			return cutoff_fv;
+		track_status->aging_ffc_judge_vol[step] = cutoff_fv + rc;
+	}
+
+	return 0;
+}
+
 static int oplus_chg_track_cal_section_soc_inc_rm(
 	struct oplus_monitor *monitor,
 	struct oplus_chg_track_status *track_status)
@@ -3510,6 +3594,8 @@ oplus_chg_track_cal_batt_full_time(struct oplus_monitor *monitor,
 	     track_status->debug_normal_charging_state ==
 		     POWER_SUPPLY_STATUS_FULL)) {
 		curr_time = oplus_chg_track_get_local_time_s();
+		if (track_status->aging_ffc_start_time)
+			track_status->aging_ffc_to_full_time = curr_time - track_status->aging_ffc_start_time;
 		track_status->chg_normal_full_time =
 			curr_time - track_status->chg_start_time;
 		track_status->chg_normal_full_time /= TRACK_TIME_1MIN_THD;
@@ -3796,10 +3882,10 @@ oplus_chg_track_upload_vbatt_diff_over_info(struct oplus_chg_track *track)
 
 	(void)snprintf(track->vbatt_diff_over_load_trigger.crux_info,
 		       OPLUS_CHG_TRACK_CURX_INFO_LEN,
-		       "$$soc@@%d$$uisoc@@%d$$vbatt_max@@%d$$vbatt_min@@%d"
+		       "$$soc@@%d$$s_soc@@%d$$uisoc@@%d$$vbatt_max@@%d$$vbatt_min@@%d"
 		       "$$vbatt_diff@@%d$$charger_exist@@%d$$vdiff_type@@%s",
-		       monitor->batt_soc, monitor->ui_soc, monitor->vbat_mv,
-		       monitor->vbat_min_mv,
+		       monitor->batt_soc, monitor->smooth_soc, monitor->ui_soc,
+		       monitor->vbat_mv, monitor->vbat_min_mv,
 		       monitor->vbat_mv - monitor->vbat_min_mv,
 		       (monitor->wired_online || monitor->wls_online),
 		       (monitor->batt_status == POWER_SUPPLY_STATUS_FULL) ?
@@ -3848,12 +3934,12 @@ oplus_chg_track_upload_uisoc_keep_1_t_info(struct oplus_chg_track *chip)
 		&(chip->uisoc_keep_1_t_load_trigger.crux_info[index]),
 		OPLUS_CHG_TRACK_CURX_INFO_LEN - index,
 		"$$pre_vbatt_max@@%d$$pre_vbatt_min@@%d$$curr_vbatt_max@@%d"
-		"$$curr_vbatt_min@@%d$$soc@@%d$$uisoc@@%d$$start_batt_rm@@%d"
+		"$$curr_vbatt_min@@%d$$soc@@%d$$s_soc@@%d$$uisoc@@%d$$start_batt_rm@@%d"
 		"$$curr_batt_rm@@%d$$batt_curr@@%d",
 		chip->uisoc_1_start_vbatt_max, chip->uisoc_1_start_vbatt_min,
 		monitor->vbat_mv, monitor->vbat_min_mv, monitor->batt_soc,
-		monitor->ui_soc, chip->uisoc_1_start_batt_rm, monitor->batt_rm,
-		monitor->ibat_ma);
+		monitor->smooth_soc, monitor->ui_soc, chip->uisoc_1_start_batt_rm,
+		monitor->batt_rm, monitor->ibat_ma);
 
 	schedule_delayed_work(&chip->uisoc_keep_1_t_load_trigger_work, 0);
 	chg_info("%s\n", chip->uisoc_keep_1_t_load_trigger.crux_info);
@@ -3990,6 +4076,10 @@ oplus_chg_track_status_reset(struct oplus_chg_track_status *track_status)
 	track_status->chg_fast_full_time = 0;
 	track_status->chg_normal_full_time = 0;
 	track_status->chg_report_full_time = 0;
+	track_status->aging_ffc_trig = false;
+	memset(&(track_status->aging_ffc_judge_vol), 0, sizeof(track_status->aging_ffc_judge_vol));
+	track_status->aging_ffc_start_time = 0;
+	track_status->aging_ffc_to_full_time = 0;
 	track_status->chg_five_mins_cap = TRACK_PERIOD_CHG_CAP_INIT;
 	track_status->chg_ten_mins_cap = TRACK_PERIOD_CHG_CAP_INIT;
 	track_status->chg_average_speed = TRACK_PERIOD_CHG_AVERAGE_SPEED_INIT;
@@ -4049,6 +4139,8 @@ static int oplus_chg_track_status_reset_when_plugin(
 		&track_status->chg_plugin_rtc_t);
 	oplus_chg_track_cal_period_chg_capaticy(g_track_chip);
 	track_status->prop_status = monitor->batt_status;
+	track_status->once_mmi_chg = false;
+	track_status->once_chg_cycle_status = CHG_CYCLE_VOTER__NONE;
 	chg_info("chg_start_time:%d, chg_start_soc:%d, chg_start_temp:%d, prop_status:%d\n",
 		track_status->chg_start_time, track_status->chg_start_soc,
 		track_status->chg_start_temp, track_status->prop_status);

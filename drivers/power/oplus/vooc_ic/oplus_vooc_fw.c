@@ -93,6 +93,10 @@ void init_hw_version(void)
 {
 }
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0))
+bool __attribute__((weak)) qpnp_is_charger_reboot(void);
+bool __attribute__((weak)) qpnp_is_power_off_charging(void);
+#else
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0))
 /* only for GKI compile */
 bool __attribute__((weak)) qpnp_is_charger_reboot(void)
@@ -104,6 +108,7 @@ bool __attribute__((weak)) qpnp_is_power_off_charging(void)
 {
 	return false;
 }
+#endif
 #endif
 
 extern	int oplus_vooc_mcu_hwid_check(struct oplus_vooc_chip *chip);
@@ -950,6 +955,7 @@ void oplus_vooc_fw_type_dt(struct oplus_vooc_chip *chip)
 
 	chip->parse_fw_from_dt = of_property_read_bool(node, "qcom,parse_fw_from_dt");
 	chg_debug("qcom,parse_fw_from_dt is %d\n", chip->parse_fw_from_dt);
+	chip->fw_update_on_chargering_reboot = of_property_read_bool(node, "qcom,fw_update_on_chargering_reboot");
 
 	chip->abnormal_adapter_current_cnt = of_property_count_elems_of_size(node,
 				"qcom,abnormal_adapter_current", sizeof(*chip->abnormal_adapter_current));
@@ -1348,9 +1354,9 @@ void opchg_set_data_sleep(struct oplus_vooc_chip *chip)
 
 void opchg_set_reset_sleep(struct oplus_vooc_chip *chip)
 {
-	if (chip->adapter_update_real == ADAPTER_FW_NEED_UPDATE || chip->btb_temp_over || chip->mcu_update_ing) {
-		chg_debug(" adapter_fw_need_update:%d,btb_temp_over:%d,mcu_update_ing:%d,return\n",
-			chip->adapter_update_real, chip->btb_temp_over, chip->mcu_update_ing);
+	if (chip->adapter_update_real == ADAPTER_FW_NEED_UPDATE || chip->mcu_update_ing) {
+		chg_debug(" adapter_fw_need_update:%d,mcu_update_ing:%d,return\n",
+			chip->adapter_update_real, chip->mcu_update_ing);
 		return;
 	}
 	mutex_lock(&chip->pinctrl_mutex);
@@ -1373,9 +1379,9 @@ void opchg_set_reset_sleep(struct oplus_vooc_chip *chip)
 void opchg_set_reset_active(struct oplus_vooc_chip *chip)
 {
 	if (chip->adapter_update_real == ADAPTER_FW_NEED_UPDATE
-			|| chip->btb_temp_over || chip->mcu_update_ing) {
-		chg_debug(" adapter_fw_need_update:%d,btb_temp_over:%d,mcu_update_ing:%d,return\n",
-			chip->adapter_update_real, chip->btb_temp_over, chip->mcu_update_ing);
+			|| chip->mcu_update_ing) {
+		chg_debug(" adapter_fw_need_update:%d,mcu_update_ing:%d,return\n",
+			chip->adapter_update_real, chip->mcu_update_ing);
 		return;
 	}
 
@@ -1451,6 +1457,10 @@ bool oplus_is_charger_reboot(struct oplus_vooc_chip *chip)
 #ifdef CONFIG_OPLUS_CHARGER_MTK
 	int charger_type;
 
+	if (chip->fw_update_on_chargering_reboot) {
+		chg_debug("need check fw_update\n");
+		return false;
+	}
 	charger_type = oplus_chg_get_chg_type();
 	if (charger_type == 5) {
 		chg_debug("dont need check fw_update\n");
@@ -1591,6 +1601,11 @@ bool is_allow_fast_chg_real(struct oplus_vooc_chip *chip)
 
 	if(chip->disable_real_fast_chg)
 		return false;
+
+	if (oplus_vooc_get_btb_temp_over() == true) {
+		chg_debug("btb temp over, should return false!\n");
+		return false;
+	}
 
 	return true;
 }
@@ -1866,9 +1881,8 @@ void opchg_set_switch_mode(struct oplus_vooc_chip *chip, int mode)
 	int retry = 10;
 	int mcu_hwid_type = OPLUS_VOOC_MCU_HWID_UNKNOW;
 
-	if (chip->adapter_update_real == ADAPTER_FW_NEED_UPDATE || chip->btb_temp_over) {
-		chg_err("adapter_fw_need_update: %d, btb_temp_over: %d\n",
-			chip->adapter_update_real, chip->btb_temp_over);
+	if (chip->adapter_update_real == ADAPTER_FW_NEED_UPDATE) {
+		chg_err("adapter_fw_need_update: %d\n", chip->adapter_update_real);
 		return;
 	}
 	if (mode == VOOC_CHARGER_MODE && chip->mcu_update_ing) {
@@ -1931,6 +1945,7 @@ void reset_fastchg_after_usbout(struct oplus_vooc_chip *chip)
 	oplus_vooc_set_fastchg_to_warm_full_false();
 	oplus_vooc_set_fastchg_low_temp_full_false();
 	oplus_vooc_set_fastchg_dummy_started_false();
+	oplus_vooc_set_btb_temp_over(false);
 }
 
 static irqreturn_t irq_rx_handler(int irq, void *dev_id)

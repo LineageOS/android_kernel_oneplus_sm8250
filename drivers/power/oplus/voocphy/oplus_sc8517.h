@@ -166,9 +166,7 @@
 #define SC8517_REG_2D                      0x2D
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0))
-int sc8547_subsys_init(void);
-void sc8547_subsys_exit(void);
-int sc8547_slave_subsys_init(void);
-void sc8547_slave_subsys_exit(void);
+int sc8517_subsys_init(void);
+void sc8517_subsys_exit(void);
 #endif
 #endif

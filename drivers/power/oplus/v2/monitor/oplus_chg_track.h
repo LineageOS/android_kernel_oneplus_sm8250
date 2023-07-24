@@ -85,5 +85,6 @@ int oplus_chg_track_set_uisoc_1_start(struct oplus_monitor *monitor);
 int oplus_chg_track_charge_full(struct oplus_monitor *monitor);
 int oplus_chg_track_cal_tbatt_status(struct oplus_monitor *monitor);
 int oplus_chg_track_handle_wired_type_info(struct oplus_monitor *monitor, int type);
+int oplus_chg_track_aging_ffc_check(struct oplus_monitor *monitor, int step);
 
 #endif /* __OPLUS_CHG_TRACK_H__ */
