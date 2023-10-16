@@ -1,0 +1,27 @@
+{
+  "comments": [
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "ffdceb5b_0f5a44de",
+        "filename": "/COMMIT_MSG",
+        "patchSetId": 2
+      },
+      "lineNbr": 9,
+      "author": {
+        "id": 21290
+      },
+      "writtenOn": "2023-10-16T14:40:49Z",
+      "side": 1,
+      "message": "https://source.android.com/docs/setup/contribute/respectful-code",
+      "range": {
+        "startLine": 9,
+        "startChar": 0,
+        "endLine": 9,
+        "endChar": 12
+      },
+      "revId": "d0f069dc64356d164ef5d2462de7fd92a9121a5b",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    }
+  ]
+}
