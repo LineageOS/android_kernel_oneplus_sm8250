@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "8a2e7c87_65b4f76c",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 2
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 9760
+      },
+      "writtenOn": "2023-10-17T18:48:29Z",
+      "side": 1,
+      "message": "Yes it works\n\nhttps://github.com/crdroidandroid/android_kernel_oneplus_sm8150/commit/1b3884d44e5ca8708e6137f8d93ea0331eab59c1",
+      "revId": "e259f4cf953d8ffd97b50aebb019fe9259bdb6f3",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    }
+  ]
+}
