@@ -1536,7 +1536,7 @@ static int oplus_ufcs_protocol_parse_cable_info(void *buffer)
 	return 0;
 }
 
-static int __oplus_ufcs_protocol_cable_detect_start()
+static int __oplus_ufcs_protocol_cable_detect_start(void)
 {
 	int rc = 0;
 	struct oplus_ufcs_protocol *chip = g_protocol;
@@ -1560,7 +1560,7 @@ error:
 	return rc;
 }
 
-static int _oplus_ufcs_protocol_cable_detect_start()
+static int _oplus_ufcs_protocol_cable_detect_start(void)
 {
 	int rc = 0;
 	struct oplus_ufcs_protocol *chip = g_protocol;
@@ -1580,7 +1580,7 @@ static int _oplus_ufcs_protocol_cable_detect_start()
 	return rc;
 }
 
-static int oplus_ufcs_protocol_cable_detect_start()
+static int oplus_ufcs_protocol_cable_detect_start(void)
 {
 	int rc = 0;
 
@@ -1597,7 +1597,7 @@ static int oplus_ufcs_protocol_cable_detect_start()
 	return rc;
 }
 
-static int __oplus_ufcs_protocol_cable_detect_end()
+static int __oplus_ufcs_protocol_cable_detect_end(void)
 {
 	int rc = 0;
 	struct oplus_ufcs_protocol *chip = g_protocol;
@@ -1621,7 +1621,7 @@ error:
 	return rc;
 }
 
-static int _oplus_ufcs_protocol_cable_detect_end()
+static int _oplus_ufcs_protocol_cable_detect_end(void)
 {
 	int rc = 0;
 	struct oplus_ufcs_protocol *chip = g_protocol;
@@ -1641,7 +1641,7 @@ static int _oplus_ufcs_protocol_cable_detect_end()
 	return rc;
 }
 
-static int oplus_ufcs_protocol_cable_detect_end()
+static int oplus_ufcs_protocol_cable_detect_end(void)
 {
 	int rc = 0;
 
