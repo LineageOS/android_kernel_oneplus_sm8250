@@ -16,6 +16,24 @@
       "message": "Needs revert of 8dfdb2d77ce742a1b9b25eae5965b5bc0fc319fc or it fails to build.",
       "revId": "c1998dd524313ef455528ce3a458fd4087e9b93b",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "ba122ca1_60af7ea1",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 4550
+      },
+      "writtenOn": "2023-12-13T22:46:01Z",
+      "side": 1,
+      "message": "It\u0027s already there https://review.lineageos.org/c/LineageOS/android_kernel_oneplus_sm8250/+/377107",
+      "parentUuid": "8d8c304b_ee41f061",
+      "revId": "c1998dd524313ef455528ce3a458fd4087e9b93b",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
     }
   ]
 }
