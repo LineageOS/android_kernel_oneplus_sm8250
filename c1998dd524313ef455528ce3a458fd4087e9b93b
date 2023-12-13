@@ -34,6 +34,23 @@
       "parentUuid": "8d8c304b_ee41f061",
       "revId": "c1998dd524313ef455528ce3a458fd4087e9b93b",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "f243b75d_a93e556a",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 31286
+      },
+      "writtenOn": "2023-12-13T23:08:28Z",
+      "side": 1,
+      "message": "Whoops, gerrit\u0027s text search is kinda janky, only lists the kernel ones if I search by project tag. Builds fine with it.",
+      "revId": "c1998dd524313ef455528ce3a458fd4087e9b93b",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
     }
   ]
 }
