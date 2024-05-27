@@ -7,22 +7,10 @@
 //**************************
 #include "Ois.h"
 
-#if ((((SELECT_VENDOR&0x01) == 0x01) || ((SELECT_VENDOR&0x80) == 0x80)) && (SELECT_MODEL == 0x00))				// SEMCO or Oneplus
-#include "LC898124EP3_Code_0_1_0_2_2_0.h"		// Gyro=LSM6DSM,	SO2823
-#include "LC898124EP3_Code_0_1_0_2_2_1.h"		// Gyro=LSM6DSM,	FRA, SO2823
-#endif
-#if ((((SELECT_VENDOR&0x01) == 0x01) || ((SELECT_VENDOR&0x80) == 0x80)) && (SELECT_MODEL == 0x01))				// SEMCO or Oneplus
-#include "LC898124EP3_Code_1_1_0_2_2_0.h"		// Gyro=LSM6DSM,	SO2823
-#include "LC898124EP3_Code_1_1_0_2_2_1.h"		// Gyro=LSM6DSM,	FRA, SO2823
-#endif
 #if ((((SELECT_VENDOR&0x01) == 0x01) || ((SELECT_VENDOR&0x80) == 0x80)) && (SELECT_MODEL == 0x02))				// SEMCO or Oneplus
 #include "LC898124EP3_Code_2_1_0_3_2_0.h"		// Gyro=BMI260,	SO2823
 #include "LC898124EP3_Code_2_1_0_3_2_1.h"		// Gyro=BMI260,	FRA, SO2823
 #include "LC898124EP3_Code_2_1_0_0_2_0.h"               // Gyro=ICM42631, SO2823
-#endif
-#if (((SELECT_VENDOR&0x02) == 0x02) || ((SELECT_VENDOR&0x80) == 0x80))			// OFILM or Oneplus
-#include "LC898124EP3_Code_1_2_1_2_2_0.h"		// Gyro=LSM6DSM,	M12337
-#include "LC898124EP3_Code_1_2_1_2_2_1.h"		// Gyro=LSM6DSM,	FRA, M12337
 #endif
 
 //****************************************************
@@ -200,89 +188,6 @@ unsigned char DownloadToEP3( const UINT8* DataPM, UINT32 LengthPM, UINT32 Parity
 	return(0);
 }
 
-
-//********************************************************************************
-// Function Name 	: ReMapMain
-// Retun Value		: NON
-// Argment Value	: NON
-// Explanation		: <Pmem Memory> Write Data
-// History			: First edition
-//********************************************************************************
-void RemapMain( void )
-{
-	RamWrite32A( 0xF000, 0x00000000 ) ;
-}
-
-//********************************************************************************
-// Function Name 	: MonitorInfo124
-// Retun Value		: NON
-// Argment Value	: NON
-// Explanation		: 
-// History			: Second edition
-//********************************************************************************
-void MonitorInfo124( DSPVER* Dspcode )
-{
-TRACE("Vendor : %02x \n", Dspcode->Vendor );
-TRACE("User : %02x \n", Dspcode->User );
-TRACE("Model : %02x \n", Dspcode->Model );
-TRACE("Version : %02x \n", Dspcode->Version );
-
-
-if(Dspcode->SpiMode == SPI_MST )
-TRACE("spi mode : Master\n");	
-if(Dspcode->SpiMode == SPI_SLV )
-TRACE("spi mode : Slave\n");	
-if(Dspcode->SpiMode == SPI_SNGL )
-TRACE("spi mode : only master\n");	
-
-//if(Dspcode->ActType == ACT_SEMCO	)
-//TRACE("actuator type : SOXXXX\n");
-if(Dspcode->ActType == ACT_SO2821) {
-	TRACE("actuator type : SO2823\n");
-} else if(Dspcode->ActType == ACT_M12337_A1) {
-	TRACE("actuator type : M12337 rev.1\n");
-} else {
-	TRACE("Error Act \n");
-}
-
-if(Dspcode->GyroType == GYRO_ICM20690 )
-TRACE("gyro type : INVEN ICM20690 \n");	
-if(Dspcode->GyroType == GYRO_LSM6DSM )
-TRACE("gyro type : ST LSM6DSM \n")	;
-
-}
-
-
-//********************************************************************************
-// Function Name 	: GetInfomationAfterDownload
-// Retun Value		: NON
-// Argment Value	: NON
-// Explanation		: <Pmem Memory> Write Data
-// History			: First edition
-//********************************************************************************
-UINT8 GetInfomationAfterDownload( DSPVER* Info )
-{
-	UINT32 Data;
-	UINT32 UlReadVal;
-
-	RamWrite32A( CMD_IO_ADR_ACCESS , ROMINFO );
-	RamRead32A( CMD_IO_DAT_ACCESS, &UlReadVal );
-	if( (UINT8)UlReadVal != 0x01 ) return( 1 );
-
-	RamRead32A( (SiVerNum + 0), &Data );
-	Info->Vendor 	= (UINT8)(Data >> 24 );
-	Info->User 		= (UINT8)(Data >> 16 );
-	Info->Model 		= (UINT8)(Data >> 8 );
-	Info->Version 	= (UINT8)(Data >> 0 );
-	RamRead32A( (SiVerNum + 4), &Data );
-	Info->SpiMode =  (UINT8)(Data >> 24 );
-	Info->ActType =  (UINT8)(Data >> 8 );
-	Info->GyroType = (UINT8)(Data >> 0 );
-
-//	 MonitorInfo124( Info );
-	return( 0 );
-}
-
 //********************************************************************************
 // Function Name 	: GetInfomationBeforeDownlaod
 // Retun Value		: True(0) / Fail(1)
@@ -310,7 +215,6 @@ UINT8 GetInfomationBeforeDownload( DSPVER* Info, const UINT8* DataDM,  UINT32 Le
 				Info->ActType = DataDM[10+i];
 				Info->GyroType = DataDM[11+i];
 			}
-			MonitorInfo124( Info );
 			return (0);
 		}
 	}	
@@ -327,22 +231,10 @@ UINT8 GetInfomationBeforeDownload( DSPVER* Info, const UINT8* DataDM,  UINT32 Le
 //********************************************************************************
 
 const DOWNLOAD_TBL DTbl124[] = {
-#if ((((SELECT_VENDOR&0x01) == 0x01) || ((SELECT_VENDOR&0x80) == 0x80)) && (SELECT_MODEL == 0x00))				// SEMCO or Oneplus
- {0x0002, 1, LC898124EP3_PM_0_1_0_2_2_0, LC898124EP3_PMSize_0_1_0_2_2_0, (UINT32)((UINT32)LC898124EP3_PMCheckSum_0_1_0_2_2_0 + (UINT32)LC898124EP3_DMA_CheckSum_0_1_0_2_2_0 + (UINT32)LC898124EP3_DMB_CheckSum_0_1_0_2_2_0), LC898124EP3_DM_0_1_0_2_2_0, LC898124EP3_DMA_ByteSize_0_1_0_2_2_0 , LC898124EP3_DMB_ByteSize_0_1_0_2_2_0 },
- {0x0082, 1, LC898124EP3_PM_0_1_0_2_2_1, LC898124EP3_PMSize_0_1_0_2_2_1, (UINT32)((UINT32)LC898124EP3_PMCheckSum_0_1_0_2_2_1 + (UINT32)LC898124EP3_DMA_CheckSum_0_1_0_2_2_1 + (UINT32)LC898124EP3_DMB_CheckSum_0_1_0_2_2_1), LC898124EP3_DM_0_1_0_2_2_1, LC898124EP3_DMA_ByteSize_0_1_0_2_2_1 , LC898124EP3_DMB_ByteSize_0_1_0_2_2_1 },
-#endif
-#if ((((SELECT_VENDOR&0x01) == 0x01) || ((SELECT_VENDOR&0x80) == 0x80)) && (SELECT_MODEL == 0x01))				// SEMCO or Oneplus
- {0x0002, 1, LC898124EP3_PM_1_1_0_2_2_0, LC898124EP3_PMSize_1_1_0_2_2_0, (UINT32)((UINT32)LC898124EP3_PMCheckSum_1_1_0_2_2_0 + (UINT32)LC898124EP3_DMA_CheckSum_1_1_0_2_2_0 + (UINT32)LC898124EP3_DMB_CheckSum_1_1_0_2_2_0), LC898124EP3_DM_1_1_0_2_2_0, LC898124EP3_DMA_ByteSize_1_1_0_2_2_0 , LC898124EP3_DMB_ByteSize_1_1_0_2_2_0 },
- {0x0082, 1, LC898124EP3_PM_1_1_0_2_2_1, LC898124EP3_PMSize_1_1_0_2_2_1, (UINT32)((UINT32)LC898124EP3_PMCheckSum_1_1_0_2_2_1 + (UINT32)LC898124EP3_DMA_CheckSum_1_1_0_2_2_1 + (UINT32)LC898124EP3_DMB_CheckSum_1_1_0_2_2_1), LC898124EP3_DM_1_1_0_2_2_1, LC898124EP3_DMA_ByteSize_1_1_0_2_2_1 , LC898124EP3_DMB_ByteSize_1_1_0_2_2_1 },
-#endif
 #if ((((SELECT_VENDOR&0x01) == 0x01) || ((SELECT_VENDOR&0x80) == 0x80)) && (SELECT_MODEL == 0x02))				// SEMCO or Oneplus
  {0x0003, 1, LC898124EP3_PM_2_1_0_3_2_0, LC898124EP3_PMSize_2_1_0_3_2_0, (UINT32)((UINT32)LC898124EP3_PMCheckSum_2_1_0_3_2_0 + (UINT32)LC898124EP3_DMA_CheckSum_2_1_0_3_2_0 + (UINT32)LC898124EP3_DMB_CheckSum_2_1_0_3_2_0), LC898124EP3_DM_2_1_0_3_2_0, LC898124EP3_DMA_ByteSize_2_1_0_3_2_0 , LC898124EP3_DMB_ByteSize_2_1_0_3_2_0 },
  {0x0083, 1, LC898124EP3_PM_2_1_0_3_2_1, LC898124EP3_PMSize_2_1_0_3_2_1, (UINT32)((UINT32)LC898124EP3_PMCheckSum_2_1_0_3_2_1 + (UINT32)LC898124EP3_DMA_CheckSum_2_1_0_3_2_1 + (UINT32)LC898124EP3_DMB_CheckSum_2_1_0_3_2_1), LC898124EP3_DM_2_1_0_3_2_1, LC898124EP3_DMA_ByteSize_2_1_0_3_2_1 , LC898124EP3_DMB_ByteSize_2_1_0_3_2_1 },
  {0x0000, 1, LC898124EP3_PM_2_1_0_0_2_0, LC898124EP3_PMSize_2_1_0_0_2_0, (UINT32)((UINT32)LC898124EP3_PMCheckSum_2_1_0_0_2_0 + (UINT32)LC898124EP3_DMA_CheckSum_2_1_0_0_2_0 + (UINT32)LC898124EP3_DMB_CheckSum_2_1_0_0_2_0), LC898124EP3_DM_2_1_0_0_2_0, LC898124EP3_DMA_ByteSize_2_1_0_0_2_0 , LC898124EP3_DMB_ByteSize_2_1_0_0_2_0 },
-#endif
-#if (((SELECT_VENDOR&0x02) == 0x02) || ((SELECT_VENDOR&0x80) == 0x80))			// OFILM or Oneplus
- {0x0102, 1, LC898124EP3_PM_1_2_1_2_2_0, LC898124EP3_PMSize_1_2_1_2_2_0, (UINT32)((UINT32)LC898124EP3_PMCheckSum_1_2_1_2_2_0 + (UINT32)LC898124EP3_DMA_CheckSum_1_2_1_2_2_0 + (UINT32)LC898124EP3_DMB_CheckSum_1_2_1_2_2_0), LC898124EP3_DM_1_2_1_2_2_0, LC898124EP3_DMA_ByteSize_1_2_1_2_2_0 , LC898124EP3_DMB_ByteSize_1_2_1_2_2_0 },
- {0x0182, 1, LC898124EP3_PM_1_2_1_2_2_1, LC898124EP3_PMSize_1_2_1_2_2_1, (UINT32)((UINT32)LC898124EP3_PMCheckSum_1_2_1_2_2_1 + (UINT32)LC898124EP3_DMA_CheckSum_1_2_1_2_2_1 + (UINT32)LC898124EP3_DMB_CheckSum_1_2_1_2_2_1), LC898124EP3_DM_1_2_1_2_2_1, LC898124EP3_DMA_ByteSize_1_2_1_2_2_1 , LC898124EP3_DMB_ByteSize_1_2_1_2_2_1 },
 #endif
  {0xFFFF, 0, (void*)0, 0, 0, (void*)0 ,0 ,0 }
 };
@@ -373,8 +265,6 @@ unsigned char SelectDownload(UINT8 GyroSelect, UINT8 ActSelect, UINT8 MasterSlav
 	if( (ActSelect != Dspcode.ActType) || ((GyroSelect&0x7f) != Dspcode.GyroType) ) return(0xF2);
 
 	// 高速化対応Download
-TRACE("DataPM( %08x ), LengthPM( %08x ) , Parity( %08x ), DataDM( %08x ) , LengthDMA( %08x ) , LengthDMB( %08x ) \n"
-	, (int)ptr->DataPM , (int)ptr->LengthPM , (int)ptr->Parity , (int)ptr->DataDM , (int)ptr->LengthDMA , (int)ptr->LengthDMB );
 	return( DownloadToEP3( ptr->DataPM, ptr->LengthPM, ptr->Parity, ptr->DataDM, ptr->LengthDMA , ptr->LengthDMB ) ); 
 }
 

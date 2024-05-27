@@ -12,4 +12,4 @@ ccflags-y += -I$(srctree)/techpack/camera/drivers/cam_smmu
 ccflags-y += -I$(srctree)/techpack/camera/drivers/cam_core/
 ccflags-y += -I$(srctree)/techpack/camera/drivers/cam_sensor_module/cam_ois/
 
-obj-$(CONFIG_SPECTRA_CAMERA) += HighLevelCmd.o DownloadCmd.o E2PromCmd.o
+obj-$(CONFIG_SPECTRA_CAMERA) += DownloadCmd.o

@@ -273,19 +273,6 @@ union	ULLNVAL {
 		UINT32	UlLowVal ;
 	} StUllnVal ;
 } ;
-
-
-// Float Data Union
-union	FLTVAL {
-	float			SfFltVal ;
-	UINT32	UlLngVal ;
-	UINT16	UsDwdVal[ 2 ] ;
-	struct {
-		UINT16	UsHigVal ;
-		UINT16	UsLowVal ;
-	} StFltVal ;
-} ;
-
 #else	// BIG_ENDDIAN
 // Little endian
 // Word Data Union
@@ -323,23 +310,11 @@ union	ULLNVAL {
 		UINT32	UlHigVal ;
 	} StUllnVal ;
 } ;
-
-// Float Data Union
-union	FLTVAL {
-	float			SfFltVal ;
-	UINT32	UlLngVal ;
-	UINT16	UsDwdVal[ 2 ] ;
-	struct {
-		UINT16	UsLowVal ;
-		UINT16	UsHigVal ;
-	} StFltVal ;
-} ;
 #endif	// __OIS_BIG_ENDIAN__
 
 typedef union WRDVAL	UnWrdVal ;
 typedef union DWDVAL	UnDwdVal;
 typedef union ULLNVAL	UnllnVal;
-typedef union FLTVAL	UnFltVal ;
 
 
 typedef struct STMESRAM {
@@ -556,25 +531,6 @@ typedef struct ACT_MOV_t	Act_Mov_t ;
 //****************************************************
 //	Debug
 //****************************************************
-#if 0
-
-#ifdef DEBUG
-#include <AT91SAM7S.h>
-#include <us.h>
- #define TRACE_INIT(x)			dbgu_init(x)
- #define TRACE(fmt, ...)		dbgu_printf(fmt, ## __VA_ARGS__)
- #define TRACE_DUMP(x,y)		dbg_Dump(x,y)
- #define TRACE_USB(fmt, ...)	dbg_UsbData(fmt, ## __VA_ARGS__)
-#else
- #define TRACE_INIT(x)
- #define TRACE(...)
- #define TRACE_DUMP(x,y)
- #define TRACE_USB(...)	
-#endif
-
-#else
-
-#define DEBUG 1
 #ifdef DEBUG
  #define TRACE_INIT(x)
  #define TRACE(...)		CAM_ERR(CAM_OIS, ## __VA_ARGS__)
@@ -585,8 +541,6 @@ typedef struct ACT_MOV_t	Act_Mov_t ;
  #define TRACE(...)
  #define TRACE_DUMP(x,y)
  #define TRACE_USB(...)
-#endif
-
 #endif
 
 #endif /* #ifndef OIS_H_ */
