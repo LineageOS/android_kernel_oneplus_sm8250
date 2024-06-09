@@ -350,6 +350,7 @@ int get_pkt_index(struct cvp_hal_session_cmd_pkt *hdr)
 	return -EINVAL;
 }
 
+#ifndef OPLUS_FEATURE_CAMERA_COMMON
 int set_feature_bitmask(int pkt_idx, unsigned long *bitmask)
 {
 	if (!bitmask) {
@@ -375,6 +376,7 @@ int set_feature_bitmask(int pkt_idx, unsigned long *bitmask)
 	dprintk(CVP_ERR, "%s: invalid pkt_idx %d\n", __func__, pkt_idx);
 	return -EINVAL;
 }
+#endif
 
 int get_hfi_version(void)
 {
@@ -825,7 +827,11 @@ static int __read_queue(struct cvp_iface_q_info *qinfo, u8 *packet,
 		 * so that iris reads the updated header values
 		 */
 		mb();
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+		*pb_tx_req_is_set = 1;
+#else
 		*pb_tx_req_is_set = 0;
+#endif
 		if (write_idx != queue->qhdr_write_idx) {
 			queue->qhdr_rx_req = 0;
 		} else {

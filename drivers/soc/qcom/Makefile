@@ -1,4 +1,8 @@
 CFLAGS_rpmh-rsc.o := -I$(src)
+ccflags-y += -I$(srctree)/include/drm -I$(srctree)/techpack/display/msm -I$(srctree)/techpack/display/msm/dsi -I$(srctree)/techpack/display/msm/dp
+ccflags-y += -I$(srctree)/techpack/display/msm/sde
+ccflags-y += -I$(srctree)/techpack/display/rotator
+ccflags-y += -I$(srctree)/techpack/display/oplus
 obj-$(CONFIG_QCOM_COMMAND_DB) += cmd-db.o
 obj-$(CONFIG_QCOM_GLINK_SSR) +=	glink_ssr.o
 obj-$(CONFIG_QCOM_CPUSS_DUMP) += cpuss_dump.o
@@ -64,7 +68,8 @@ ifdef CONFIG_MSM_SUBSYSTEM_RESTART
 endif
 obj-$(CONFIG_QCOM_EUD) += eud.o
 obj-$(CONFIG_SOC_BUS) += socinfo.o
-obj-$(CONFIG_QCOM_WATCHDOG_V2) += watchdog_v2.o
+#modify for oplus watchdog
+obj-$(CONFIG_QCOM_WATCHDOG_V2) += watchdog_v2.o oplus_watchdog_util.o
 obj-$(CONFIG_QCOM_SDM845_LLCC) += llcc-sdm845.o
 CFLAGS_rpmh-rsc.o := -I$(src)
 obj-$(CONFIG_QCOM_BUS_SCALING) += msm_bus/

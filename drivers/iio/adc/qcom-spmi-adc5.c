@@ -405,9 +405,15 @@ static int adc_pre_configure_usb_in_read(struct adc_chip *adc)
 	u8 data = ADC_CAL_DELAY_CTL_VAL_256S;
 	bool channel_check = false;
 
-	if (adc->pmic_rev_id)
+	if (adc->pmic_rev_id) {
+#ifndef OPLUS_FEATURE_CHG_BASIC
 		if (adc->pmic_rev_id->pmic_subtype == PMI632_SUBTYPE)
+#else
+		if (adc->pmic_rev_id->pmic_subtype == PMI632_SUBTYPE ||
+		    adc->pmic_rev_id->pmic_subtype == PM7250B_SUBTYPE)
+#endif
 			channel_check = true;
+	}
 
 	/* Increase calibration measurement interval to 256s */
 	ret = regmap_bulk_write(adc->regmap,
@@ -483,9 +489,15 @@ static int adc_configure(struct adc_chip *adc,
 	u8 conv_req = 0;
 	bool channel_check = false;
 
-	if (adc->pmic_rev_id)
+	if (adc->pmic_rev_id) {
+#ifndef OPLUS_FEATURE_CHG_BASIC
 		if (adc->pmic_rev_id->pmic_subtype == PMI632_SUBTYPE)
+#else
+		if (adc->pmic_rev_id->pmic_subtype == PMI632_SUBTYPE ||
+		    adc->pmic_rev_id->pmic_subtype == PM7250B_SUBTYPE)
+#endif
 			channel_check = true;
+	}
 
 	/* Read registers 0x42 through 0x46 */
 	ret = adc_read(adc, ADC_USR_DIG_PARAM, buf, ADC5_MULTI_TRANSFER);
@@ -767,10 +779,38 @@ static int adc_read_raw(struct iio_dev *indio_dev,
 	struct adc_channel_prop *prop;
 	u16 adc_code_volt, adc_code_cur;
 	int ret;
+#ifdef OPLUS_FEATURE_CHG_BASIC
+	s64 voltage = 0, adc_vdd_ref_mv = 1875;
+#endif
 
 	prop = &adc->chan_props[chan->address];
 
 	switch (mask) {
+#ifdef OPLUS_FEATURE_CHG_BASIC
+	case IIO_CHAN_INFO_OFFSET:
+		ret = adc_do_conversion(adc, prop, chan,
+				&adc_code_volt, &adc_code_cur);
+		if (ret)
+			break;
+		if (*val2 < 0) {
+			voltage = (s64) adc_code_volt * adc_vdd_ref_mv * 1000;
+			voltage = div64_s64(voltage, adc->data->full_scale_code_volt);
+			pr_err("%s : adc_code_volt before compensation : %d(uV)\n", __func__, voltage);
+			voltage += *val2;
+			pr_err("%s : adc_code_volt after compensation : %d(uV)\n", __func__, voltage);
+			voltage = voltage * adc->data->full_scale_code_volt;
+			adc_code_volt = (u16)div64_s64(voltage, (adc_vdd_ref_mv * 1000));
+		}
+		if ((chan->type == IIO_VOLTAGE) || (chan->type == IIO_TEMP))
+			ret = qcom_vadc_hw_scale(prop->scale_fn_type,
+				&adc_prescale_ratios[prop->prescale],
+				adc->data, prop->lut_index,
+				adc_code_volt, val);
+		if (ret)
+			break;
+
+		return IIO_VAL_INT;
+#endif
 	case IIO_CHAN_INFO_PROCESSED:
 		ret = adc_do_conversion(adc, prop, chan,
 				&adc_code_volt, &adc_code_cur);
@@ -907,8 +947,18 @@ static const struct adc_channels adc_chans_pmic5[ADC_MAX_CHANNEL] = {
 					SCALE_HW_CALIB_THERM_100K_PULLUP)
 	[ADC_AMUX_THM3_PU2]	= ADC_CHAN_TEMP("amux_thm3_pu2", 1,
 					SCALE_HW_CALIB_THERM_100K_PULLUP)
+#ifdef OPLUS_FEATURE_CHG_BASIC
+	[ADC_AMUX_THM4_PU2]	= ADC_CHAN_VOLT("amux_thm4_pu2", 1,
+					SCALE_HW_CALIB_DEFAULT)
+#else
 	[ADC_AMUX_THM4_PU2]	= ADC_CHAN_TEMP("amux_thm4_pu2", 1,
 					SCALE_HW_CALIB_THERM_100K_PULLUP)
+#endif
+#ifdef OPLUS_FEATURE_CHG_BASIC
+/* yangmingjin,2020/3/9, add for usbtemp_adc */
+	[ADC_AMUX_THM4]		= ADC_CHAN_VOLT("amux_thm4", 1,
+					SCALE_HW_CALIB_DEFAULT)
+#endif
 	[ADC_PARALLEL_ISENSE]	= ADC_CHAN_VOLT("parallel_isense", 1,
 					SCALE_HW_CALIB_CUR)
 	[ADC_INT_EXT_ISENSE_VBAT_VDATA]	= ADC_CHAN_POWER(
@@ -929,8 +979,36 @@ static const struct adc_channels adc_chans_pmic5[ADC_MAX_CHANNEL] = {
 					SCALE_HW_CALIB_THERM_100K_PULLUP)
 	[ADC_GPIO3_PU2]	= ADC_CHAN_TEMP("gpio3_pu2", 1,
 					SCALE_HW_CALIB_THERM_100K_PULLUP)
+	[ADC_GPIO3]		= ADC_CHAN_VOLT("gpio7_v", 1,
+					SCALE_HW_CALIB_DEFAULT)
+	[ADC_GPIO3_DIV3]	= ADC_CHAN_VOLT("gpio7_div3", 1,
+					SCALE_HW_CALIB_DEFAULT)
+#ifdef CONFIG_OPLUS_SM7250R_CHARGER  //OPLUS_FEATURE_CHG_BASIC
 	[ADC_GPIO4_PU2]	= ADC_CHAN_TEMP("gpio4_pu2", 1,
 					SCALE_HW_CALIB_THERM_100K_PULLUP)
+#else
+	[ADC_GPIO4_PU2]	= ADC_CHAN_VOLT("gpio8_v", 1,
+					SCALE_HW_CALIB_DEFAULT)
+#endif
+#ifdef OPLUS_FEATURE_CHG_BASIC
+/* yangmingjin,2020/3/9, add for usbtemp_adc */
+	[ADC_GPIO4]	= ADC_CHAN_VOLT("gpio8_vol", 1,
+					SCALE_HW_CALIB_DEFAULT)
+#endif
+#ifdef OPLUS_FEATURE_CHG_BASIC
+#ifdef OPLUS_CUSTOM_OP_DEF
+	[ADC_AMUX_THM4_PU1]	= ADC_CHAN_VOLT("usb_temp_adc", 1,
+					SCALE_HW_CALIB_DEFAULT)
+	[ADC_GPIO4_PU1]		= ADC_CHAN_VOLT("usb_supplementary_temp_adc", 1,
+					SCALE_HW_CALIB_DEFAULT)
+#endif // OPLUS_CUSTOM_OP_DEF
+#endif // OPLUS_FEATURE_CHG_BASIC
+#ifdef OPLUS_FEATURE_CHG_BASIC
+	[ADC_GPIO1] 	= ADC_CHAN_VOLT("board_id_vdata", 1,
+					SCALE_HW_CALIB_DEFAULT)
+#endif
+	[ADC_INT_EXT_ISENSE] = ADC_CHAN_VOLT("ext_isense", 1,
+					SCALE_HW_CALIB_CUR)
 };
 
 static const struct adc_channels adc7_chans_pmic[ADC_MAX_CHANNEL] = {

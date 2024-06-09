@@ -513,7 +513,14 @@ static int __mmc_blk_ioctl_cmd(struct mmc_card *card, struct mmc_blk_data *md,
 	struct mmc_command cmd = {}, sbc = {};
 	struct mmc_data data = {};
 	struct mmc_request mrq = {};
+#ifndef OPLUS_FEATURE_STORAGE_TOOL
+/* If data size in ioctl too large, kernel will panic */
 	struct scatterlist sg;
+#else
+	struct scatterlist sg[16],*isg=0;
+	unsigned int i,sg_len,size;
+	unsigned int item_len = queue_max_segment_size(md->queue.queue);
+#endif
 	int err;
 	unsigned int target_part;
 
@@ -539,12 +546,33 @@ static int __mmc_blk_ioctl_cmd(struct mmc_card *card, struct mmc_blk_data *md,
 	cmd.flags = idata->ic.flags;
 
 	if (idata->buf_bytes) {
+#ifndef OPLUS_FEATURE_STORAGE_TOOL
+/* If data size in ioctl too large, kernel will panic */
 		data.sg = &sg;
 		data.sg_len = 1;
+#else
+		sg_len = (idata->buf_bytes+item_len-1)/item_len;
+		pr_err("mmc sg_len:%d\n",sg_len);
+		data.sg = sg;
+		data.sg_len = sg_len;
+#endif
 		data.blksz = idata->ic.blksz;
 		data.blocks = idata->ic.blocks;
 
+#ifndef OPLUS_FEATURE_STORAGE_TOOL
+/* If data size in ioctl too large, kernel will panic */
 		sg_init_one(data.sg, idata->buf, idata->buf_bytes);
+#else
+		sg_init_table(data.sg, sg_len);
+		for_each_sg(data.sg, isg, sg_len, i){
+			size = item_len;
+			if(sg_is_last(isg)){
+				size = idata->buf_bytes-(i*item_len);
+			}
+			pr_err("mmc size:%d\n",size);
+			sg_set_buf(isg, idata->buf+(i*item_len), size);
+		}
+#endif
 
 		if (idata->ic.write_flag)
 			data.flags = MMC_DATA_WRITE;

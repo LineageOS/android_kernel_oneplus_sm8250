@@ -2214,6 +2214,12 @@ static void fill_extnum_info(struct elfhdr *elf, struct elf_shdr *shdr4extnum,
 	shdr4extnum->sh_info = segs;
 }
 
+#ifdef OPLUS_BUG_STABILITY
+static elf_addr_t *oplus_coredump_addr = NULL;
+#define PREALLOC_DUMPMEM_SIZE 64 * 1024
+static DEFINE_MUTEX(core_dump_mutex);
+#endif /* OPLUS_BUG_STABILITY */
+
 /*
  * Actual dumper
  *
@@ -2236,6 +2242,11 @@ static int elf_core_dump(struct coredump_params *cprm)
 	Elf_Half e_phnum;
 	elf_addr_t e_shoff;
 	elf_addr_t *vma_filesz = NULL;
+
+#ifdef OPLUS_BUG_STABILITY
+	if (!mutex_trylock(&core_dump_mutex))
+		goto out;
+#endif /* OPLUS_BUG_STABILITY */
 
 	/*
 	 * We no longer stop all VM operations.
@@ -2305,8 +2316,22 @@ static int elf_core_dump(struct coredump_params *cprm)
 
 	if (segs - 1 > ULONG_MAX / sizeof(*vma_filesz))
 		goto end_coredump;
+
+#ifdef OPLUS_BUG_STABILITY
+	if (oplus_coredump_addr && (segs - 1) * sizeof(*vma_filesz) <=
+			PREALLOC_DUMPMEM_SIZE)
+		vma_filesz = oplus_coredump_addr;
+	else {
+		kvfree(oplus_coredump_addr);
+		oplus_coredump_addr = NULL;
+		vma_filesz = kvmalloc(array_size(sizeof(*vma_filesz),
+				      (segs - 1)), GFP_KERNEL);
+	}
+#else
 	vma_filesz = kvmalloc(array_size(sizeof(*vma_filesz), (segs - 1)),
 			      GFP_KERNEL);
+#endif /* OPLUS_BUG_STABILITY */
+
 	if (ZERO_OR_NULL_PTR(vma_filesz))
 		goto end_coredump;
 
@@ -2415,9 +2440,16 @@ cleanup:
 	free_note_info(&info);
 	kfree(shdr4extnum);
 	kvfree(vma_filesz);
+#ifdef OPLUS_BUG_STABILITY
+	if (vma_filesz == oplus_coredump_addr)
+		oplus_coredump_addr = NULL;
+#endif /* OPLUS_BUG_STABILITY */
 	kfree(phdr4note);
 	kfree(elf);
 out:
+#ifdef OPLUS_BUG_STABILITY
+	mutex_unlock(&core_dump_mutex);
+#endif /* OPLUS_BUG_STABILITY */
 	return has_dumped;
 }
 
@@ -2426,11 +2458,21 @@ out:
 static int __init init_elf_binfmt(void)
 {
 	register_binfmt(&elf_format);
+
+#ifdef OPLUS_BUG_STABILITY
+	oplus_coredump_addr = kvmalloc(PREALLOC_DUMPMEM_SIZE, GFP_KERNEL);
+#endif /* OPLUS_BUG_STABILITY */
+
 	return 0;
 }
 
 static void __exit exit_elf_binfmt(void)
 {
+#ifdef OPLUS_BUG_STABILITY
+	if (oplus_coredump_addr)
+		kvfree(oplus_coredump_addr);
+#endif /* OPLUS_BUG_STABILITY */
+
 	/* Remove the COFF and ELF loaders. */
 	unregister_binfmt(&elf_format);
 }

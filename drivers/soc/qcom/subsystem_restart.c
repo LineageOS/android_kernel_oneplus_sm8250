@@ -33,8 +33,19 @@
 #include <linux/of.h>
 #include <asm/current.h>
 #include <linux/timer.h>
+#include <linux/seq_file.h>
+#include <linux/proc_fs.h>
 
 #include "peripheral-loader.h"
+#ifdef OPLUS_BUG_STABILITY
+/*Add for disable dump for subsys crash*/
+#include <soc/oplus/system/oplus_project.h>
+extern bool oem_is_fulldump(void);
+bool delay_panic = false;
+#endif
+#ifdef OPLUS_BUG_STABILITY
+bool direct_panic = false;
+#endif
 
 #define DISABLE_SSR 0x9889deed
 /* If set to 0x9889deed, call to subsystem_restart_dev() returns immediately */
@@ -204,6 +215,24 @@ struct subsys_device {
 	int notif_state;
 	struct list_head list;
 };
+
+#ifdef OPLUS_FEATURE_ADSP_RECOVERY
+static bool oplus_adsp_ssr = false;
+
+void oplus_set_ssr_state(bool ssr_state)
+{
+	oplus_adsp_ssr = ssr_state;
+	pr_debug("%s():oplus_adsp_ssr=%d\n", __func__, oplus_adsp_ssr);
+}
+EXPORT_SYMBOL(oplus_set_ssr_state);
+
+bool oplus_get_ssr_state(void)
+{
+	pr_debug("%s():oplus_adsp_ssr=%d\n", __func__, oplus_adsp_ssr);
+	return oplus_adsp_ssr;
+}
+EXPORT_SYMBOL(oplus_get_ssr_state);
+#endif /* OPLUS_FEATURE_ADSP_RECOVERY */
 
 static struct subsys_device *to_subsys(struct device *d)
 {
@@ -831,6 +860,30 @@ struct subsys_device *find_subsys_device(const char *str)
 }
 EXPORT_SYMBOL(find_subsys_device);
 
+#ifdef OPLUS_BUG_STABILITY
+int op_restart_modem(struct subsys_device *subsys)
+{
+	int restart_level;
+
+	if (!subsys) {
+		return -ENODEV;
+	}
+
+	pr_err("%s\n", __func__);
+
+	restart_level = subsys->restart_level;
+	subsys->restart_level = RESET_SUBSYS_COUPLED;
+	if (subsys->desc->force_reset) {
+		subsys->desc->force_reset(subsys->desc);
+	}
+
+	subsys->restart_level = restart_level;
+
+	return 0;
+}
+EXPORT_SYMBOL(op_restart_modem);
+#endif /* OPLUS_BUG_STABILITY */
+
 static int subsys_start(struct subsys_device *subsys)
 {
 	int ret;
@@ -1223,6 +1276,16 @@ int subsystem_restart_dev(struct subsys_device *dev)
 
 	name = dev->desc->name;
 
+#ifdef OPLUS_FEATURE_ADSP_RECOVERY
+	if (name && !strcmp(name, "adsp")) {
+		if (oplus_get_ssr_state()) {
+			pr_err("%s: adsp restarting, Ignoring request\n", __func__);
+			return 0;
+		} else {
+			oplus_set_ssr_state(true);
+		}
+	}
+#endif
 	send_early_notifications(dev->early_notify);
 
 	/*
@@ -1251,8 +1314,23 @@ int subsystem_restart_dev(struct subsys_device *dev)
 		__subsystem_restart_dev(dev);
 		break;
 	case RESET_SOC:
+	#ifdef VENDOR_EDIT
+		if (!strcmp(name, "esoc0") && oem_is_fulldump()) {
+			if (!direct_panic) {
+				delay_panic = true;
+			}
+			direct_panic = false;
+			__subsystem_restart_dev(dev);
+			break;
+		} else {
+			direct_panic = false;
+			__pm_stay_awake(dev->ssr_wlock);
+			schedule_work(&dev->device_restart_work);
+		}
+	#else
 		__pm_stay_awake(dev->ssr_wlock);
 		schedule_work(&dev->device_restart_work);
+	#endif
 		return 0;
 	default:
 		panic("subsys-restart: Unknown restart level!\n");
@@ -1978,9 +2056,66 @@ static struct notifier_block panic_nb = {
 	.notifier_call  = ssr_panic_handler,
 };
 
+extern bool ts_wait_error;
+extern bool ts_send_error;
+#ifdef CONFIG_ESOC_MDM_4x
+extern bool modem_force_rst;
+#endif
+
+static ssize_t force_rst_write(struct file *file,
+				const char __user *buf,
+				size_t count,
+				loff_t *lo)
+{
+	char read_buf[4] = {0};
+	struct subsys_device *subsys = find_subsys_device("esoc0");
+
+	if (!subsys)
+		return 0;
+
+	if (copy_from_user(read_buf, buf, 1)) {
+		pr_err("%s: failed to copy from user.\n", __func__);
+		return count;
+	}
+
+	pr_info("%s: %s\n", __func__, read_buf);
+
+	if (!strncmp(read_buf, "2", 1)) {
+		panic("force esoc crash");
+	}
+
+	if (!strncmp(read_buf, "1", 1) && (ts_send_error || ts_wait_error)) {
+#ifdef CONFIG_ESOC_MDM_4x
+		modem_force_rst = true;
+#endif
+		ts_wait_error = false;
+		ts_send_error = false;
+		pr_err("force to reset modem\n");
+		op_restart_modem(subsys);
+	}
+
+	return count;
+}
+
+static ssize_t force_rst_read(struct file *file,
+				char __user *buf,
+				size_t count,
+				loff_t *ppos)
+{
+	return count;
+}
+
+static const struct file_operations esoc_force_rst_fops = {
+	.write = force_rst_write,
+	.read  = force_rst_read,
+	.open  = simple_open,
+	.owner = THIS_MODULE,
+};
+
 static int __init subsys_restart_init(void)
 {
 	int ret;
+	struct proc_dir_entry *d_entry = NULL;
 
 	ssr_wq = alloc_workqueue("ssr_wq",
 		WQ_UNBOUND | WQ_HIGHPRI | WQ_CPU_INTENSIVE, 0);
@@ -2001,6 +2136,11 @@ static int __init subsys_restart_init(void)
 			&panic_nb);
 	if (ret)
 		goto err_soc;
+
+	d_entry = proc_create_data("force_reset", 0666, NULL, &esoc_force_rst_fops, NULL);
+	if (!d_entry) {
+		goto err_soc;
+	}
 
 	return 0;
 
