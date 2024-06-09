@@ -2404,6 +2404,9 @@ int cnss_wlan_register_driver(struct cnss_wlan_driver *driver_ops)
 	struct cnss_pci_data *pci_priv;
 	unsigned int timeout;
 	struct cnss_cal_info *cal_info;
+#ifdef OPLUS_BUG_STABILITY
+	u16 wlan_driver_delay_time = 1000;
+#endif /* OPLUS_BUG_STABILITY */
 
 	if (!plat_priv) {
 		cnss_pr_err("plat_priv is NULL\n");
@@ -2458,6 +2461,11 @@ int cnss_wlan_register_driver(struct cnss_wlan_driver *driver_ops)
 	}
 
 register_driver:
+#ifdef OPLUS_BUG_STABILITY
+	cnss_pr_dbg("Delay %dms before probe WLAN driver\n",
+		    wlan_driver_delay_time);
+	msleep(wlan_driver_delay_time);
+#endif /* OPLUS_BUG_STABILITY */
 	reinit_completion(&plat_priv->power_up_complete);
 	ret = cnss_driver_event_post(plat_priv,
 				     CNSS_DRIVER_EVENT_REGISTER_DRIVER,

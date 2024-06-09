@@ -9,11 +9,19 @@
 #include <linux/i2c.h>
 #include <linux/mutex.h>
 #include <linux/soc/qcom/fsa4480-i2c.h>
+#ifdef OPLUS_ARCH_EXTENDS
+#include "dsi/dsi_display.h"
+#include <linux/of_gpio.h>
+#include <linux/gpio.h>
+#endif /* OPLUS_ARCH_EXTENDS */
 
 #define FSA4480_I2C_NAME	"fsa4480-driver"
 
 #define FSA4480_SWITCH_SETTINGS 0x04
 #define FSA4480_SWITCH_CONTROL  0x05
+#ifdef OPLUS_ARCH_EXTENDS
+#define FSA4480_SWITCH_STATUS0  0x06
+#endif /* OPLUS_ARCH_EXTENDS */
 #define FSA4480_SWITCH_STATUS1  0x07
 #define FSA4480_SLOW_L          0x08
 #define FSA4480_SLOW_R          0x09
@@ -24,7 +32,18 @@
 #define FSA4480_DELAY_L_MIC     0x0E
 #define FSA4480_DELAY_L_SENSE   0x0F
 #define FSA4480_DELAY_L_AGND    0x10
+#ifdef OPLUS_ARCH_EXTENDS
+#define FSA4480_FUN_EN          0x12
+#define FSA4480_JACK_STATUS     0x17
+#endif /* OPLUS_ARCH_EXTENDS */
 #define FSA4480_RESET           0x1E
+
+#ifdef OPLUS_BUG_STABILITY
+/*
+ * 0x1~0xff == 100us~25500us
+ */
+#define DEFAULT_SWITCH_DELAY    0x12
+#endif /* OPLUS_BUG_STABILITY */
 
 struct fsa4480_priv {
 	struct regmap *regmap;
@@ -49,13 +68,20 @@ static const struct regmap_config fsa4480_regmap_config = {
 };
 
 static const struct fsa4480_reg_val fsa_reg_i2c_defaults[] = {
+#ifdef OPLUS_BUG_STABILITY
+	{FSA4480_SWITCH_CONTROL, 0x18},
+#endif /* OPLUS_BUG_STABILITY */
 	{FSA4480_SLOW_L, 0x00},
 	{FSA4480_SLOW_R, 0x00},
 	{FSA4480_SLOW_MIC, 0x00},
 	{FSA4480_SLOW_SENSE, 0x00},
 	{FSA4480_SLOW_GND, 0x00},
 	{FSA4480_DELAY_L_R, 0x00},
+#ifdef OPLUS_BUG_STABILITY
+	{FSA4480_DELAY_L_MIC, DEFAULT_SWITCH_DELAY},
+#else
 	{FSA4480_DELAY_L_MIC, 0x00},
+#endif /* OPLUS_BUG_STABILITY */
 	{FSA4480_DELAY_L_SENSE, 0x00},
 	{FSA4480_DELAY_L_AGND, 0x09},
 	{FSA4480_SWITCH_SETTINGS, 0x98},
@@ -74,6 +100,10 @@ static void fsa4480_usbc_update_settings(struct fsa4480_priv *fsa_priv,
 	/* FSA4480 chip hardware requirement */
 	usleep_range(50, 55);
 	regmap_write(fsa_priv->regmap, FSA4480_SWITCH_SETTINGS, switch_enable);
+#ifdef OPLUS_BUG_STABILITY
+	usleep_range(DEFAULT_SWITCH_DELAY * 100,
+		     DEFAULT_SWITCH_DELAY * 100 + 50);
+#endif /* OPLUS_BUG_STABILITY */
 }
 
 static int fsa4480_usbc_event_changed(struct notifier_block *nb,
@@ -131,6 +161,10 @@ static int fsa4480_usbc_analog_setup_switches(struct fsa4480_priv *fsa_priv)
 	int rc = 0;
 	union power_supply_propval mode;
 	struct device *dev;
+#ifdef OPLUS_ARCH_EXTENDS
+	unsigned int switch_status = 0;
+	unsigned int jack_status = 0;
+#endif /* OPLUS_ARCH_EXTENDS */
 
 	if (!fsa_priv)
 		return -EINVAL;
@@ -155,6 +189,34 @@ static int fsa4480_usbc_analog_setup_switches(struct fsa4480_priv *fsa_priv)
 	case POWER_SUPPLY_TYPEC_SINK_AUDIO_ADAPTER:
 		/* activate switches */
 		fsa4480_usbc_update_settings(fsa_priv, 0x00, 0x9F);
+#ifdef OPLUS_ARCH_EXTENDS
+		usleep_range(1000, 1005);
+		regmap_write(fsa_priv->regmap, FSA4480_FUN_EN, 0x45);
+		usleep_range(4000, 4005);
+		dev_info(dev, "%s: set reg[0x%x] done.\n", __func__,
+			 FSA4480_FUN_EN);
+
+		regmap_read(fsa_priv->regmap, FSA4480_JACK_STATUS,
+			    &jack_status);
+		dev_info(dev, "%s: reg[0x%x]=0x%x.\n", __func__,
+			 FSA4480_JACK_STATUS, jack_status);
+		if (jack_status & 0x2) {
+			//for 3 pole, mic switch to SBU2
+			dev_info(dev, "%s: set mic to sbu2 for 3 pole.\n",
+				 __func__);
+			fsa4480_usbc_update_settings(fsa_priv, 0x00, 0x9F);
+			usleep_range(4000, 4005);
+		}
+
+		regmap_read(fsa_priv->regmap, FSA4480_SWITCH_STATUS0,
+			    &switch_status);
+		dev_info(dev, "%s: reg[0x%x]=0x%x.\n", __func__,
+			 FSA4480_SWITCH_STATUS0, switch_status);
+		regmap_read(fsa_priv->regmap, FSA4480_SWITCH_STATUS1,
+			    &switch_status);
+		dev_info(dev, "%s: reg[0x%x]=0x%x.\n", __func__,
+			 FSA4480_SWITCH_STATUS1, switch_status);
+#endif /* OPLUS_ARCH_EXTENDS */
 
 		/* notify call chain on event */
 		blocking_notifier_call_chain(&fsa_priv->fsa4480_notifier,
@@ -192,6 +254,9 @@ int fsa4480_reg_notifier(struct notifier_block *nb,
 	int rc = 0;
 	struct i2c_client *client = of_find_i2c_device_by_node(node);
 	struct fsa4480_priv *fsa_priv;
+#ifdef OPLUS_ARCH_EXTENDS
+	union power_supply_propval mode;
+#endif /* OPLUS_ARCH_EXTENDS */
 
 	if (!client)
 		return -EINVAL;
@@ -204,6 +269,22 @@ int fsa4480_reg_notifier(struct notifier_block *nb,
 				(&fsa_priv->fsa4480_notifier, nb);
 	if (rc)
 		return rc;
+
+#ifdef OPLUS_ARCH_EXTENDS
+	rc = power_supply_get_property(fsa_priv->usb_psy,
+				       POWER_SUPPLY_PROP_TYPEC_MODE, &mode);
+	if (rc) {
+		dev_err(fsa_priv->dev,
+			"%s: Unable to read USB TYPEC_MODE: %d\n", __func__,
+			rc);
+	} else if ((mode.intval == POWER_SUPPLY_TYPEC_SINK_AUDIO_ADAPTER) ||
+		   (mode.intval == POWER_SUPPLY_TYPEC_NONE)) {
+		dev_info(fsa_priv->dev,
+			 "%s: initial state: supply mode %d, usbc mode %d\n",
+			 __func__, mode.intval, fsa_priv->usbc_mode.counter);
+		atomic_set(&(fsa_priv->usbc_mode), mode.intval);
+	}
+#endif /* OPLUS_ARCH_EXTENDS */
 
 	/*
 	 * as part of the init sequence check if there is a connected
@@ -292,6 +373,13 @@ int fsa4480_switch_event(struct device_node *node,
 	int switch_control = 0;
 	struct i2c_client *client = of_find_i2c_device_by_node(node);
 	struct fsa4480_priv *fsa_priv;
+#ifdef OPLUS_ARCH_EXTENDS
+	unsigned int setting_reg_val = 0, control_reg_val = 0;
+	struct dsi_display *display = get_main_display();
+	struct dsi_parser_utils *utils = &display->panel->utils;
+	bool oplus_dp_support =
+		utils->read_bool(utils->data, "oplus,dp-support-customized");
+#endif /* OPLUS_ARCH_EXTENDS */
 
 	if (!client)
 		return -EINVAL;
@@ -304,6 +392,20 @@ int fsa4480_switch_event(struct device_node *node,
 
 	switch (event) {
 	case FSA_MIC_GND_SWAP:
+#ifdef OPLUS_ARCH_EXTENDS
+		if (fsa_priv->usbc_mode.counter !=
+		    POWER_SUPPLY_TYPEC_SINK_AUDIO_ADAPTER) {
+			regmap_read(fsa_priv->regmap, FSA4480_SWITCH_SETTINGS,
+				    &setting_reg_val);
+			regmap_read(fsa_priv->regmap, FSA4480_SWITCH_CONTROL,
+				    &control_reg_val);
+			pr_err("%s: error mode, reg[0x%x]=0x%x, reg[0x%x]=0x%x\n",
+			       __func__, FSA4480_SWITCH_SETTINGS,
+			       setting_reg_val, FSA4480_SWITCH_CONTROL,
+			       control_reg_val);
+			break;
+		}
+#endif /* OPLUS_ARCH_EXTENDS */
 		regmap_read(fsa_priv->regmap, FSA4480_SWITCH_CONTROL,
 				&switch_control);
 		if ((switch_control & 0x07) == 0x07)
@@ -313,10 +415,26 @@ int fsa4480_switch_event(struct device_node *node,
 		fsa4480_usbc_update_settings(fsa_priv, switch_control, 0x9F);
 		break;
 	case FSA_USBC_ORIENTATION_CC1:
+#ifndef OPLUS_ARCH_EXTENDS
 		fsa4480_usbc_update_settings(fsa_priv, 0x18, 0xF8);
+#else
+		if (oplus_dp_support) {
+			fsa4480_usbc_update_settings(fsa_priv, 0x18, 0xF8);
+		} else {
+			fsa4480_usbc_update_settings(fsa_priv, 0x78, 0xF8);
+		}
+#endif /* OPLUS_ARCH_EXTENDS */
 		return fsa4480_validate_display_port_settings(fsa_priv);
 	case FSA_USBC_ORIENTATION_CC2:
+#ifndef OPLUS_ARCH_EXTENDS
 		fsa4480_usbc_update_settings(fsa_priv, 0x78, 0xF8);
+#else
+		if (oplus_dp_support) {
+			fsa4480_usbc_update_settings(fsa_priv, 0x78, 0xF8);
+		} else {
+			fsa4480_usbc_update_settings(fsa_priv, 0x18, 0xF8);
+		}
+#endif /* OPLUS_ARCH_EXTENDS */
 		return fsa4480_validate_display_port_settings(fsa_priv);
 	case FSA_USBC_DISPLAYPORT_DISCONNECTED:
 		fsa4480_usbc_update_settings(fsa_priv, 0x18, 0x98);
