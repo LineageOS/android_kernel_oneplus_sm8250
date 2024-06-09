@@ -1356,4 +1356,8 @@ source "drivers/input/touchscreen/focaltech_touch/Kconfig"
 
 source "drivers/input/touchscreen/nt36xxx/Kconfig"
 
+#ifdef OPLUS_FEATURE_TP_BASIC
+source "drivers/input/touchscreen/oplus_touchscreen/Kconfig"
+#endif
+
 endif

@@ -275,4 +275,8 @@ config GENERIC_ARCH_TOPOLOGY
 	  appropriate scaling, sysfs interface for changing capacity values at
 	  runtime.
 
+#ifdef OPLUS_FEATURE_TP_BASIC
+source "drivers/base/kernelFwUpdate/Kconfig"
+#endif /*OPLUS_FEATURE_TP_BASIC*/
+
 endmenu
