@@ -1,0 +1,4 @@
+config TOUCHPANEL_SAMSUNG_S6SY791
+	bool "TP Samsung s6sy791 IC enable or not for OPLUS"
+	---help---
+	  say Y to enable driver for Touchpanel using Samsung s6sy791
