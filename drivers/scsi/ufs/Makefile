@@ -13,3 +13,7 @@ obj-$(CONFIG_DEBUG_FS) += ufs-debugfs.o ufs-qcom-debugfs.o
 obj-$(CONFIG_SCSI_UFS_HISI) += ufs-hisi.o
 ufshcd-core-$(CONFIG_SCSI_UFS_CRYPTO) += ufshcd-crypto.o
 ufshcd-core-$(CONFIG_SCSI_UFS_CRYPTO_QTI) += ufshcd-crypto-qti.o
+
+obj-$(CONFIG_UFSFEATURE) += ufsfeature.o
+obj-$(CONFIG_UFSHID) += ufshid.o
+obj-$(CONFIG_UFSTW) += ufstw.o
