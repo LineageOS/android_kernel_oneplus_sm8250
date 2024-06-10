@@ -1,31 +1,15 @@
 # SPDX-License-Identifier: GPL-2.0-only
 
+ifeq ($(OPLUS_FEATURE_CAMERA_COMMON), yes)
+
 # auto-detect subdirs
 ifeq ($(CONFIG_ARCH_KONA), y)
 include $(srctree)/techpack/camera-oplus/config/konacamera.conf
 endif
 
-ifeq ($(CONFIG_ARCH_LITO), y)
-include $(srctree)/techpack/camera-oplus/config/litocamera.conf
-endif
-
-ifeq ($(CONFIG_ARCH_BENGAL), y)
-include $(srctree)/techpack/camera-oplus/config/bengalcamera.conf
-endif
-
 ifeq ($(CONFIG_ARCH_KONA), y)
 LINUXINCLUDE    += \
 		-include $(srctree)/techpack/camera-oplus/config/konacameraconf.h
-endif
-
-ifeq ($(CONFIG_ARCH_LITO), y)
-LINUXINCLUDE    += \
-		-include $(srctree)/techpack/camera-oplus/config/litocameraconf.h
-endif
-
-ifeq ($(CONFIG_ARCH_BENGAL), y)
-LINUXINCLUDE    += \
-		-include $(srctree)/techpack/camera-oplus/config/bengalcameraconf.h
 endif
 
 ifdef CONFIG_SPECTRA_CAMERA
@@ -41,4 +25,6 @@ LINUXINCLUDE    += \
 obj-y += drivers/
 else
 $(info Target not found)
+endif
+
 endif
