@@ -3740,6 +3740,11 @@ void hdd_psoc_idle_timer_start(struct hdd_context *hdd_ctx);
  */
 void hdd_psoc_idle_timer_stop(struct hdd_context *hdd_ctx);
 
+#ifdef OPLUS_FEATURE_WIFI_DUALSTA_AP_BLACKLIST
+int hdd_driver_oplus_init(void);
+void hdd_driver_oplus_deinit(void);
+#endif /*OPLUS_FEATURE_WIFI_DUALSTA_AP_BLACKLIST*/
+
 /**
  * hdd_trigger_psoc_idle_restart() - trigger restart of a previously shutdown
  *                                   idle psoc, if needed
