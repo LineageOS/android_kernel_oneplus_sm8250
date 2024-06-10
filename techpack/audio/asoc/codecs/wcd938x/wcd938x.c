@@ -216,6 +216,11 @@ static int wcd938x_set_swr_clk_rate(struct snd_soc_component *component,
 
 static int wcd938x_init_reg(struct snd_soc_component *component)
 {
+#ifdef OPLUS_ARCH_EXTENDS
+	struct wcd938x_pdata *pdata = NULL;
+	int vout_ctl_2 = 0;
+#endif /* OPLUS_ARCH_EXTENDS */
+
 	snd_soc_component_update_bits(component, WCD938X_SLEEP_CTL, 0x0E, 0x0E);
 	snd_soc_component_update_bits(component, WCD938X_SLEEP_CTL, 0x80, 0x80);
 	/* 1 msec delay as per HW requirement */
@@ -276,6 +281,23 @@ static int wcd938x_init_reg(struct snd_soc_component *component)
 				WCD938X_DIGITAL_EFUSE_REG_30) & 0x07) << 1));
 	snd_soc_component_update_bits(component,
 				WCD938X_HPH_SURGE_HPHLR_SURGE_EN, 0xC0, 0xC0);
+
+#ifdef OPLUS_ARCH_EXTENDS
+	pdata = dev_get_platdata(component->dev);
+	if (!pdata) {
+		dev_err(component->dev, "%s: pdata pointer is NULL\n",
+			__func__);
+	} else {
+		vout_ctl_2 =
+			wcd938x_get_micb_vout_ctl_val(pdata->micbias.micb2_mv);
+		dev_info(component->dev, "%s: vout_ctl_2 %d, micb2_mv %d\n",
+			 __func__, vout_ctl_2, pdata->micbias.micb2_mv);
+		if (vout_ctl_2 > 0) {
+			snd_soc_component_update_bits(
+				component, WCD938X_ANA_MICB2, 0x3F, vout_ctl_2);
+		}
+	}
+#endif /* OPLUS_ARCH_EXTENDS */
 
 	return 0;
 }
