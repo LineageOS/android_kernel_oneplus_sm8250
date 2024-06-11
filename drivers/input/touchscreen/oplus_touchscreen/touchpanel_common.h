@@ -62,6 +62,7 @@
 #define FingerprintUp       15
 #define SingleTap           16
 #define Heart               17
+#define SGESTRUE            18  /* S new prj have not this type*/
 #define PENDETECT           18
 #define HEALTH_REPORT_GRIP          "grip_report"
 #define HEALTH_REPORT_BASELINE_ERR  "baseline_err"
