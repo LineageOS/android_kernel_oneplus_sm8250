@@ -188,7 +188,6 @@ static int32_t cam_mem_get_slot(void)
 		set_bit(idx, tbl.bitmap);
 		tbl.bufq[idx].active = true;
 		mutex_init(&tbl.bufq[idx].q_lock);
-		mutex_init(&tbl.bufq[idx].ref_lock);
 		mutex_unlock(&tbl.m_lock);
 		return idx;
 	}
@@ -202,13 +201,10 @@ static void cam_mem_put_slot(int32_t idx)
 	mutex_lock(&tbl.m_lock);
 	mutex_lock(&tbl.bufq[idx].q_lock);
 	tbl.bufq[idx].active = false;
+	kref_init(&tbl.bufq[idx].krefcount);
+	kref_init(&tbl.bufq[idx].urefcount);
 	mutex_unlock(&tbl.bufq[idx].q_lock);
-	mutex_lock(&tbl.bufq[idx].ref_lock);
-	memset(&tbl.bufq[idx].krefcount, 0, sizeof(struct kref));
-	memset(&tbl.bufq[idx].urefcount, 0, sizeof(struct kref));
-	mutex_unlock(&tbl.bufq[idx].ref_lock);
 	mutex_destroy(&tbl.bufq[idx].q_lock);
-	mutex_destroy(&tbl.bufq[idx].ref_lock);
 	clear_bit(idx, tbl.bitmap);
 	mutex_unlock(&tbl.m_lock);
 }
@@ -301,18 +297,15 @@ int cam_mem_get_cpu_buf(int32_t buf_handle, uintptr_t *vaddr_ptr, size_t *len)
 		return -EINVAL;
 	}
 
-	mutex_lock(&tbl.bufq[idx].ref_lock);
 	if (tbl.bufq[idx].kmdvaddr && kref_get_unless_zero(&tbl.bufq[idx].krefcount)) {
 		*vaddr_ptr = tbl.bufq[idx].kmdvaddr;
 		*len = tbl.bufq[idx].len;
 	} else {
-		mutex_unlock(&tbl.bufq[idx].ref_lock);
 		CAM_ERR(CAM_MEM,
 			"No KMD access request, vaddr= %p, idx= %d, handle= %d",
 			tbl.bufq[idx].kmdvaddr, idx, buf_handle);
 		return -EINVAL;
 	}
-	mutex_unlock(&tbl.bufq[idx].ref_lock);
 
 	return 0;
 }
@@ -971,13 +964,10 @@ static int cam_mem_mgr_cleanup_table(void)
 		tbl.bufq[i].num_hdl = 0;
 		tbl.bufq[i].dma_buf = NULL;
 		tbl.bufq[i].active = false;
+		kref_init(&tbl.bufq[i].krefcount);
+		kref_init(&tbl.bufq[i].urefcount);
 		mutex_unlock(&tbl.bufq[i].q_lock);
-		mutex_lock(&tbl.bufq[i].ref_lock);
-		memset(&tbl.bufq[i].krefcount, 0, sizeof(struct kref));
-		memset(&tbl.bufq[i].urefcount, 0, sizeof(struct kref));
-		mutex_unlock(&tbl.bufq[i].ref_lock);
 		mutex_destroy(&tbl.bufq[i].q_lock);
-		mutex_destroy(&tbl.bufq[i].ref_lock);
 	}
 
 	bitmap_zero(tbl.bitmap, tbl.bits);
@@ -1103,7 +1093,6 @@ static void cam_mem_util_unmap_wrapper(struct kref *kref)
 
 	cam_mem_util_unmap(idx);
 
-	mutex_destroy(&tbl.bufq[idx].ref_lock);
 }
 
 void cam_mem_put_cpu_buf(int32_t buf_handle)
@@ -1137,7 +1126,6 @@ void cam_mem_put_cpu_buf(int32_t buf_handle)
 		return;
 	}
 
-	mutex_lock(&tbl.bufq[idx].ref_lock);
 	kref_put(&tbl.bufq[idx].krefcount, cam_mem_util_unmap_dummy);
 
 	krefcount = kref_read(&tbl.bufq[idx].krefcount);
@@ -1155,10 +1143,7 @@ void cam_mem_put_cpu_buf(int32_t buf_handle)
 			"Unbalanced release Called buf_handle: %u, idx: %d",
 			tbl.bufq[idx].buf_handle, idx);
 	}
-	mutex_unlock(&tbl.bufq[idx].ref_lock);
 
-	if (unmap)
-		mutex_destroy(&tbl.bufq[idx].ref_lock);
 
 }
 EXPORT_SYMBOL(cam_mem_put_cpu_buf);
@@ -1202,7 +1187,6 @@ int cam_mem_mgr_release(struct cam_mem_mgr_release_cmd *cmd)
 
 	CAM_DBG(CAM_MEM, "Releasing hdl = %x, idx = %d", cmd->buf_handle, idx);
 
-	mutex_lock(&tbl.bufq[idx].ref_lock);
 	kref_put(&tbl.bufq[idx].urefcount, cam_mem_util_unmap_dummy);
 
 	urefcount = kref_read(&tbl.bufq[idx].urefcount);
@@ -1221,11 +1205,6 @@ int cam_mem_mgr_release(struct cam_mem_mgr_release_cmd *cmd)
 		CAM_DBG(CAM_MEM,
 			"Called unmap from here, buf_handle: %u, idx: %d", cmd->buf_handle, idx);
 	}
-
-	mutex_unlock(&tbl.bufq[idx].ref_lock);
-
-	if (unmap)
-		mutex_destroy(&tbl.bufq[idx].ref_lock);
 
 	return rc;
 }
