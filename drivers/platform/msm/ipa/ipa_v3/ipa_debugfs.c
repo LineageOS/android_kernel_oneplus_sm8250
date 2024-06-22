@@ -1271,8 +1271,7 @@ static ssize_t ipa3_read_stats(struct file *file, char __user *ubuf,
 		ipa3_ctx->stats.flow_disable,
 		ipa3_ctx->stats.rx_page_drop_cnt,
 		ipa3_ctx->stats.zero_len_frag_pkt_cnt,
-		ipa3_ctx->stats.lower_order
-		);
+		ipa3_ctx->stats.lower_order);
 	cnt += nbytes;
 
 	for (i = 0; i < IPAHAL_PKT_STATUS_EXCEPTION_MAX; i++) {
