@@ -1384,6 +1384,7 @@ struct ipa3_stats {
 	u32 zero_len_frag_pkt_cnt;
 	u64 lower_order;
 	struct ipa3_page_recycle_stats page_recycle_stats[2];
+	u64 lower_order;
 };
 
 /* offset for each stats */
