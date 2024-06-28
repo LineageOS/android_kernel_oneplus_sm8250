@@ -465,9 +465,7 @@ KBUILD_CPPFLAGS += -DVENDOR_EDIT
 CFLAGS_KERNEL +=   -DVENDOR_EDIT
 CFLAGS_MODULE +=   -DVENDOR_EDIT
 # endif
-ifeq ($(BRAND_SHOW_FLAG),oneplus)
 KBUILD_CFLAGS += -DOPLUS_CUSTOM_OP_DEF
-endif
 
 -include OplusKernelEnvConfig.mk
 
