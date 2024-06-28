@@ -459,9 +459,7 @@ KBUILD_LDFLAGS :=
 GCC_PLUGINS_CFLAGS :=
 CLANG_FLAGS :=
 
-ifeq ($(BRAND_SHOW_FLAG),oneplus)
 KBUILD_CFLAGS += -DOPLUS_CUSTOM_OP_DEF
-endif
 
 -include OplusKernelEnvConfig.mk
 
