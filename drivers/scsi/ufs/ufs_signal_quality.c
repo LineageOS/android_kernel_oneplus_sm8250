@@ -15,6 +15,7 @@
  ****************************************************************/
 #include <linux/bitops.h>
 #include "ufs_signal_quality.h"
+#include "ufs.h"
 #include "ufshci.h"
 
 static void recordTimeStamp(
