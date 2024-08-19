@@ -2559,15 +2559,13 @@ VL53L1_Error   VL53L1_run_hist_xtalk_extraction(
 	if (status != VL53L1_ERROR_NONE)
 		goto LOOPOUT;
 
-	//if (status == VL53L1_ERROR_NONE)
-		status = VL53L1_disable_xtalk_compensation(Dev);
+	status = VL53L1_disable_xtalk_compensation(Dev);
 	if (status != VL53L1_ERROR_NONE)
 		goto LOOPOUT;
 
 	smudge_corr_en = pdev->smudge_correct_config.smudge_corr_enabled;
 
-	//if (status == VL53L1_ERROR_NONE)
-		status = VL53L1_dynamic_xtalk_correction_disable(Dev);
+	status = VL53L1_dynamic_xtalk_correction_disable(Dev);
 	if (status != VL53L1_ERROR_NONE)
 		goto LOOPOUT;
 
@@ -2579,8 +2577,7 @@ VL53L1_Error   VL53L1_run_hist_xtalk_extraction(
 			&MergeEnabled);
 	memset(&pdev->xtalk_cal, 0,	sizeof(pdev->xtalk_cal));
 
-	//if (status == VL53L1_ERROR_NONE)
-		status = VL53L1_init_and_start_range(
+	status = VL53L1_init_and_start_range(
 			Dev, measurement_mode,
 			VL53L1_DEVICECONFIGLEVEL_CUSTOMER_ONWARDS);
 	if (status != VL53L1_ERROR_NONE)
@@ -2595,17 +2592,15 @@ VL53L1_Error   VL53L1_run_hist_xtalk_extraction(
 				VL53L1_TUNINGPARM_HIST_MERGE_MAX_SIZE,
 				k * MaxId + 1);
 		for (i = 0; i <= pX->num_of_samples; i++) {
-			//if (status == VL53L1_ERROR_NONE)
-				status = VL53L1_wait_for_range_completion(Dev);
-				if (status != VL53L1_ERROR_NONE)
-					goto LOOPOUT;
+			status = VL53L1_wait_for_range_completion(Dev);
+			if (status != VL53L1_ERROR_NONE)
+				goto LOOPOUT;
 
-			//if (status == VL53L1_ERROR_NONE)
-				status = VL53L1_get_device_results(Dev,
+			status = VL53L1_get_device_results(Dev,
 					VL53L1_DEVICERESULTSLEVEL_FULL,
 					prange_results);
-				if (status != VL53L1_ERROR_NONE)
-					goto LOOPOUT;
+			if (status != VL53L1_ERROR_NONE)
+				goto LOOPOUT;
 
 			Very1stRange =
 				(pdev->ll_state.rd_device_state ==
@@ -2631,21 +2626,16 @@ VL53L1_Error   VL53L1_run_hist_xtalk_extraction(
 					goto LOOPOUT;
 			}
 
-			//if (status == VL53L1_ERROR_NONE)
-				status = VL53L1_wait_for_firmware_ready(Dev);
+			status = VL53L1_wait_for_firmware_ready(Dev);
 			if (status != VL53L1_ERROR_NONE)
 				goto LOOPOUT;
 
-			//if (status == VL53L1_ERROR_NONE)
-				status =
-				VL53L1_clear_interrupt_and_enable_next_range(
+			status = VL53L1_clear_interrupt_and_enable_next_range(
 					Dev, measurement_mode);
 			if (status != VL53L1_ERROR_NONE)
 				goto LOOPOUT;
 
-			//if (status == VL53L1_ERROR_NONE)
-				status =
-				VL53L1_hist_xtalk_extract_fini(
+			status = VL53L1_hist_xtalk_extract_fini(
 					&(pdev->hist_data),
 					&(pdev->xtalk_extract),
 					&(pdev->xtalk_cal),

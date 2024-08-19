@@ -4614,16 +4614,14 @@ int dsi_panel_drv_init(struct dsi_panel *panel,
 		DSI_ERR("[%s] failed to request gpios, rc=%d\n", panel->name,
 		       rc);
 #if defined(OPLUS_FEATURE_PXLW_IRIS5)
-        if (iris_is_chip_supported()) {
-            if (!strcmp(panel->type, "primary"))
-                goto error_pinctrl_deinit;
-	        rc = 0;
-	    } else 
+		if (iris_is_chip_supported()) {
+			if (!strcmp(panel->type, "primary"))
+				goto error_pinctrl_deinit;
+			rc = 0;
+		} else 
 #endif
-		    goto error_pinctrl_deinit;
-	    
+		goto error_pinctrl_deinit;
 	}
-
 
 	rc = dsi_panel_bl_register(panel);
 	if (rc) {

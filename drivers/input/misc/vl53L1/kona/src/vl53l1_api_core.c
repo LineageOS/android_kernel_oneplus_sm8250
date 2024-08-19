@@ -456,77 +456,45 @@ VL53L1_Error VL53L1_data_init(
 
 
 	if (read_p2p_data > 0 && status == VL53L1_ERROR_NONE)
-
 		status = VL53L1_read_p2p_data(Dev);
 
-
-
-    if (status == VL53L1_ERROR_NONE)
-        status = VL53L1_init_refspadchar_config_struct(
+	if (status == VL53L1_ERROR_NONE)
+		status = VL53L1_init_refspadchar_config_struct(
 			&(pdev->refspadchar));
 
-
-
-    if (status == VL53L1_ERROR_NONE)
-        status = VL53L1_init_ssc_config_struct(
+	if (status == VL53L1_ERROR_NONE)
+		status = VL53L1_init_ssc_config_struct(
 			&(pdev->ssc_cfg));
 
-
-
-
-
-    if (status == VL53L1_ERROR_NONE)
-        status = VL53L1_init_xtalk_config_struct(
+	if (status == VL53L1_ERROR_NONE)
+		status = VL53L1_init_xtalk_config_struct(
 			&(pdev->customer),
 			&(pdev->xtalk_cfg));
 
-
-
-
-    if (status == VL53L1_ERROR_NONE)
-        status = VL53L1_init_xtalk_extract_config_struct(
+	if (status == VL53L1_ERROR_NONE)
+		status = VL53L1_init_xtalk_extract_config_struct(
 			&(pdev->xtalk_extract_cfg));
 
-
-
-
-    if (status == VL53L1_ERROR_NONE)
-        status = VL53L1_init_offset_cal_config_struct(
+	if (status == VL53L1_ERROR_NONE)
+		status = VL53L1_init_offset_cal_config_struct(
 		    &(pdev->offsetcal_cfg));
 
-
-
-
-    if (status == VL53L1_ERROR_NONE)
-        status = VL53L1_init_zone_cal_config_struct(
+	if (status == VL53L1_ERROR_NONE)
+		status = VL53L1_init_zone_cal_config_struct(
 			&(pdev->zonecal_cfg));
 
-
-
-    if (status == VL53L1_ERROR_NONE)
-        status = VL53L1_init_hist_post_process_config_struct(
+	if (status == VL53L1_ERROR_NONE)
+		status = VL53L1_init_hist_post_process_config_struct(
 			pdev->xtalk_cfg.global_crosstalk_compensation_enable,
 			&(pdev->histpostprocess));
 
-
-
-    if (status == VL53L1_ERROR_NONE)
-        status = VL53L1_init_hist_gen3_dmax_config_struct(
+	if (status == VL53L1_ERROR_NONE)
+		status = VL53L1_init_hist_gen3_dmax_config_struct(
 			&(pdev->dmax_cfg));
 
-
-
-
-
-    if (status == VL53L1_ERROR_NONE)
-        status = VL53L1_init_tuning_parm_storage_struct(
+	if (status == VL53L1_ERROR_NONE)
+		status = VL53L1_init_tuning_parm_storage_struct(
 			&(pdev->tuning_parms));
-
-
-
-
-
-
 
 	if (status == VL53L1_ERROR_NONE)
 		status = VL53L1_set_preset_mode(

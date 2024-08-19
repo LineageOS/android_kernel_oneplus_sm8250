@@ -227,9 +227,9 @@ void phx_set_boot_stage(const char *stage)
     if(!is_phoenix_boot_completed)
         phx_klog_bootstage(stage);
 
-	if (!strcmp(stage, ANDROID_SYSTEMSERVER_INIT_START)) {
-		is_system_server_init_start = 1;
-	}
+    if (!strcmp(stage, ANDROID_SYSTEMSERVER_INIT_START)) {
+        is_system_server_init_start = 1;
+    }
 
     if(!strcmp(stage, ANDROID_BOOT_COMPLETED))
         is_system_boot_completed = 1;

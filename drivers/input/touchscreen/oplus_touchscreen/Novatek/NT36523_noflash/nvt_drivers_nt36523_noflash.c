@@ -5371,21 +5371,21 @@ static void nvt_auto_test(struct seq_file *s, void *chip_data, struct nvt_testda
     else
         nvt_read_mdata(chip_info, chip_info->trim_id_table.mmap->DIFF_PIPE0_ADDR, cc_data, buf_len);
 
-        for (j = 0; j < rx_num; j++) {
-            for (i = 0; i < tx_num; i++) {
-                iArrayIndex = j * tx_num + i;
-                if((cc_data[iArrayIndex] > cc_data_P[iArrayIndex]) \
-                   || (cc_data[iArrayIndex] < cc_data_N[iArrayIndex])) {
-                    cc_result = NVT_MP_FAIL;
-                    cc_record[iArrayIndex] = 1;
-                    TPD_INFO("cc data Test failed at rawdata[%d][%d] = %d [%d,%d]\n", i, j, cc_data[iArrayIndex], cc_data_N[iArrayIndex], cc_data_P[iArrayIndex]);
-                    if (!err_cnt) {
-                        seq_printf(s, "cc data Test failed at rawdata[%d][%d] = %d [%d,%d]\n", i, j, cc_data[iArrayIndex], cc_data_N[iArrayIndex], cc_data_P[iArrayIndex]);
-                    }
-                    err_cnt++;
+    for (j = 0; j < rx_num; j++) {
+        for (i = 0; i < tx_num; i++) {
+            iArrayIndex = j * tx_num + i;
+            if((cc_data[iArrayIndex] > cc_data_P[iArrayIndex]) \
+               || (cc_data[iArrayIndex] < cc_data_N[iArrayIndex])) {
+                cc_result = NVT_MP_FAIL;
+                cc_record[iArrayIndex] = 1;
+                TPD_INFO("cc data Test failed at rawdata[%d][%d] = %d [%d,%d]\n", i, j, cc_data[iArrayIndex], cc_data_N[iArrayIndex], cc_data_P[iArrayIndex]);
+                if (!err_cnt) {
+                    seq_printf(s, "cc data Test failed at rawdata[%d][%d] = %d [%d,%d]\n", i, j, cc_data[iArrayIndex], cc_data_N[iArrayIndex], cc_data_P[iArrayIndex]);
                 }
+                err_cnt++;
             }
-	}
+        }
+    }
 #ifdef CONFIG_TOUCHPANEL_NT_PEN_SUPPORT
 	if (ts->pen_support) {
 		TPD_INFO("Pen Rawdata Test \n");
@@ -6833,14 +6833,14 @@ static int32_t __init nvt_driver_init(void)
     TPD_INFO("%s is called\n", __func__);
     if (!tp_judge_ic_match(TPD_DEVICE))
         return -1;
-	get_oem_verified_boot_state();
+    get_oem_verified_boot_state();
 
-	TPD_INFO("%s is called 1 \n", __func__);
+    TPD_INFO("%s is called 1 \n", __func__);
     if (spi_register_driver(&tp_spi_driver)!= 0) {
         TPD_INFO("unable to add spi driver.\n");
         return -1;
     }
-	TPD_INFO("%s is called 2 \n", __func__);
+    TPD_INFO("%s is called 2 \n", __func__);
     return 0;
 }
 
