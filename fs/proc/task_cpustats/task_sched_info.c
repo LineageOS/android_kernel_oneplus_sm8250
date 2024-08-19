@@ -388,7 +388,7 @@ static ssize_t proc_pids_set_write(struct file *file, const char __user *buf, si
 	}
 
 	getnstimeofday(&ts);
-	write_pid_time = ts.tv_sec * 1e6 + ts.tv_nsec / 1000 ;
+	write_pid_time = ts.tv_sec * 1000000 + ts.tv_nsec / 1000 ;
 
 	return count;
 }
@@ -527,7 +527,7 @@ static int proc_task_sched_info_enable_show(struct seq_file *m, void *v)
 		return -EFAULT;
 
 	getnstimeofday(&ts);
-	wall_time = ts.tv_sec * 1e6 + ts.tv_nsec / 1000 ;
+	wall_time = ts.tv_sec * 1000000 + ts.tv_nsec / 1000 ;
 
 	seq_printf(m, "%llu ", wall_time);
 
