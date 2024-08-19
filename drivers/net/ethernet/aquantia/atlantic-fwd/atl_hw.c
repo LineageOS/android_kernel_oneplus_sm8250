@@ -184,7 +184,7 @@ int atl_hw_reset(struct atl_hw *hw)
 			continue;
 
 		/* if (reg != 0xf1a7) */
-			break;
+		break;
 
 		/* if (host_load_done) */
 		/* 	continue; */

@@ -2474,7 +2474,8 @@ static long gpuobj_free_on_fence(struct kgsl_device_private *dev_priv,
 		return -EINVAL;
 	}
 
-	handle = kgsl_sync_fence_async_wait(event.fd, gpuobj_free_fence_func, entry);
+	handle = kgsl_sync_fence_async_wait(event.fd,
+		gpuobj_free_fence_func, entry, NULL);
 
 	if (IS_ERR(handle)) {
 		kgsl_mem_entry_unset_pend(entry);
