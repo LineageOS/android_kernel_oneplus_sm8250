@@ -1456,13 +1456,21 @@ static int move_data_block(struct inode *inode, block_t bidx,
 			goto up_out;
 		}
 	}
+
+	/* allocate block address */
 #ifdef CONFIG_OPLUS_FEATURE_OF2FS
-	 f2fs_allocate_data_block(fio.sbi, NULL, fio.old_blkaddr, &newaddr,
-					&sum, type, NULL, false, SEQ_NONE);
+	err = f2fs_allocate_data_block(fio.sbi, NULL, fio.old_blkaddr, &newaddr,
+				&sum, type, NULL, false, SEQ_NONE);
 #else
-	f2fs_allocate_data_block(fio.sbi, NULL, fio.old_blkaddr, &newaddr,
-					&sum, CURSEG_COLD_DATA, NULL, false);
+	err = f2fs_allocate_data_block(fio.sbi, NULL, fio.old_blkaddr, &newaddr,
+				&sum, CURSEG_COLD_DATA, NULL, false);
 #endif
+	if (err) {
+		f2fs_put_page(mpage, 1);
+		/* filesystem should shutdown, no need to recovery block */
+		goto up_out;
+	}
+
 	fio.encrypted_page = f2fs_pagecache_get_page(META_MAPPING(fio.sbi),
 				newaddr, FGP_LOCK | FGP_CREAT, GFP_NOFS);
 	if (!fio.encrypted_page) {
