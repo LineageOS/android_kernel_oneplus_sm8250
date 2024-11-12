@@ -12934,6 +12934,11 @@ static int smb5_batt_get_prop(struct power_supply *psy, enum power_supply_proper
 #endif
 	case POWER_SUPPLY_PROP_CHARGE_FULL:
 		rc = smblib_get_prop_from_bms(chg, POWER_SUPPLY_PROP_CHARGE_FULL, val);
+#ifdef OPLUS_FEATURE_CHG_BASIC
+		if (g_oplus_chip) {
+			val->intval = g_oplus_chip->batt_fcc * 1000;
+		}
+#endif
 		break;
 	case POWER_SUPPLY_PROP_FORCE_RECHARGE:
 		val->intval = 0;
