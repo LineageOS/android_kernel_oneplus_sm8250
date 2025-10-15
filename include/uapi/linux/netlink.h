@@ -37,10 +37,6 @@
 #define NETLINK_OPLUS_NF_HOOKS	32
 #endif /* OPLUS_FEATURE_WIFI_LUCKYMONEY */
 
-#ifdef OPLUS_FEATURE_HANS_FREEZE
-#define NETLINK_OPLUS_HANS       29      /* Socket for freezing solution*/
-#endif /*OPLUS_FEATURE_HANS_FREEZE*/
-
 //Add for apps network monitors
 #define NETLINK_OPLUS_APPS_MONITOR  35      /* Apps monitor NETLINK SOCK */
 //#endif /* VENDOR_EDIT */
