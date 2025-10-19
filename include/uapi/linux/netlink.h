@@ -45,10 +45,6 @@
 #define NETLINK_OPLUS_NWPOWERSTATE	36	/*OPLUS NW PowerState*/
 //#endif /* OPLUS_FEATURE_NWPOWER */
 
-//#ifdef OPLUS_FEATURE_DATA_EVAL
-#define NETLINK_OPLUS_KERNEL2USER  37      /* kernel data info to user space */
-//#endif /* OPLUS_FEATURE_DATA_EVAL */
-
 //#ifdef OPLUS_FEATURE_DHCP
 #define NETLINK_OPLUS_DHCP 38
 //#endif /* OPLUS_FEATURE_DHCP */

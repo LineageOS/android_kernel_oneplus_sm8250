@@ -100,10 +100,6 @@ ifneq ($(OPLUS_FEATURE_WIFI_LUCKYMONEY),)
 obj-y				+= oplus_nf_hooks/
 endif #/* OPLUS_FEATURE_WIFI_LUCKYMONEY */
 
-#ifdef OPLUS_FEATURE_DATA_EVAL
-obj-$(CONFIG_OPLUS_FEATURE_DATA_EVAL) += oplus_score/
-#endif /* OPLUS_FEATURE_DATA_EVAL */
-
 OPLUS_FEATURE_DHCP=1
 ifneq ($(OPLUS_FEATURE_DHCP),)
 obj-y				+= oplus_dhcp/
