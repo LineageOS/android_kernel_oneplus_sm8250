@@ -41,9 +41,6 @@
 #include <linux/compiler.h>
 #include <linux/gfp.h>
 #include <linux/module.h>
-//#ifdef OPLUS_FEATURE_DATA_EVAL
-#include <net/oplus/oplus_kernel2user.h>
-//#endif /* OPLUS_FEATURE_DATA_EVAL */
 #include <linux/static_key.h>
 
 #include <trace/events/tcp.h>
