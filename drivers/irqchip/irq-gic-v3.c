@@ -1,6 +1,5 @@
 /*
  * Copyright (C) 2013-2017 ARM Limited, All Rights Reserved.
- * Copyright (C) 2020 Oplus. All rights reserved.
  * Author: Marc Zyngier <marc.zyngier@arm.com>
  *
  * This program is free software; you can redistribute it and/or modify
@@ -45,10 +44,6 @@
 #include <linux/syscore_ops.h>
 
 #include "irq-gic-common.h"
-
-//#ifdef OPLUS_FEATURE_NWPOWER
-#include <net/oplus_nwpower.h>
-//#endif /* OPLUS_FEATURE_NWPOWER */
 
 struct redist_region {
 	void __iomem		*redist_base;

@@ -86,8 +86,3 @@ endif
 obj-$(CONFIG_QRTR)		+= qrtr/
 obj-$(CONFIG_NET_NCSI)		+= ncsi/
 obj-$(CONFIG_XDP_SOCKETS)	+= xdp/
-
-#ifdef OPLUS_FEATURE_NWPOWER
-obj-y				+= oplus_nwpower/
-#endif /* OPLUS_FEATURE_NWPOWER */
-
