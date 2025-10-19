@@ -32,12 +32,7 @@
 #define NETLINK_SOCKEV		23	/* Socket Administrative Events */
 #define NETLINK_INET_DIAG	NETLINK_SOCK_DIAG
 
-//Add for apps network monitors
-#define NETLINK_OPLUS_APPS_MONITOR  35      /* Apps monitor NETLINK SOCK */
-//#endif /* VENDOR_EDIT */
-
-//#define MAX_LINKS 40
-#define MAX_LINKS 44
+#define MAX_LINKS 32		
 
 struct sockaddr_nl {
 	__kernel_sa_family_t	nl_family;	/* AF_NETLINK	*/

@@ -6043,16 +6043,6 @@ static int tcp_rcv_synsent_state_process(struct sock *sk, struct sk_buff *skb,
 	struct tcp_fastopen_cookie foc = { .len = -1 };
 	int saved_clamp = tp->rx_opt.mss_clamp;
 	bool fastopen_fail;
-        #ifdef OPLUS_BUG_STABILITY
-        static int ts_error_count = 0;
-        int ts_error_threshold = sysctl_tcp_ts_control[0];
-
-        //when network change (frameworks set sysctl_tcp_ts_control[1] = 1), clear ts_error_count
-        if (sysctl_tcp_ts_control[1] == 1) {
-                ts_error_count = 0;
-                sysctl_tcp_ts_control[1] = 0;
-        }
-        #endif /* OPLUS_BUG_STABILITY */
 
 	tcp_parse_options(sock_net(sk), skb, &tp->rx_opt, 0, &foc);
 	if (tp->rx_opt.saw_tstamp && tp->rx_opt.rcv_tsecr)
@@ -6076,25 +6066,9 @@ static int tcp_rcv_synsent_state_process(struct sock *sk, struct sk_buff *skb,
 			     tcp_time_stamp(tp))) {
 			NET_INC_STATS(sock_net(sk),
 					LINUX_MIB_PAWSACTIVEREJECTED);
-                        #ifdef OPLUS_BUG_STABILITY
-			//if count > threshold, disable TCP Timestamps
-			if (ts_error_threshold > 0) {
-				ts_error_count++;
-				if (ts_error_count >= ts_error_threshold) {
-					sock_net(sk)->ipv4.sysctl_tcp_timestamps = 0;
-					ts_error_count = 0;
-				}
-			}
-			#endif /* OPLUS_BUG_STABILITY */
 			goto reset_and_undo;
 		}
-                #ifdef OPLUS_BUG_STABILITY
-                //if other connection's Timestamp is correct, the network environment may be OK
-                if (tp->rx_opt.saw_tstamp && tp->rx_opt.rcv_tsecr &&
-                    ts_error_threshold > 0 && ts_error_count > 0) {
-                    ts_error_count--;
-                }
-                #endif /* OPLUS_BUG_STABILITY */
+
 		/* Now ACK is acceptable.
 		 *
 		 * "If the RST bit is set
