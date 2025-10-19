@@ -91,10 +91,6 @@ obj-$(CONFIG_XDP_SOCKETS)	+= xdp/
 obj-y				+= oplus_nwpower/
 #endif /* OPLUS_FEATURE_NWPOWER */
 
-#ifdef OPLUS_FEATURE_IPV6_OPTIMIZE
-obj-y                   	+= oplus_ipv6/
-#endif /* OPLUS_FEATURE_IPV6_OPTIMIZE */
-
 OPLUS_FEATURE_DHCP=1
 ifneq ($(OPLUS_FEATURE_DHCP),)
 obj-y				+= oplus_dhcp/
