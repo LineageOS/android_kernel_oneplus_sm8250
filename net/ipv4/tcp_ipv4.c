@@ -92,10 +92,6 @@
 #include <net/oplus_nwpower.h>
 //#endif /* OPLUS_FEATURE_NWPOWER */
 
-#ifdef OPLUS_FEATURE_WIFI_ROUTERBOOST
-#include "net/oplus/oplus_router_boost.h"
-#endif /* OPLUS_FEATURE_WIFI_ROUTERBOOST */
-
 #ifdef CONFIG_TCP_MD5SIG
 static int tcp_v4_md5_hash_hdr(char *md5_hash, const struct tcp_md5sig_key *key,
 			       __be32 daddr, __be32 saddr, const struct tcphdr *th);
@@ -1794,13 +1790,6 @@ lookup:
 	//#ifdef OPLUS_FEATURE_NWPOWER
 	oplus_match_ipa_tcp_wakeup(OPLUS_TCP_TYPE_V4, sk);
 	//#endif /* OPLUS_FEATURE_NWPOWER */
-
-	#ifdef OPLUS_FEATURE_WIFI_ROUTERBOOST
-	if (oplus_router_boost_handler != NULL &&
-		oplus_router_boost_handler(sk, skb) < 0) {
-		goto discard_it;
-	}
-	#endif /* OPLUS_FEATURE_WIFI_ROUTERBOOST */
 
 process:
 	if (sk->sk_state == TCP_TIME_WAIT)
