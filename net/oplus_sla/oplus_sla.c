@@ -43,10 +43,6 @@
 #include <net/netfilter/ipv4/nf_conntrack_ipv4.h>
 #include <linux/netfilter_ipv4/ipt_REJECT.h>
 
-#ifdef OPLUS_FEATURE_WIFI_ROUTERBOOST
-#include <net/oplus/oplus_router_boost.h>
-#endif /* OPLUS_FEATURE_WIFI_ROUTERBOOST */
-
 #define MARK_MASK    0x0fff
 #define RETRAN_MASK  0xf000
 #define RTT_MASK     0xf000
@@ -376,9 +372,6 @@ enum{
 	SLA_LIMIT_SPEED_DISABLE = 0x40,
 	SLA_LIMIT_SPEED_FRONT_UID = 0x41,
 	SMART_BW_SET_PARAMS = 0x42,
-	#ifdef OPLUS_FEATURE_WIFI_ROUTERBOOST
-	SLA_NOTIFY_ROUTER_BOOST_DUPPKT_PARAMS = 0x43,
-	#endif /* OPLUS_FEATURE_WIFI_ROUTERBOOST */
 };
 
 
@@ -4854,11 +4847,6 @@ static int sla_netlink_rcv_msg(struct sk_buff *skb, struct nlmsghdr *nlh, struct
 	case SMART_BW_SET_PARAMS:
 		oplus_smart_bw_set_params(nlh);
 		break;
-	#ifdef OPLUS_FEATURE_WIFI_ROUTERBOOST
-	case SLA_NOTIFY_ROUTER_BOOST_DUPPKT_PARAMS:
-		oplus_router_boost_set_params(nlh);
-		break;
-	#endif /* OPLUS_FEATURE_WIFI_ROUTERBOOST */
 	default:
 		return -EINVAL;
 	}
