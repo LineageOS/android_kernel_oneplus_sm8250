@@ -91,8 +91,3 @@ obj-$(CONFIG_XDP_SOCKETS)	+= xdp/
 obj-y				+= oplus_nwpower/
 #endif /* OPLUS_FEATURE_NWPOWER */
 
-OPLUS_FEATURE_WIFI_CAP_CENTER=1
-ifneq ($(OPLUS_FEATURE_WIFI_CAP_CENTER),)
-obj-y				+= oplus_wificapcenter/
-endif #/* OPLUS_FEATURE_WIFI_CAP_CENTER */
-
