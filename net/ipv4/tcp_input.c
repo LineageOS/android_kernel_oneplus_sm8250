@@ -108,11 +108,6 @@ int sysctl_tcp_max_orphans __read_mostly = NR_FILE;
 #define TCP_REMNANT (TCP_FLAG_FIN|TCP_FLAG_URG|TCP_FLAG_SYN|TCP_FLAG_PSH)
 #define TCP_HP_BITS (~(TCP_RESERVED_BITS|TCP_FLAG_PSH))
 
-//#ifdef OPLUS_FEATURE_NWPOWER
-#include <net/oplus_nwpower.h>
-//#endif /* OPLUS_FEATURE_NWPOWER */
-
-
 #define REXMIT_NONE	0 /* no loss recovery to do */
 #define REXMIT_LOST	1 /* retransmit packets marked lost */
 #define REXMIT_NEW	2 /* FRTO-style transmit of unsent/new packets */
@@ -4976,11 +4971,6 @@ queue_and_out:
 
 	if (!after(TCP_SKB_CB(skb)->end_seq, tp->rcv_nxt)) {
 		/* A retransmit, 2nd most common case.  Force an immediate ack. */
-
-		//#ifdef OPLUS_FEATURE_NWPOWER
-		oplus_match_tcp_input_retrans(sk);
-		//#endif /* OPLUS_FEATURE_NWPOWER */
-
 		NET_INC_STATS(sock_net(sk), LINUX_MIB_DELAYEDACKLOST);
 		tcp_dsack_set(sk, TCP_SKB_CB(skb)->seq, TCP_SKB_CB(skb)->end_seq);
 
