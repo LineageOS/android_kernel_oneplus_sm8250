@@ -29,9 +29,6 @@ obj-$(CONFIG_OPLUS_FEATURE_QCOM_WATCHDOG)     += qcom_watchdog/
 #ifdef OPLUS_FEATURE_ACM
 obj-$(CONFIG_OPLUS_FEATURE_ACM)     += acm/
 #endif /* OPLUS_FEATURE_ACM */
-#ifdef OPLUS_FEATURE_THEIA
-obj-$(CONFIG_OPLUS_FEATURE_THEIA)     += theia/
-#endif /* OPLUS_FEATURE_THEIA */
 #ifdef OPLUS_FEATURE_MISC
 obj-y += misc/
 #endif /* OPLUS_FEATURE_MISC */
