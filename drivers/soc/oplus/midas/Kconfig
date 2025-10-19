@@ -6,11 +6,6 @@ bool "config oplus midas device feature"
 help
 	This selects midas device driver
 
-config OPLUS_FEATURE_BINDER_STATS_ENABLE
-bool "config oplus midas binder stats feature"
-help
-	This selects midas binder stats device driver
-
 config OPLUS_FEATURE_SET_ALL_VPU_LATENCY
 bool "config oplus midas vpu power off latency setting feature"
 help
