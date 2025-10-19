@@ -90,10 +90,6 @@ $(foreach myfeature,$(ALLOWED_MCROS),\
 # BSP team can do customzation by referring the feature variables
 
 
-ifeq ($(OPLUS_FEATURE_WIFI_LUCKYMONEY),yes)
-export OPLUS_FEATURE_WIFI_LUCKYMONEY=y
-endif
-
 ifeq ($(OPLUS_FEATURE_DHCP),yes)
 export OPLUS_FEATURE_DHCP=y
 endif
