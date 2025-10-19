@@ -90,9 +90,6 @@ obj-$(CONFIG_XDP_SOCKETS)	+= xdp/
 #ifdef OPLUS_FEATURE_NWPOWER
 obj-y				+= oplus_nwpower/
 #endif /* OPLUS_FEATURE_NWPOWER */
-#ifdef OPLUS_FEATURE_WIFI_SLA
-obj-y                   	+= oplus_connectivity_sla/
-#endif /* OPLUS_FEATURE_WIFI_SLA */
 
 #ifdef OPLUS_FEATURE_IPV6_OPTIMIZE
 obj-y                   	+= oplus_ipv6/
