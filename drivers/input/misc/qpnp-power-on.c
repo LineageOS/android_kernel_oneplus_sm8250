@@ -26,11 +26,6 @@
 #include <linux/regulator/machine.h>
 #include <linux/regulator/of_regulator.h>
 
-#ifdef OPLUS_FEATURE_THEIA
-#include <soc/oplus/system/oplus_bscheck.h>
-#include <soc/oplus/system/oplus_brightscreen_check.h>
-#endif
-
 #ifdef CONFIG_OPLUS_FEATURE_MISC
 #include <linux/syscalls.h>
 #include <linux/sched/debug.h>
@@ -1068,15 +1063,6 @@ static int qpnp_pon_input_dispatch(struct qpnp_pon *pon, u32 pon_type)
 	pr_err("keycode = %d,key_st = %d\n",cfg->key_code, key_status);
 	#endif
 	#endif /* OPLUS_FEATURE_QCOM_PMICWD */
-
-	#ifdef OPLUS_FEATURE_THEIA
-	pr_err("keycode = %d,key_st = %d  old_state= %d   %d \n",cfg->key_code, key_status,cfg->old_state ,KEY_POWER);
-	if(cfg->key_code == KEY_POWER && key_status == 1 && cfg->old_state == 0){
-		//we should canel per work
-		black_screen_timer_restart();
-		bright_screen_timer_restart();
-	}
-	#endif
 
 	input_report_key(pon->pon_input, cfg->key_code, key_status);
 	input_sync(pon->pon_input);

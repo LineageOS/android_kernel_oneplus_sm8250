@@ -36,10 +36,6 @@
 #define NETLINK_OPLUS_APPS_MONITOR  35      /* Apps monitor NETLINK SOCK */
 //#endif /* VENDOR_EDIT */
 
-//#ifdef OPLUS_FEATURE_THEIA
-//should match with oplus_theia/include/TheiaKeventThread.h define
-#define OPLUS_NETLINK_THEIA_KEVENT 43
-
 //#define MAX_LINKS 40
 #define MAX_LINKS 44
 
