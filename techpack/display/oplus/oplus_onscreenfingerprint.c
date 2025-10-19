@@ -20,6 +20,7 @@
 #ifdef OPLUS_FEATURE_ADFR
 #include "oplus_adfr.h"
 #endif
+#include "../../../drivers/input/oplus_fp_drivers/include/oplus_fp_common.h"
 #define DSI_PANEL_OPLUS_DUMMY_VENDOR_NAME  "PanelVendorDummy"
 #define DSI_PANEL_OPLUS_DUMMY_MANUFACTURE_NAME  "dummy1024"
 
@@ -47,6 +48,7 @@ atomic_t oplus_dimlayer_hbm_vblank_ref = ATOMIC_INIT(0);
 bool oplus_enhance_mipi_strength = false;
 extern struct oplus_apollo_backlight_list *p_apollo_backlight;
 extern unsigned int is_project(int project);
+extern int opticalfp_irq_handler(struct fp_underscreen_info *fp_tpinfo);
 
 static struct oplus_brightness_alpha brightness_alpha_lut[] = {
 	{0, 0xff},
@@ -980,6 +982,11 @@ int oplus_display_panel_notify_fp_press(void *data)
 		return 0;
 
 	pr_info("hidl notify fingerpress %s\n", onscreenfp_status ? "on" : "off");
+	if (onscreenfp_status == 0) {
+		struct fp_underscreen_info fp_tpinfo;
+		memset(&fp_tpinfo, 0, sizeof(fp_tpinfo));
+		opticalfp_irq_handler(&fp_tpinfo);
+	}
 
 	vblank_get = drm_crtc_vblank_get(dsi_connector->state->crtc);
 	if (vblank_get) {
