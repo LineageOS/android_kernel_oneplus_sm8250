@@ -40,17 +40,12 @@
 #define NETLINK_OPLUS_NWPOWERSTATE	36	/*OPLUS NW PowerState*/
 //#endif /* OPLUS_FEATURE_NWPOWER */
 
-//#ifdef OPLUS_FEATURE_WIFI_CAPCENTER
-#define NETLINK_OPLUS_WIFI_CAP_CENTER_SYNC 39
-#define NETLINK_OPLUS_WIFI_CAP_CENTER_ASYNC 40
-
 //#ifdef OPLUS_FEATURE_THEIA
 //should match with oplus_theia/include/TheiaKeventThread.h define
 #define OPLUS_NETLINK_THEIA_KEVENT 43
 
 //#define MAX_LINKS 40
 #define MAX_LINKS 44
-//#endif /* OPLUS_FEATURE_WIFI_CAPCENTER */
 
 struct sockaddr_nl {
 	__kernel_sa_family_t	nl_family;	/* AF_NETLINK	*/

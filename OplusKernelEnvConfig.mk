@@ -87,10 +87,6 @@ $(foreach myfeature,$(ALLOWED_MCROS),\
 # BSP team can do customzation by referring the feature variables
 
 
-ifeq ($(OPLUS_FEATURE_WIFI_CAP_CENTER),yes)
-export OPLUS_FEATURE_WIFI_CAP_CENTER=y
-endif
-
 ifeq ($(OPLUS_FEATURE_UFS_SHOW_LATENCY),yes)
 export OPLUS_FEATURE_UFS_SHOW_LATENCY=y
 endif
