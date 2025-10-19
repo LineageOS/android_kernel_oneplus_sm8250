@@ -37,10 +37,6 @@ obj-y						+= oplus/sensor/
 obj-$(CONFIG_OPLUS_FEATURE_SENSOR_CRASH_MONITOR)	+= oplus/oplus_slpirst/
 #endif
 
-#ifdef OPLUS_FEATURE_POWERINFO_STANDBY
-obj-$(CONFIG_OPLUS_WAKELOCK_PROFILER) += oplus/owakelock/
-#endif /* OPLUS_FEATURE_POWERINFO_STANDBY */
-
 #ifdef OPLUS_FEATURE_ESIM
 obj-y += oplus/misc/
 #endif /* OPLUS_FEATURE_ESIM */
