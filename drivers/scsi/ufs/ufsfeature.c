@@ -249,6 +249,9 @@ static int ufsf_read_dev_desc(struct ufsf_feature *ufsf, u8 selector)
 	ufstw_get_dev_info(ufsf, desc_buf);
 #endif
 
+#if defined(CONFIG_UFSHID)
+	ufshid_get_dev_info(ufsf, desc_buf);
+#endif
 	return 0;
 }
 
@@ -609,6 +612,12 @@ inline void ufsf_reset_host(struct ufsf_feature *ufsf)
 	if (ufstw_get_state(ufsf) == TW_PRESENT)
 		ufstw_reset_host(ufsf);
 #endif
+#if defined(CONFIG_UFSHID)
+	INFO_MSG("run reset_host.. hid_state(%d) -> HID_RESET",
+		 ufshid_get_state(ufsf));
+	if (ufshid_get_state(ufsf) == HID_PRESENT)
+		ufshid_reset_host(ufsf);
+#endif
 }
 
 inline void ufsf_init(struct ufsf_feature *ufsf)
@@ -616,6 +625,10 @@ inline void ufsf_init(struct ufsf_feature *ufsf)
 #if defined(CONFIG_UFSTW)
 	if (ufstw_get_state(ufsf) == TW_NEED_INIT)
 		ufstw_init(ufsf);
+#endif
+#if defined(CONFIG_UFSHID)
+	if (ufshid_get_state(ufsf) == HID_NEED_INIT)
+		ufshid_init(ufsf);
 #endif
 }
 
@@ -629,6 +642,10 @@ inline void ufsf_reset(struct ufsf_feature *ufsf)
 		ufstw_reset(ufsf, false);
 	}
 #endif
+#if defined(CONFIG_UFSHID)
+	if (ufshid_get_state(ufsf) == HID_RESET)
+		ufshid_reset(ufsf);
+#endif
 }
 
 inline void ufsf_remove(struct ufsf_feature *ufsf)
@@ -636,6 +653,10 @@ inline void ufsf_remove(struct ufsf_feature *ufsf)
 #if defined(CONFIG_UFSTW)
 	if (ufstw_get_state(ufsf) == TW_PRESENT)
 		ufstw_remove(ufsf);
+#endif
+#if defined(CONFIG_UFSHID)
+	if (ufshid_get_state(ufsf) == HID_PRESENT)
+		ufshid_remove(ufsf);
 #endif
 }
 
@@ -645,6 +666,9 @@ inline void ufsf_set_init_state(struct ufsf_feature *ufsf)
 	ufsf->issue_read10_debug = false;
 #if defined(CONFIG_UFSW)
 	ufstw_set_state(ufsf, TW_NEED_INIT);
+#endif
+#if defined(CONFIG_UFSHID)
+	ufshid_set_state(ufsf, HID_NEED_INIT);
 #endif
 }
 
@@ -656,7 +680,14 @@ inline void ufsf_resume(struct ufsf_feature *ufsf)
 #endif
 }
 
-inline void ufsf_on_idle(struct ufsf_feature *ufsf, bool scsi_req) {}
+inline void ufsf_on_idle(struct ufsf_feature *ufsf, bool scsi_req)
+{
+#if defined(CONFIG_UFSHID)
+	if (ufshid_get_state(ufsf) == HID_PRESENT &&
+	    !ufsf->hba->outstanding_reqs && scsi_req)
+		ufshid_on_idle(ufsf);
+#endif
+}
 
 /*
  * Wrapper functions for ufshpb.

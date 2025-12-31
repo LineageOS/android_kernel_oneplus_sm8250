@@ -56,6 +56,10 @@ enum attr_idn {
 #if defined(CONFIG_UFSFEATURE)
 	QUERY_ATTR_IDN_SUP_VENDOR_OPTIONS       = 0xFF,
 #endif
+#if defined(CONFIG_UFSHID)
+	QUERY_ATTR_IDN_HID_OPERATION            = 0x20,
+	QUERY_ATTR_IDN_HID_FRAG_LEVEL           = 0x21,
+#endif
 #endif
 };
 

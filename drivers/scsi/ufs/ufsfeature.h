@@ -45,7 +45,6 @@
 
 #include "ufs.h"
 
-#include "ufshpb.h"
 #include "ufstw.h"
 #include <linux/proc_fs.h>
 #include "ufshid.h"
@@ -138,6 +137,10 @@ struct ufsf_feature {
 	struct ufstw_dev_info tw_dev_info;
 	struct ufstw_lu *tw_lup[UFS_UPIU_MAX_GENERAL_LUN];
 	atomic_t tw_state;
+#endif
+#if defined(CONFIG_UFSHID)
+	atomic_t hid_state;
+	struct ufshid_dev *hid_dev;
 #endif
 };
 

@@ -614,7 +614,6 @@ static void msm_restart_prepare(const char *cmd)
 		} else if (!strncmp(cmd, "novib", 5)) {
 			qpnp_pon_set_restart_reason(
 				PON_RESTART_REASON_REBOOT_NO_VIBRATION);
-		}
 #endif
 		} else {
 #ifdef OPLUS_BUG_STABILITY

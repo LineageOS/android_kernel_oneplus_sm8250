@@ -223,6 +223,9 @@ enum device_desc_param {
 	DEVICE_DESC_PARAM_WB_US_RED_EN		= 0x53,
 	DEVICE_DESC_PARAM_WB_TYPE		= 0x54,
 	DEVICE_DESC_PARAM_WB_SHARED_ALLOC_UNITS = 0x55,
+#if defined(CONFIG_UFSHID)
+	DEVICE_DESC_PARAM_HID_VER               = 0x59,
+#endif
 };
 
 /* Interconnect descriptor parameters offsets in bytes*/
