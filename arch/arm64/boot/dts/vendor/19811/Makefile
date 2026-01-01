@@ -5,7 +5,7 @@ ifeq ($(CONFIG_BUILD_ARM64_DT_OVERLAY),y)
     kona-mtp-overlay.dtbo-base := kona.dtb kona-v2.dtb kona-v2.1.dtb
 
 else
-    dtb-$(CONFIG_ARCH_LITO) += kona-mtp.dtb
+    dtb-$(CONFIG_ARCH_KONA) += kona-mtp.dtb
 endif
 
 always		:= $(dtb-y)
