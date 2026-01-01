@@ -47,11 +47,6 @@ static  int chg_olc_raise_exception(unsigned int excep_chgye, void *summary, uns
 	return 0;
 }
 
-static  int chg_olc_raise_exception(unsigned int excep_chgye, void *summary, unsigned int summary_size)
-{
-	return 0;
-}
-
 static int chg_olc_battery_log_raise_exception(void)
 {
 	return 0;
