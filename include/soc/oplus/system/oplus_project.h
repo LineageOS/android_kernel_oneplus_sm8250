@@ -37,11 +37,7 @@ struct pcb_match {
 unsigned int get_cdt_version(void);
 unsigned int get_eng_version(void);
 unsigned int is_new_cdt(void);
-#ifdef CONFIG_OPLUS_SYSTEM_KERNEL_QCOM
 unsigned int get_serialID(void);
-#else
-void get_serialID(char *serialno);
-#endif
 
 //cdt interface for Q or R
 unsigned int get_project(void);

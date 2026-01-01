@@ -15,8 +15,6 @@
 ### ------------------------------------------------------------------------------
 ##################################################################################
 
--include oplus_native_features.mk
-
 ALLOWED_MACROS := \
 OPLUS_ARCH_EXTENDS \
 OPLUS_ARCH_INJECT \
@@ -46,7 +44,6 @@ OPLUS_FEATURE_UFSPLUS \
 OPLUS_FEATURE_UFS_DRIVER \
 OPLUS_FEATURE_WIFI_BDF \
 OPLUS_FEATURE_WIFI_DUALSTA_AP_BLACKLIST \
-OPLUS_FEATURE_WIFI_OPLUSWFD \
 VENDOR_EDIT
 
 $(foreach myfeature,$(ALLOWED_MACROS),\
@@ -55,3 +52,8 @@ $(foreach myfeature,$(ALLOWED_MACROS),\
          $(eval CFLAGS_KERNEL += -D$(myfeature)) \
          $(eval CFLAGS_MODULE += -D$(myfeature)) \
 )
+
+export OPLUS_FEATURE_ADFR_KERNEL=yes
+export OPLUS_FEATURE_CAMERA_COMMON=yes
+export OPLUS_FEATURE_PXLW_IRIS5=yes
+export OPLUS_FEATURE_UFSPLUS=yes

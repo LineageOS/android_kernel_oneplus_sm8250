@@ -1261,7 +1261,7 @@ static void oplus_vooc_fastchg_func(struct work_struct *work)
 	static bool normalchg_disabled = false;
 	int abnormal_dis_cnt = 0;
 	char buf[1] = { 0 };
-	static need_upload = true;
+	static bool need_upload = true;
 	/*
 	if (!g_adapter_chip) {
 		chg_err(" g_adapter_chip NULL\n");

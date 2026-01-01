@@ -1,3 +1,5 @@
+subdir-ccflags-y += -I$(srctree)/$(src)
+
 obj-y      += op_wlchg/
 
 obj-y      += charger_ic/

@@ -675,7 +675,7 @@ inline void ufsf_set_init_state(struct ufsf_feature *ufsf)
 inline void ufsf_resume(struct ufsf_feature *ufsf)
 {
 #if defined(CONFIG_UFSTW)
-	if (ufstw_get_state(ufsf) == HPB_RESET)
+	if (ufstw_get_state(ufsf) == TW_RESET)
 		ufstw_reset(ufsf, true);
 #endif
 }
