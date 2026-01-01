@@ -10,6 +10,9 @@
 #include "dsi_hw.h"
 #include "dsi_phy_hw.h"
 #include "dsi_catalog.h"
+#ifdef OPLUS_BUG_STABILITY
+#include "dsi_display.h"
+#endif
 
 #define DSIPHY_CMN_REVISION_ID0						0x000
 #define DSIPHY_CMN_REVISION_ID1						0x004
@@ -363,6 +366,9 @@ static void dsi_phy_hw_dphy_enable(struct dsi_phy_hw *phy,
 	u32 glbl_rescode_top_ctrl = 0;
 	u32 glbl_rescode_bot_ctrl = 0;
 	u32 cmn_lane_ctrl0 = 0;
+#ifdef OPLUS_BUG_STABILITY
+	struct dsi_display *display = get_main_display();
+#endif
 
 	/* Alter PHY configurations if data rate less than 1.5GHZ*/
 	if (cfg->bit_clk_rate_hz <= 1500000000)
