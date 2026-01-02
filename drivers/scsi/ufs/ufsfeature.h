@@ -45,10 +45,16 @@
 
 #include "ufs.h"
 
+#if defined(CONFIG_UFSHPB)
 #include "ufshpb.h"
+#endif
+#if defined(CONFIG_UFSTW)
 #include "ufstw.h"
+#endif
 #include <linux/proc_fs.h>
+#if defined(CONFIG_UFSHID)
 #include "ufshid.h"
+#endif
 
 /* Constant value*/
 #define SECTOR 512
