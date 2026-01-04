@@ -20,9 +20,7 @@ enum {
 };
 
 extern int get_boot_mode(void);
-#if IS_ENABLED(CONFIG_OPLUS_SYSTEM_KERNEL_QCOM)
 extern bool op_is_monitorable_boot(void);
-#endif
 extern int phx_get_normal_mode(void);
 extern bool phx_is_userdebug(void);
 extern int phx_is_long_time(void);

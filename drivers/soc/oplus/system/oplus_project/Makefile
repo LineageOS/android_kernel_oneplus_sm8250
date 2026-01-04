@@ -5,8 +5,6 @@ ifeq ($(CONFIG_KASAN),y)
 subdir-ccflags-y += -Wno-format
 endif
 #endif /*OPLUS_BUG_STABILITY*/
-ifdef CONFIG_OPLUS_SYSTEM_KERNEL_QCOM
 ifeq ($(CONFIG_OPLUS_FEATURE_OPROJECT), y)
 obj-$(CONFIG_OPLUS_FEATURE_OPROJECT) 	+= qcom/oplus_project.o
-endif
 endif
