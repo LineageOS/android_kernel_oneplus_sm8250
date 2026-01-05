@@ -911,8 +911,7 @@ static struct file_operations sensor_list_fops = {
 };
 #endif
 
-//#ifdef CONFIG_FB
-#if defined(CONFIG_DRM_MSM)
+#if defined(CONFIG_DRM_MSM) || defined(CONFIG_DRM_OPLUS_NOTIFY)
 static int sensor_fb_notifier(struct notifier_block *nb, unsigned long event,
 			      void *data)
 {
@@ -985,8 +984,7 @@ static int sensor_fb_notifier(struct notifier_block *nb, unsigned long event,
 	}
 	return 0;
 }
-#endif /* CONFIG_DRM_MSM */
-//#endif /* CONFIG_FB */
+#endif /* CONFIG_DRM_MSM || CONFIG_DRM_OPLUS_NOTIFY */
 
 static int create_sensor_node(struct sensor_fb_cxt *sensor_fb_cxt)
 {
@@ -1031,7 +1029,7 @@ static int sensor_sleep_ratio_init(struct sensor_fb_cxt *sensor_fb_cxt)
 
 	pr_err("sensor_sleep_ratio_init,err=%d\n", err);
 	subsystem_desc_init(sensor_fb_cxt->subsystem_desc);
-#if defined(CONFIG_DRM_MSM)
+#if defined(CONFIG_DRM_MSM) || defined(CONFIG_DRM_OPLUS_NOTIFY)
 	sensor_fb_cxt->fb_notif.notifier_call = sensor_fb_notifier;
 	err = msm_drm_register_client(&sensor_fb_cxt->fb_notif);
 	if (err) {
