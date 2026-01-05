@@ -15,9 +15,9 @@
 	oplus,dtsi_no = <20809>;
 	oplus,pcb_range = <0  56>;
 
-	/*we can add project id to this array,uefi can auto read it,if new project,we add to this array */
+	/* we can add project id to this array, uefi can auto read it, if new project, we add to this array */
 	oem,project-id = <20809>;
 	oem,project-codename = "kebabt";
-    oem,hw-id = <11 12 13 14 15 21 22 23 51 52 53 54 55>;
+	oem,hw-id = <11 12 13 14 15 21 22 23 51 52 53 54 55>;
 };
 

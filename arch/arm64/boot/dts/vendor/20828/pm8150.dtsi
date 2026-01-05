@@ -27,10 +27,8 @@
 			qcom,kpdpwr-sw-debounce;
 			qcom,system-reset;
 			qcom,store-hard-reset-reason;
-			//#ifdef OPLUS_FEATURE_QCOM_PMICWD
-			qcom,pmicwd;
-			//#endif /* OPLUS_FEATURE_QCOM_PMICWD */
-			power_key: qcom,pon_1 {
+
+			qcom,pon_1 {
 				qcom,pon-type = <PON_POWER_ON_TYPE_KPDPWR>;
 				linux,code = <KEY_POWER>;
 				qcom,pull-up;

@@ -15,10 +15,10 @@
 		#size-cells = <1>;
 		ranges;
 
-		interrupts-extended = <&pdc 14 IRQ_TYPE_EDGE_BOTH>,
+		interrupts-extended = <&pdc 14 IRQ_TYPE_EDGE_RISING>,
 			     <&intc GIC_SPI 130 IRQ_TYPE_LEVEL_HIGH>,
 			     <&pdc 17 IRQ_TYPE_LEVEL_HIGH>,
-			     <&pdc 15 IRQ_TYPE_EDGE_BOTH>;
+			     <&pdc 15 IRQ_TYPE_EDGE_RISING>;
 		interrupt-names = "dp_hs_phy_irq", "pwr_event_irq",
 				"ss_phy_irq", "dm_hs_phy_irq";
 		qcom,use-pdc-interrupts;
@@ -93,7 +93,12 @@
 			snps,usb3-u1u2-disable;
 			usb-core-id = <0>;
 			tx-fifo-resize;
-			maximum-speed = "super-speed-plus";
+			/*#ifdef OPLUS_FEATURE_CHG_BASIC*/
+			/* Modify for otg usb storage */
+			maximum-speed = "super-speed";
+			/*#else*/
+			/*maximum-speed = "super-speed-plus";*/
+			/*#endif*/
 			dr_mode = "drd";
 		};
 
