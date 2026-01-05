@@ -169,4 +169,6 @@ ifeq ($(OPLUS_FEATURE_ADFR_KERNEL),yes)
 msm_drm-$(CONFIG_DRM_OPLUS) += ../oplus/oplus_adfr.o
 endif #/* OPLUS_FEATURE_ADFR_KERNEL */
 
+msm_drm-$(CONFIG_DRM_OPLUS_NOTIFY) += ../oplus/oplus_notify.o
+
 obj-$(CONFIG_DRM_FBDEV_EMULATION) += msm_fbdev.o

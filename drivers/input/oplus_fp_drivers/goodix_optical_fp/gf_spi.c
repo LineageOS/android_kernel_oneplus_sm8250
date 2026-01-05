@@ -41,7 +41,7 @@
 #elif defined(USE_PLATFORM_BUS)
 #include <linux/platform_device.h>
 #endif
-#ifdef CONFIG_DRM_MSM
+#if defined(CONFIG_DRM_MSM) || defined(CONFIG_DRM_OPLUS_NOTIFY)
 #include <linux/msm_drm_notify.h>
 #endif
 #include <soc/oplus/system/boot_mode.h>
@@ -839,7 +839,7 @@ static int gf_probe(struct platform_device *pdev)
 #endif
 
 	gf_dev->notifier = goodix_noti_block;
-#if defined(CONFIG_DRM_MSM)
+#if defined(CONFIG_DRM_MSM) || defined(CONFIG_DRM_OPLUS_NOTIFY)
 	status = msm_drm_register_client(&gf_dev->notifier);
 	if (status == -1) {
 		return status;
