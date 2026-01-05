@@ -183,9 +183,6 @@
 	fsa4480: fsa4480@42 {
 		compatible = "qcom,fsa4480-i2c";
 		reg = <0x42>;
-		//pinctrl-names = "default";
-		//pinctrl-0 = <&fsa_hs_det>;
-		//fsa4480,hs-det-gpio = <&tlmm 11 0x00>;
 	};
 	/* #endif OPLUS_ARCH_EXTENDS */
 	/* #ifdef OPLUS_ARCH_EXTENDS */
@@ -211,21 +208,3 @@
         };
 	/* #endif OPLUS_ARCH_EXTENDS */
 };
-
-/* #ifdef OPLUS_ARCH_EXTENDS */
-/*&tlmm {
-	fsa_hs_det: fsa_hs_det  {
-		mux {
-			pins = "gpio11";
-			function = "gpio";
-		};
-
-		config {
-			pins = "gpio11";
-			drive-strength = <2>;
-			bias-disable;
-			output-high;
-		};
-	};
-};*/
-/* #endif OPLUS_ARCH_EXTENDS */

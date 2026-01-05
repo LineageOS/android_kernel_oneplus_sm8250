@@ -124,13 +124,6 @@
 };
 
 &soc {
-	//#ifdef OPLUS_FEATURE_CONNFCSOFT
-	nfc_chipset {
-		compatible = "oplus-nfc-chipset";
-		chipset-19855 = "SN100T";
-	};
-	//#endif /* OPLUS_FEATURE_CONNFCSOFT */
-
 	gpio_keys {
 		compatible = "gpio-keys";
 		label = "gpio-keys";
@@ -179,7 +172,7 @@
 		compatible = "oplus,fp_common";
 		oplus,fp_gpio_num = <1>; /* the gpio number of fingerprint id used */
 		oplus,fp_gpio_0 = <&tlmm 77 0x0>;
-                pinctrl-names = "default";
+		pinctrl-names = "default";
 		pinctrl-0 = <&gpio_id2_default>;
 		goodix_optical_G5 {
 			oplus,fp-id = <1>; /* fp id mapping table */
@@ -200,8 +193,6 @@
 		interrupt-parent = <&tlmm>;
 		interrupts = <23 0>;
 		power-mode = <2> ; /*please refer to the struct fp_power_mode_t in oplus_fp_commmon.n ,0: power mode not set, 1: ldo power, 2: gpio power, 3: auto power */
-		//ldo-supply = <&pm8150_l16>;
-		//ldo-config = <3300000 3300000 150000>;
 		goodix,gpio_irq = <&tlmm 23 0x1>;
 		goodix,gpio_reset = <&tlmm 68 0x0>;
 		goodix,goodix_pwr = <&tlmm 125 0x0>;
@@ -259,7 +250,7 @@
 			aboard-patterns = <3 3 3 4 4 4 6>;
 
 			/*main board*/
-			match-projects = <19063 19065 19361 19063 19065 19361 19065 19855>;
+			match-projects = <19855>;
 
 			/*rf type*/
 			rf_match_support;
@@ -274,18 +265,6 @@
 			hw-names = "Standard", "Pro";
 		};
 	};
-
-	//#ifdef OPLUS_FEATURE_TP_BASIC
-	/*oplus_rf_cable {
-		compatible = "oplus,rf_cable";
-		interrupt-parent = <&tlmm>;
-		rf_cable_support_num = <1>;
-		rf,cable0-gpio = <&tlmm 84 0>;
-		rf,cable-support-timer = <0>;
-		pinctrl-names = "rf_cable_active";
-		pinctrl-0 = <&rf_cable0_active>;
-	};*/
-	//#endif /* OPLUS_FEATURE_TP_BASIC */
 };
 /*&qupv3_se13_i2c {
 	#address-cells = <1>;
@@ -422,8 +401,6 @@
 
 	kona_mtp_batterydata: qcom,battery-data {
 		qcom,batt-id-range-pct = <15>;
-		#include "fg-gen4-batterydata-alium-3600mah.dtsi"
-		#include "fg-gen4-batterydata-ascent-3450mah.dtsi"
 	};
 
 	extcon_usb1: extcon_usb1 {
@@ -500,6 +477,7 @@
 		label = "usb_in_v_div_16";
 		qcom,pre-scaling = <1 16>;
 	};
+//#ifdef OPLUS_FEATURE_CHG_BASIC
 	usb_temp_adc {
 		reg = <ADC_AMUX_THM4_PU1>;/* 0x30*/
 		label = "usb_temp_adc";
@@ -514,7 +492,7 @@
 		qcom,ratiometric;
 		qcom,pre-scaling = <1 1>;
 	};
-
+//#endif
 };
 
 //#ifdef OPLUS_FEATURE_CHG_BASIC//Qingjun.Wang@BSP.Haptic,add 2020/03/17 for vib aw8697
@@ -548,7 +526,7 @@
 		      <&pm8150b_vadc ADC_SBUx>,
 		      <&pm8150b_vadc ADC_VPH_PWR>,
 		      <&pm8150b_vadc ADC_CHG_TEMP>,
-  		      <&pm8150b_vadc ADC_USB_IN_V_16>,
+		      <&pm8150b_vadc ADC_USB_IN_V_16>,
 		      <&pm8150b_vadc ADC_AMUX_THM4_PU1>,
 		      <&pm8150b_vadc ADC_GPIO4_PU1>;
 //#else
@@ -563,7 +541,7 @@
 			   "usb_temp_adc",
 			   "usb_supplementary_temp_adc";
 //#else
-			//"chg_temp";
+			   ///"chg_temp";
 //#endif
 	qcom,battery-data = <&kona_mtp_batterydata>;
 	//qcom,step-charging-enable;
@@ -715,7 +693,7 @@
 	#size-cells = <0>;
 
 	io-channels = <&pm8150b_vadc ADC_AMUX_THM3_PU2>,
-	                <&pm8150b_vadc ADC_AMUX_THM1_PU2>;
+			<&pm8150b_vadc ADC_AMUX_THM1_PU2>;
 
 	conn_therm@4f {
 		reg = <ADC_AMUX_THM3_PU2>;
@@ -1048,12 +1026,12 @@
 };
 
 &wil6210 {
-	status = "ok";
+	status = "disabled";
 };
 
 //#ifdef OPLUS_FEATURE_CHG_BASIC
 &pm8150b_gpios {
-      gpio7_adc {
+    gpio7_adc {
         gpio7_adc_default: gpio7_adc_default {
         pins = "gpio7"; /* GPIO 7 */
         function = "normal"; /* normal */
@@ -1154,28 +1132,6 @@
 	};
 };
 
-/*
-&qupv3_se5_i2c {
-	status = "okay";
-	qcom,clk-freq-out = <400000>;
-	qcom,noise-rjct-scl = <3>;
-	qcom,noise-rjct-sda = <3>;
-
-	mp2650-charger@5c {
-		status = "okay";
-		compatible = "oplus,mp2650-charger";
-		reg = <0x5c 0>;
-
-		qcom,mps_otg_en-gpio = <&pm8150_gpios 3 0x00>;
-		pinctrl-names = "mps_otg_en_active", "mps_otg_en_sleep", "mps_otg_en_default";
-		pinctrl-0 = <&mps_otg_en_active>;
-		pinctrl-1 = <&mps_otg_en_sleep>;
-		pinctrl-2 = <&mps_otg_en_default>;
-
-	};
-};
-*/
-
 &qupv3_se16_i2c {
 	status = "okay";
 	qcom,clk-freq-out = <100000>;
@@ -1195,9 +1151,9 @@
 		compatible = "oplus,bq27541-battery";
 		reg = <0x55>;
 		qcom,modify-soc-smooth;
-		qcom,modify-soc-calibration;
 		//qcom,batt_bq28z610;
 		//qcom,bq28z610_need_balancing;
+		qcom,modify-soc-calibration;
 	};
 
 	stm8s_fastcg@26{
@@ -1247,7 +1203,6 @@
 		qcom,vooc_strategy2_high2_current = <0x03>;
 		qcom,vooc_strategy2_high3_current = <0x02>;
 
-
 		pinctrl-names = "switch1_act_switch2_act", "switch1_sleep_switch2_sleep",
 						"switch1_act_switch3_act", "switch1_sleep_switch3_sleep",
 						"switch1_act_switch2_sleep", "switch1_sleep_switch2_act",
@@ -1255,17 +1210,17 @@
 						"data_active","data_sleep",
 						"reset_active","reset_sleep";
 		pinctrl-0 = <&charging_switch1_active>;
-		pinctrl-1 = <&charging_switch1_sleep >;
+		pinctrl-1 = <&charging_switch1_sleep>;
 		pinctrl-2 = <&charging_switch1_active>;
-		pinctrl-3 = <&charging_switch1_sleep >;
+		pinctrl-3 = <&charging_switch1_sleep>;
 		pinctrl-4 = <&charging_switch1_active>;
 		pinctrl-5 = <&charging_switch1_sleep>;
-		pinctrl-6 = <&charging_clock_active >;
-		pinctrl-7 = <&charging_clock_sleep >;
-		pinctrl-8 = <&charging_data_active >;
-		pinctrl-9 = <&charging_data_sleep >;
-		pinctrl-10 = <&charging_reset_active >;
-		pinctrl-11 = <&charging_reset_sleep >;
+		pinctrl-6 = <&charging_clock_active>;
+		pinctrl-7 = <&charging_clock_sleep>;
+		pinctrl-8 = <&charging_data_active>;
+		pinctrl-9 = <&charging_data_sleep>;
+		pinctrl-10 = <&charging_reset_active>;
+		pinctrl-11 = <&charging_reset_sleep>;
 
 		qcom,charging_switch1-gpio = <&tlmm 82 0x00>;
 		//qcom,charging_switch2-gpio = <&tlmm 113 0x00>;

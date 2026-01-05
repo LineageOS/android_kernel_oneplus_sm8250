@@ -1,10 +1,10 @@
 #include <dt-bindings/gpio/gpio.h>
 #include <dt-bindings/pinctrl/qcom,pmic-gpio.h>
 
-#include "pm8150.dtsi"
-#include "pm8150b.dtsi"
-#include "pm8150l.dtsi"
-#include "pm8009.dtsi"
+#include "../qcom/pm8150.dtsi"
+#include "../qcom/pm8150b.dtsi"
+#include "../qcom/pm8150l.dtsi"
+#include "../qcom/pm8009.dtsi"
 
 &spmi_bus {
 	#address-cells = <2>;
@@ -44,6 +44,28 @@
 		};
 	};
 
+	imu_clkin {
+		imu_clkin_default: imu_clkin_default {
+			pins = "gpio3";
+			function = "func1";
+			output-low;
+			power-source = <0>;
+			bias-disable;
+			qcom,dtest-buffer = <1>;
+			qcom,drive-strength = <1>;
+		};
+
+		imu_clkin_sleep: imu_clkin_sleep {
+			pins = "gpio3";
+			function = "func1";
+			input-enable;
+			bias-pull-down;
+			power-source = <0>;
+			qcom,dtest-buffer = <1>;
+			qcom,drive-strength = <1>;
+		};
+	};
+
 	key_vol_up {
 		key_vol_up_default: key_vol_up_default {
 			pins = "gpio6";
@@ -53,7 +75,7 @@
 			power-source = <1>;
 		};
 	};
-	//#ifdef OPLUS_FEATURE_TP_BASIC
+
 	key_vol_down {
 		key_vol_down_default: key_vol_down_default {
 			pins = "gpio7";
@@ -63,7 +85,6 @@
 			power-source = <1>;
 		};
 	};
-	//#endif
 
 	key_confirm {
 		key_confirm_default: key_confirm_default {

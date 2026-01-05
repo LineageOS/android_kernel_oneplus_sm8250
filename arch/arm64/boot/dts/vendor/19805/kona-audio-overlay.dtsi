@@ -2,8 +2,8 @@
 #include <dt-bindings/sound/qcom,bolero-clk-rsc.h>
 #include <dt-bindings/sound/audio-codec-port-types.h>
 #include <dt-bindings/interrupt-controller/arm-gic.h>
-#include "kona-lpi.dtsi"
-#include "kona-va-bolero.dtsi"
+#include "../qcom/kona-lpi.dtsi"
+#include "../qcom/kona-va-bolero.dtsi"
 
 &bolero {
 	qcom,num-macros = <4>;
@@ -203,9 +203,7 @@
 		qcom,cdc-vdd-mic-bias-current = <30000>;
 
 		qcom,cdc-micbias1-mv = <1800>;
-		/* #ifdef OPLUS_ARCH_EXTENDS */
 		qcom,cdc-micbias2-mv = <2700>;
-		/* #endif OPLUS_ARCH_EXTENDS */
 		qcom,cdc-micbias3-mv = <1800>;
 		qcom,cdc-micbias4-mv = <1800>;
 
@@ -213,53 +211,33 @@
 					   "cdc-vddio",
 					   "cdc-vdd-buck",
 					   "cdc-vdd-mic-bias";
-		/* #ifdef OPLUS_FEATURE_IMPEDANCE_MATCH */
 		oplus,mbhc_enable_hp_impedance_detect = <1>;
-		/* #endif OPLUS_FEATURE_IMPEDANCE_MATCH */
 	};
 
 };
 
 &kona_snd {
 	qcom,model = "kona-mtp-snd-card";
-	/* #ifndef OPLUS_ARCH_EXTENDS */
-	/*
-	qcom,msm-mi2s-master = <1>, <1>, <1>, <1>, <1>, <1>;
-	*/
 	qcom,msm-mi2s-master = <0>, <1>, <1>, <1>, <1>, <1>;
 	qcom,msm-mi2s-ext-mclk = <1>, <0>, <0>, <0>, <0>, <0>;
-	/* #endif OPLUS_ARCH_EXTENDS */
 	qcom,wcn-bt = <1>;
 	qcom,ext-disp-audio-rx = <1>;
+	qcom,afe-rxtx-lb = <1>;
 	qcom,audio-routing =
-		/* #ifdef OPLUS_ARCH_EXTENDS */
-		//"AMIC1", "MIC BIAS1",
-		//"MIC BIAS1", "Analog Mic1",
 		"AMIC2", "MIC BIAS2",
 		"MIC BIAS2", "Analog Mic2",
-		//"AMIC3", "MIC BIAS3",
-		//"MIC BIAS3", "Analog Mic3",
-		//"AMIC4", "MIC BIAS3",
-		//"MIC BIAS3", "Analog Mic4",
-		//"AMIC5", "MIC BIAS4",
-		//"MIC BIAS4", "Analog Mic5",
-		//"TX DMIC0", "MIC BIAS3",
 		"TX DMIC0", "MIC BIAS1",
 		"MIC BIAS1", "Digital Mic0",
 		"TX DMIC1", "MIC BIAS1",
 		"MIC BIAS1", "Digital Mic1",
-		//"TX DMIC2", "MIC BIAS1",
 		"TX DMIC2", "MIC BIAS4",
 		"MIC BIAS4", "Digital Mic2",
-		//"TX DMIC3", "MIC BIAS1",
 		"TX DMIC3", "MIC BIAS3",
 		"MIC BIAS3", "Digital Mic3",
-		/* #endif OPLUS_ARCH_EXTENDS */
 		"TX DMIC4", "MIC BIAS4",
 		"MIC BIAS4", "Digital Mic4",
 		"TX DMIC5", "MIC BIAS4",
 		"MIC BIAS4", "Digital Mic5",
-		//#ifdef OPLUS_ARCH_EXTENDS
 		//main mic, bias1
 		"DMIC1", "MIC BIAS1",
 		"MIC BIAS1", "Digital Mic0",
@@ -275,7 +253,6 @@
 		"MIC BIAS4", "Digital Mic4",
 		"DMIC6", "MIC BIAS4",
 		"MIC BIAS4", "Digital Mic5",
-		//#endif /* OPLUS_ARCH_EXTENDS */
 		"IN1_HPHL", "HPHL_OUT",
 		"IN2_HPHR", "HPHR_OUT",
 		"IN3_AUX", "AUX_OUT",
@@ -344,15 +321,10 @@
 	qcom,cdc-dmic01-gpios = <&cdc_dmic01_gpios>;
 	qcom,cdc-dmic23-gpios = <&cdc_dmic23_gpios>;
 	qcom,cdc-dmic45-gpios = <&cdc_dmic45_gpios>;
-
-	/* #ifdef OPLUS_ARCH_EXTENDS */
 	qcom,tert-mi2s-gpios = <&cdc_tert_mi2s_gpios>;
-	/* #endif OPLUS_ARCH_EXTENDS */
 	asoc-codec  = <&stub_codec>, <&bolero>, <&ext_disp_audio_codec>;
 	asoc-codec-names = "msm-stub-codec.1", "bolero_codec",
 			   "msm-ext-disp-audio-codec-rx";
-
-	/* #ifdef OPLUS_ARCH_EXTENDS */
 	qcom,msm-mbhc-hs-mic-max-threshold-mv = <2600>;
 	qcom,msm-mbhc-hs-mic-min-threshold-mv = <75>;
 	oplus,mbhc-check-cross-conn = <0>;
@@ -360,11 +332,7 @@
 	oplus,mbhc-check-irq-en = <1>;
 	oplus,mbhc-headset-bias-alwayon = <1>;
 	oplus,mbhc-use-usbc-detect = <1>;
-	/* #endif OPLUS_ARCH_EXTENDS */
-
-	/* #ifdef OPLUS_ARCH_EXTENDS */
 	qcom,wsa-max-devs = <0>;
-	/* #endif OPLUS_ARCH_EXTENDS */
 	qcom,wsa-devs = <&wsa881x_0211>, <&wsa881x_0212>,
 			<&wsa881x_0213>, <&wsa881x_0214>;
 	qcom,wsa-aux-dev-prefix = "SpkrLeft", "SpkrRight",
@@ -398,7 +366,6 @@
 		pinctrl-0 = <&cdc_dmic45_clk_active &cdc_dmic45_data_active>;
 		pinctrl-1 = <&cdc_dmic45_clk_sleep &cdc_dmic45_data_sleep>;
 		qcom,lpi-gpios;
-		//qcom,tlmm-gpio = <158>;
 	};
 
 	wsa_swr_gpios: wsa_swr_clk_data_pinctrl {
@@ -432,19 +399,15 @@
 };
 
 &soc {
-	/* #ifdef OPLUS_ARCH_EXTENDS */
 	cdc_tert_mi2s_gpios: msm_cdc_pinctrl_tert{
 		compatible = "qcom,msm-cdc-pinctrl";
 		pinctrl-names = "aud_active", "aud_sleep";
 		pinctrl-0 = <&tert_mi2s_sck_active &tert_mi2s_ws_active &tert_mi2s_sd0_active &tert_mi2s_sd1_active>;
 		pinctrl-1 = <&tert_mi2s_sck_sleep &tert_mi2s_ws_sleep &tert_mi2s_sd0_sleep &tert_mi2s_sd1_sleep>;
 	};
-	/* #endif OPLUS_ARCH_EXTENDS */
 
 	wsa_spkr_en1: wsa_spkr_en1_pinctrl {
-		//#ifdef OPLUS_ARCH_EXTENDS
 		status = "disabled";
-		//#endif /* OPLUS_ARCH_EXTENDS  */
 		compatible = "qcom,msm-cdc-pinctrl";
 		pinctrl-names = "aud_active", "aud_sleep";
 		pinctrl-0 = <&spkr_1_sd_n_active>;
@@ -452,9 +415,7 @@
 	};
 
 	wsa_spkr_en2: wsa_spkr_en2_pinctrl {
-		//#ifdef OPLUS_ARCH_EXTENDS
 		status = "disabled";
-		//#endif /* OPLUS_ARCH_EXTENDS  */
 		compatible = "qcom,msm-cdc-pinctrl";
 		pinctrl-names = "aud_active", "aud_sleep";
 		pinctrl-0 = <&spkr_2_sd_n_active>;
@@ -533,6 +494,28 @@
 	};
 };
 
-/* #ifdef OPLUS_ARCH_EXTENDS */
 #include "oplus-audio-extend.dtsi"
-/* #endif OPLUS_ARCH_EXTENDS */
+
+&qupv3_se15_i2c {
+	tfa98xx@34 {
+		compatible = "nxp,tfa98xx";
+		reg = <0x34>;
+		tfa9874_vdd-supply = <&pm8150_s4>;
+		reset-gpio = <&tlmm 91 0x00>;
+		tfa_min_range = <5000>;
+		tfa_max_range = <8000>;
+		tfa_channel = <0>;
+		status = "ok";
+	};
+
+	tfa98xx@35 {
+		compatible = "nxp,tfa98xx";
+		reg = <0x35>;
+		tfa9874_vdd-supply = <&pm8150_s4>;
+		reset-gpio = <&tlmm 99 0x00>;
+		tfa_min_range = <5000>;
+		tfa_max_range = <8000>;
+		tfa_channel = <1>;
+		status = "ok";
+	};
+};

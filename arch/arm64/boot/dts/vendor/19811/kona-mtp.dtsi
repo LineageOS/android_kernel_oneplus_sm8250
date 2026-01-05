@@ -124,14 +124,6 @@
 };
 
 &soc {
-	//#ifdef OPLUS_FEATURE_CONNFCSOFT
-	nfc_chipset {
-		compatible = "oplus-nfc-chipset";
-		chipset-20828 = "SN100T";
-                chipset-19811 = "SN100T";
-	};
-	//#endif /* OPLUS_FEATURE_CONNFCSOFT */
-
 	gpio_keys {
 		compatible = "gpio-keys";
 		label = "gpio-keys";
@@ -180,7 +172,7 @@
 		compatible = "oplus,fp_common";
 		oplus,fp_gpio_num = <1>; /* the gpio number of fingerprint id used */
 		oplus,fp_gpio_0 = <&tlmm 77 0x0>;
-                pinctrl-names = "default";
+		pinctrl-names = "default";
 		pinctrl-0 = <&gpio_id2_default>;
 		goodix_optical_G5 {
 			oplus,fp-id = <1>; /* fp id mapping table */
@@ -229,10 +221,6 @@
 	devinfo {
 		compatible = "oplus-devinfo";
 
-		//pinctrl-names = "active", "sleep";
-		//pinctrl-0 = <&hw_id_active>;
-		//pinctrl-1 = <&hw_id_sleep>;
-
 		io-channels= <&pm8150l_vadc ADC_GPIO1>;
 		io-channel-names= "vph_pwr_voltage_sub";
 
@@ -254,7 +242,7 @@
 			aboard-patterns = <3 3 3 4 4 4 6>;
 
 			/*main board*/
-			match-projects = <19063 19065 19361 19063 19065 19361 19065 19805 19811>;
+			match-projects = <19811>;
 
 			/*rf type*/
 			rf_match_support;
@@ -264,32 +252,17 @@
 		device_0 {
 			compatible = "hw, devices";
 			label = "distribution";
-			//hw-id0 = <&pm8150_gpios 1 0>;
 			hw-combs = <1 0>;
 			hw-names = "Standard", "Pro";
 		};
 	};
 
-	//#ifdef OPLUS_FEATURE_TP_BASIC
-	/*oplus_rf_cable {
-		compatible = "oplus,rf_cable";
-		interrupt-parent = <&tlmm>;
-		rf_cable_support_num = <1>;
-		rf,cable0-gpio = <&tlmm 84 0>;
-		rf,cable-support-timer = <0>;
-		pinctrl-names = "rf_cable_active";
-		pinctrl-0 = <&rf_cable0_active>;
-	};*/
-	//#endif /* OPLUS_FEATURE_TP_BASIC */
 	//#ifdef OPLUS_BUG_DEBUG
 	oplus_sim_detect {
 		compatible = "oplus, sim_detect";
 		Hw,sim_det = "modem_det";
 	};
 	//#endif /* OPLUS_BUG_DEBUG */
-	feedback_fb {
-		compatible = "oplus,haptic-feedback";
-	};
 };
 /*&qupv3_se13_i2c {
 	#address-cells = <1>;
@@ -505,8 +478,6 @@
 
 	kona_mtp_batterydata: qcom,battery-data {
 		qcom,batt-id-range-pct = <15>;
-		#include "fg-gen4-batterydata-alium-3600mah.dtsi"
-		#include "fg-gen4-batterydata-ascent-3450mah.dtsi"
 	};
 
 	extcon_usb1: extcon_usb1 {
@@ -583,6 +554,7 @@
 		label = "usb_in_v_div_16";
 		qcom,pre-scaling = <1 16>;
 	};
+//#ifdef OPLUS_FEATURE_CHG_BASIC
 	usb_temp_adc {
 		reg = <ADC_AMUX_THM4_PU1>;/* 0x30*/
 		label = "usb_temp_adc";
@@ -597,7 +569,7 @@
 		qcom,ratiometric;
 		qcom,pre-scaling = <1 1>;
 	};
-
+//#endif
 };
 
 //#ifdef OPLUS_FEATURE_CHG_BASIC//Qingjun.Wang@BSP.Haptic,add 2020/03/17 for vib aw8697
@@ -647,7 +619,6 @@
 			   ///"chg_temp",
 //#endif
 			   "skin_therm";
-
 	qcom,battery-data = <&kona_mtp_batterydata>;
 	//qcom,step-charging-enable;
 	//qcom,sw-jeita-enable;
@@ -1131,7 +1102,7 @@
 };
 
 &wil6210 {
-	status = "ok";
+	status = "disabled";
 };
 
 //#ifdef OPLUS_FEATURE_CHG_BASIC
@@ -1259,28 +1230,6 @@
 		power-source = <0>;	/* 1.8V input supply */
 	};
 };
-
-
-/*&qupv3_se5_i2c {
-	status = "okay";
-	qcom,clk-freq-out = <400000>;
-	qcom,noise-rjct-scl = <3>;
-	qcom,noise-rjct-sda = <3>;
-
-	mp2650-charger@5c {
-		status = "okay";
-		compatible = "oplus,mp2650-charger";
-		reg = <0x5c 0>;
-
-		qcom,mps_otg_en-gpio = <&pm8150_gpios 3 0x00>;
-		pinctrl-names = "mps_otg_en_active", "mps_otg_en_sleep", "mps_otg_en_default";
-		pinctrl-0 = <&mps_otg_en_active>;
-		pinctrl-1 = <&mps_otg_en_sleep>;
-		pinctrl-2 = <&mps_otg_en_default>;
-
-	};
-};*/
-
 
 &qupv3_se16_i2c {
 	status = "okay";
@@ -1657,11 +1606,7 @@
 		track,wired_fast_chg_scheme = <1>;
 	};
 };
-/*
-&vendor {
-	/delete-node/ extcon_usb1;
-};
-*/
+
 &qupv3_se5_i2c {
 	status = "ok";
 	qcom,clk-freq-out = <400000>;

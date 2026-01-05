@@ -60,7 +60,7 @@
 			qcom,supply-post-on-sleep = <0>;
 		};
 	};
-       //#endif
+
 	dsi_panel_pwr_supply_lab_ibb: dsi_panel_pwr_supply_lab_ibb {
 		#address-cells = <1>;
 		#size-cells = <0>;
@@ -125,15 +125,8 @@
 		regulator-min-microvolt = <5500000>;
 		regulator-max-microvolt = <5500000>;
 		regulator-enable-ramp-delay = <233>;
-		//#ifndef OPLUS_FEATURE_CHG_BASIC//huangtongfeng@ProDrv.CHG,add 2019/06/21 for vib aw8697
-		//gpio = <&tlmm 61 0>;
-		//#endif
 		enable-active-high;
 		regulator-boot-on;
-		//#ifndef OPLUS_FEATURE_CHG_BASIC//huangtongfeng@ProDrv.CHG,add 2019/06/21 for vib aw8697
-		//pinctrl-names = "default";
-		//pinctrl-0 = <&display_panel_avdd_default>;
-		//#endif
 	};
 
 	sde_dsi: qcom,dsi-display-primary {
@@ -165,10 +158,6 @@
 			 <&mdss_dsi1_pll SHADOW_CPHY_PCLK_SRC_1_CLK>,
 			 <&clock_rpmh RPMH_LN_BB_CLK2>;
 
-			 /* #if defined(CONFIG_PXLW_IRIS5) */
-			 /*TODO: <&rpmhcc RPMH_LN_BB_CLK2>;*/
-			 /* #endif */
-
 		clock-names = "mux_byte_clk0", "mux_pixel_clk0",
 				"src_byte_clk0", "src_pixel_clk0",
 				"cphy_byte_clk0", "cphy_pixel_clk0",
@@ -180,15 +169,10 @@
 				"shadow_byte_clk1", "shadow_pixel_clk1",
 				"shadow_cphybyte_clk1", "shadow_cphypixel_clk1",
 				"pw_bb_clk2";
-				/* #if defined(CONFIG_PXLW_IRIS5) */
-				/*TODO: "ln_bb_clk2"*/
-				/* #endif */
 
 		pinctrl-names = "panel_active", "panel_suspend";
-		/* #if defined(CONFIG_PXLW_IRIS5) */
 		pinctrl-0 = <&sde_dsi_active &panel_vout_active &sde_te_active>;
 		pinctrl-1 = <&sde_dsi_suspend &panel_vout_suspend &sde_te_suspend>;
-		/* #endif */
 
 		qcom,platform-te-gpio = <&tlmm 66 0>;
 		qcom,panel-te-source = <0>;
@@ -200,7 +184,6 @@
 
 		qcom,mdp = <&mdss_mdp>;
 		qcom,dsi-default-panel = <&dsi_oplus20828samsung_amb655x_1080_2400_cmd>;
-		//#endif
 	};
 
 	sde_wb: qcom,wb-display@0 {
@@ -208,11 +191,11 @@
 		cell-index = <0>;
 		label = "wb_display";
 	};
+
 	msm_notifier: qcom,msm_notifier@0 {
 		compatible = "qcom,msm-notifier";
 		panel = <&dsi_oplus20828samsung_amb655x_1080_2400_cmd>;
 	};
-        //#endif
 };
 
 &sde_dp {
@@ -232,5 +215,5 @@
 };
 
 &dsi_oplus20828samsung_amb655x_1080_2400_cmd {
-        pxlw,soft-iris-enable;
+	pxlw,soft-iris-enable;
 };

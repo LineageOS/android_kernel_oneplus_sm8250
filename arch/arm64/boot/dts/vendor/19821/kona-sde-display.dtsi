@@ -209,6 +209,7 @@
 		cell-index = <0>;
 		label = "wb_display";
 	};
+
 	msm_notifier: qcom,msm_notifier@0 {
 		compatible = "qcom,msm-notifier";
 		panel = <&dsi_oplus19101samsung_amb655uv01_1080_2400_cmd>;
