@@ -910,7 +910,7 @@ struct touchpanel_data {
 #if defined(TPD_USE_EINT)
 	struct hrtimer timer; /*using polling instead of IRQ*/
 #endif
-#if defined(CONFIG_FB) || defined(CONFIG_DRM_MSM)
+#if defined(CONFIG_FB) || defined(CONFIG_DRM_MSM) || defined(CONFIG_DRM_OPLUS_NOTIFY)
 	struct notifier_block fb_notif; /*register to control suspend/resume*/
 #endif
 	struct touchpanel_snr snr; /*snr data*/
