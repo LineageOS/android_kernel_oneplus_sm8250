@@ -40,7 +40,7 @@
 #include <linux/notifier.h>
 #endif
 
-#ifdef CONFIG_DRM_MSM
+#if defined(CONFIG_DRM_MSM) || defined(CONFIG_DRM_OPLUS_NOTIFY)
 #include <linux/msm_drm_notify.h>
 #endif
 
@@ -106,7 +106,7 @@ void esd_handle_switch(struct esd_information *esd_info, bool flag);
 static irqreturn_t tp_irq_thread_fn(int irq, void *dev_id);
 #endif
 
-#if defined(CONFIG_FB) || defined(CONFIG_DRM_MSM)
+#if defined(CONFIG_FB) || defined(CONFIG_DRM_MSM) || defined(CONFIG_DRM_OPLUS_NOTIFY)
 static int fb_notifier_callback(struct notifier_block *self,
 				unsigned long event, void *data);
 #endif
@@ -8752,7 +8752,7 @@ int register_common_touch_device(struct touchpanel_data *pdata)
 	}
 
 	//step14 : suspend && resume fuction register
-#if defined(CONFIG_DRM_MSM)
+#if defined(CONFIG_DRM_MSM) || defined(CONFIG_DRM_OPLUS_NOTIFY)
 	ts->fb_notif.notifier_call = fb_notifier_callback;
 	ret = msm_drm_register_client(&ts->fb_notif);
 	if (ret) {
@@ -9531,13 +9531,13 @@ static void speedup_resume(struct work_struct *work)
 	complete(&ts->pm_complete);
 }
 
-#if defined(CONFIG_FB) || defined(CONFIG_DRM_MSM)
+#if defined(CONFIG_FB) || defined(CONFIG_DRM_MSM) || defined(CONFIG_DRM_OPLUS_NOTIFY)
 static int fb_notifier_callback(struct notifier_block *self,
 				unsigned long event, void *data)
 {
 	int *blank;
 	int timed_out = -1;
-#ifdef CONFIG_DRM_MSM
+#if defined(CONFIG_DRM_MSM) || defined(CONFIG_DRM_OPLUS_NOTIFY)
 	struct msm_drm_notifier *evdata = data;
 #else
 	struct fb_event *evdata = data;
@@ -9546,7 +9546,7 @@ static int fb_notifier_callback(struct notifier_block *self,
 		container_of(self, struct touchpanel_data, fb_notif);
 
 	//to aviod some kernel bug (at fbmem.c some local veriable are not initialized)
-#ifdef CONFIG_DRM_MSM
+#if defined(CONFIG_DRM_MSM) || defined(CONFIG_DRM_OPLUS_NOTIFY)
 	if (event != MSM_DRM_EARLY_EVENT_BLANK && event != MSM_DRM_EVENT_BLANK)
 #else
 	if (event != FB_EARLY_EVENT_BLANK && event != FB_EVENT_BLANK)
@@ -9557,7 +9557,7 @@ static int fb_notifier_callback(struct notifier_block *self,
 		blank = evdata->data;
 		TPD_INFO("%s: event = %ld, blank = %d\n", __func__, event,
 			 *blank);
-#ifdef CONFIG_DRM_MSM
+#if defined(CONFIG_DRM_MSM) || defined(CONFIG_DRM_OPLUS_NOTIFY)
 		if (*blank == MSM_DRM_BLANK_POWERDOWN) { //suspend
 			if (event == MSM_DRM_EARLY_EVENT_BLANK) { //early event
 #else
@@ -9594,7 +9594,7 @@ static int fb_notifier_callback(struct notifier_block *self,
 						disable_irq_nosync(ts->irq);
 					}
 				}
-#ifdef CONFIG_DRM_MSM
+#if defined(CONFIG_DRM_MSM) || defined(CONFIG_DRM_OPLUS_NOTIFY)
 			} else if (event == MSM_DRM_EVENT_BLANK) { //event
 #else
 			} else if (event == FB_EVENT_BLANK) { //event
@@ -9605,7 +9605,7 @@ static int fb_notifier_callback(struct notifier_block *self,
 					tp_suspend(ts->dev);
 				}
 			}
-#ifdef CONFIG_DRM_MSM
+#if defined(CONFIG_DRM_MSM) || defined(CONFIG_DRM_OPLUS_NOTIFY)
 		} else if (*blank == MSM_DRM_BLANK_UNBLANK) { //resume
 			if (event == MSM_DRM_EARLY_EVENT_BLANK) { //early event
 #else
@@ -9634,7 +9634,7 @@ static int fb_notifier_callback(struct notifier_block *self,
 						disable_irq_nosync(ts->irq);
 					}
 				}
-#ifdef CONFIG_DRM_MSM
+#if defined(CONFIG_DRM_MSM) || defined(CONFIG_DRM_OPLUS_NOTIFY)
 			} else if (event == MSM_DRM_EVENT_BLANK) { //event
 #else
 			} else if (event == FB_EVENT_BLANK) { //event
