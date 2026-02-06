@@ -4599,7 +4599,8 @@ netdev_features_t netdev_increment_features(netdev_features_t all,
 static inline netdev_features_t netdev_add_tso_features(netdev_features_t features,
 							netdev_features_t mask)
 {
-	return netdev_increment_features(features, NETIF_F_ALL_TSO, mask);
+	return netdev_increment_features(features, NETIF_F_ALL_TSO |
+					 NETIF_F_ALL_FOR_ALL, mask);
 }
 
 int __netdev_update_features(struct net_device *dev);
@@ -4717,15 +4718,6 @@ static inline bool netif_is_l3_master(const struct net_device *dev)
 static inline bool netif_is_l3_slave(const struct net_device *dev)
 {
 	return dev->priv_flags & IFF_L3MDEV_SLAVE;
-}
-
-static inline int dev_sdif(const struct net_device *dev)
-{
-#ifdef CONFIG_NET_L3_MASTER_DEV
-	if (netif_is_l3_slave(dev))
-		return dev->ifindex;
-#endif
-	return 0;
 }
 
 static inline bool netif_is_bridge_master(const struct net_device *dev)
