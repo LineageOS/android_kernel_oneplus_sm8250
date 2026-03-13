@@ -5203,6 +5203,7 @@ static int tfa98xx_i2c_probe(struct i2c_client *i2c,
 	struct snd_soc_dai_driver *dai;
 	struct tfa98xx *tfa98xx;
 	struct device_node *np = i2c->dev.of_node;
+	static struct proc_dir_entry *tfa98xx_proc;
 	//int irq_flags;
 	unsigned int reg;
 	int ret;
@@ -5544,9 +5545,10 @@ static int tfa98xx_i2c_probe(struct i2c_client *i2c,
 					      (void *)TFA98XX_DEBUG_FS_NAME,
 					      &tfa98xx_debug_ops);
 #else
-	proc_create_data(TFA98XX_DEBUG_FS_NAME, S_IFREG | S_IRUGO | S_IWUSR,
-			 NULL, &tfa98xx_debug_ops,
-			 (void *)TFA98XX_DEBUG_FS_NAME);
+	if (!tfa98xx_proc)
+		tfa98xx_proc = proc_create_data(TFA98XX_DEBUG_FS_NAME,
+				 S_IFREG | S_IRUGO | S_IWUSR, NULL,
+				 &tfa98xx_debug_ops, (void *)TFA98XX_DEBUG_FS_NAME);
 #endif /*CONFIG_DEBUG_FS*/
 
 	ftm_mode = get_boot_mode();
