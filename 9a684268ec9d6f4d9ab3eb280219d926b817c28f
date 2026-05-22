@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "c5655721_09aed14d",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 2
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 10067
+      },
+      "writtenOn": "2026-05-22T16:48:24Z",
+      "side": 1,
+      "message": "turns out 8350 is doing the same so dropped commit msg down to it.",
+      "revId": "9a684268ec9d6f4d9ab3eb280219d926b817c28f",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    }
+  ]
+}
