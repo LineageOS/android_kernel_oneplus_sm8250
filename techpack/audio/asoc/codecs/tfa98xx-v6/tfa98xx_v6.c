@@ -19,10 +19,6 @@
 #include <linux/delay.h>
 #include <linux/device.h>
 #include <linux/firmware.h>
-#ifdef OPLUS_ARCH_EXTENDS
-#undef CONFIG_DEBUG_FS
-#endif /* OPLUS_ARCH_EXTENDS */
-
 #ifdef CONFIG_DEBUG_FS
 #include <linux/debugfs.h>
 #endif /*CONFIG_DEBUG_FS*/
@@ -472,63 +468,6 @@ static enum tfa_error tfa98xx_write_re25(struct tfa_device *tfa, int value)
 	return err;
 }
 
-#ifdef OPLUS_ARCH_EXTENDS
-#ifdef CONFIG_DEBUG_FS
-static struct dentry *tfa98xx_debugfs = NULL;
-#endif /* CONFIG_DEBUG_FS */
-#define TFA98XX_DEBUG_FS_NAME "ftm_tfa98xx"
-int ftm_mode = 0;
-static char ftm_load_file[15] = "load_file_ok";
-static char ftm_clk[9] = "clk_ok";
-char ftm_SpeakerCalibration[17] = "calibration_ok";
-static char ftm_path[15] = "open_path_ok";
-char ftm_spk_resistance[24] = "speaker_resistance_ok";
-static char ftm_tfa98xx_flag[5] = "fail";
-
-#ifndef BOOT_MODE_FACTORY
-#define BOOT_MODE_FACTORY 3
-#endif
-
-static int kernel_debug_open(struct inode *inode, struct file *file)
-{
-	pr_info("%s \n", __FUNCTION__);
-	return 0;
-}
-
-static ssize_t kernel_debug_read(struct file *file, char __user *buf,
-				 size_t count, loff_t *pos)
-{
-	/* /sys/kernel/debug/ftm_tfa98xx */
-	char buffer[1024];
-	int n = 0;
-
-	n += scnprintf(buffer + n, sizeof(buffer) - n, "%s ", ftm_load_file);
-	n += scnprintf(buffer + n, sizeof(buffer) - n, "%s ", ftm_clk);
-	n += scnprintf(buffer + n, sizeof(buffer) - n, "%s ",
-		       ftm_SpeakerCalibration);
-	n += scnprintf(buffer + n, sizeof(buffer) - n, "%s ", ftm_path);
-	n += scnprintf(buffer + n, sizeof(buffer) - n, "%s ",
-		       ftm_spk_resistance);
-	n += scnprintf(buffer + n, sizeof(buffer) - n, "%s ", ftm_tfa98xx_flag);
-	n += scnprintf(buffer + n, sizeof(buffer) - n, "%d ", ftm_mode);
-
-	return simple_read_from_buffer(buf, count, pos, buffer, n);
-}
-
-static ssize_t kernel_debug_write(struct file *f, const char __user *buf,
-				  size_t count, loff_t *offset)
-{
-	pr_info("%s \n", __FUNCTION__);
-	return 0;
-}
-
-static const struct file_operations tfa98xx_debug_ops = {
-	.open = kernel_debug_open,
-	.read = kernel_debug_read,
-	.write = kernel_debug_write,
-};
-#endif /* OPLUS_ARCH_EXTENDS */
-
 static enum Tfa98xx_Error tfa9874_calibrate(struct tfa98xx *tfa98xx_cal,
 					    int *speakerImpedance)
 {
@@ -972,16 +911,6 @@ static enum tfa_error tfa98xx_tfa_start(struct tfa98xx *tfa98xx,
 	 * Restore it if required
 	 */
 	tfa98xx_interrupt_enable(tfa98xx, true);
-
-#ifdef OPLUS_ARCH_EXTENDS
-	/*10h bit13/bit6(AREFS/CLKS)*/
-	if (ftm_mode == BOOT_MODE_FACTORY) {
-		tfa98xx_dsp_system_stable_v6(tfa98xx->tfa, &ready);
-		if (!ready) {
-			strcpy(ftm_clk, "clk_fail");
-		}
-	}
-#endif /* OPLUS_ARCH_EXTENDS */
 
 	return err;
 }
@@ -3909,9 +3838,6 @@ static void tfa98xx_container_loaded(const struct firmware *cont, void *context)
 
 		tfa_err = tfa_load_cnt_v6(container, container_size);
 		if (tfa_err != tfa_error_ok) {
-#ifdef OPLUS_ARCH_EXTENDS
-			strcpy(ftm_load_file, "load_file_fail");
-#endif /* OPLUS_ARCH_EXTENDS */
 			mutex_unlock(&tfa98xx_mutex);
 			kfree(container);
 			dev_err(tfa98xx->dev,
@@ -4212,11 +4138,6 @@ static void tfa98xx_dsp_init(struct tfa98xx *tfa98xx)
 		/* cancel other pending init works */
 		cancel_delayed_work(&tfa98xx->init_work);
 		tfa98xx->init_count = 0;
-#ifdef OPLUS_ARCH_EXTENDS
-		if (ftm_mode == BOOT_MODE_FACTORY) {
-			strcpy(ftm_path, "open_path_fail");
-		}
-#endif /* OPLUS_ARCH_EXTENDS */
 	}
 	mutex_unlock(&tfa98xx->dsp_lock);
 
@@ -4285,13 +4206,6 @@ static void tfa98xx_dsp_init(struct tfa98xx *tfa98xx)
 				mutex_unlock(&tfa98xx->dsp_lock);
 			}
 		}
-
-#ifdef OPLUS_ARCH_EXTENDS
-		if (ftm_mode == BOOT_MODE_FACTORY) {
-			pr_info("finish for ftm ringtone\n");
-			strcpy(ftm_tfa98xx_flag, "ok");
-		}
-#endif /* OPLUS_ARCH_EXTENDS */
 	}
 
 	return;
@@ -5536,22 +5450,6 @@ static int tfa98xx_i2c_probe(struct i2c_client *i2c,
 
 	if (no_start == 0)
 		tfa98xx_debug_init(tfa98xx, i2c);
-
-#ifdef OPLUS_ARCH_EXTENDS
-#ifdef CONFIG_DEBUG_FS
-	tfa98xx_debugfs = debugfs_create_file(TFA98XX_DEBUG_FS_NAME,
-					      S_IFREG | S_IRUGO | S_IWUSR, NULL,
-					      (void *)TFA98XX_DEBUG_FS_NAME,
-					      &tfa98xx_debug_ops);
-#else
-	proc_create_data(TFA98XX_DEBUG_FS_NAME, S_IFREG | S_IRUGO | S_IWUSR,
-			 NULL, &tfa98xx_debug_ops,
-			 (void *)TFA98XX_DEBUG_FS_NAME);
-#endif /*CONFIG_DEBUG_FS*/
-
-	ftm_mode = get_boot_mode();
-	pr_info("ftm_mode=%d\n", ftm_mode);
-#endif /* OPLUS_ARCH_EXTENDS */
 
 	/* Register the sysfs files for climax backdoor access */
 	ret = device_create_bin_file(&i2c->dev, &dev_attr_rw);

@@ -14,16 +14,6 @@
 #include "tfa_internal.h"
 
 #ifdef OPLUS_ARCH_EXTENDS
-extern int ftm_mode;
-extern char ftm_SpeakerCalibration[17];
-extern char ftm_spk_resistance[24];
-
-#ifndef BOOT_MODE_FACTORY
-#define BOOT_MODE_FACTORY 3
-#endif
-#endif /* OPLUS_ARCH_EXTENDS */
-
-#ifdef OPLUS_ARCH_EXTENDS
 extern bool aging_flag;
 #endif /* OPLUS_ARCH_EXTENDS */
 
@@ -3059,10 +3049,6 @@ enum Tfa98xx_Error tfaRunSpeakerCalibration_result_v6(struct tfa_device *tfa,
 		if ((tfa->mohm[0] < tfa->min_mohms) ||
 		    (tfa->mohm[0] > tfa->max_mohms)) {
 			pr_info("speaker_resistance_fail\n");
-			if (ftm_mode == BOOT_MODE_FACTORY) {
-				strcpy(ftm_spk_resistance,
-				       "speaker_resistance_fail");
-			}
 			g_speaker_resistance_fail = true;
 
 			/* When MTPOTC is set (cal=once) re-lock key2 */
@@ -3378,11 +3364,6 @@ enum Tfa98xx_Error tfaRunWaitCalibration_v6(struct tfa_device *tfa,
 	}
 
 	if (*calibrateDone != 1) {
-#ifdef OPLUS_ARCH_EXTENDS
-		if (ftm_mode == BOOT_MODE_FACTORY) {
-			strcpy(ftm_SpeakerCalibration, "calibration_fail");
-		}
-#endif /* OPLUS_ARCH_EXTENDS */
 		pr_err("Calibration failed! \n");
 		err = Tfa98xx_Error_Bad_Parameter;
 	} else if (tries == TFA98XX_API_WAITRESULT_NTRIES) {
