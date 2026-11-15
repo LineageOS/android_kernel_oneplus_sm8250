@@ -85,7 +85,7 @@ KBUILD_CFLAGS += -Wno-format-zero-length
 KBUILD_CFLAGS += -Wno-uninitialized
 KBUILD_CFLAGS += -Wno-pointer-to-enum-cast
 KBUILD_CFLAGS += -Wno-unaligned-access
-KBUILD_CFLAGS += -Wno-cast-function-type-strict
+KBUILD_CFLAGS += $(call cc-disable-warning, cast-function-type-strict)
 KBUILD_CFLAGS += -Wno-enum-compare-conditional
 KBUILD_CFLAGS += -Wno-enum-enum-conversion
 endif
