@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "2b4d5ddb_f8420a27",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 13648
+      },
+      "writtenOn": "2026-11-21T11:23:33Z",
+      "side": 1,
+      "message": "That\u0027s already merged in qcom_sm8250 reference kernel. https://review.lineageos.org/c/LineageOS/android_kernel_qcom_sm8250/+/513367",
+      "revId": "570801833a2fe75ce3a9192035efa35f2ff9907d",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    }
+  ]
+}
