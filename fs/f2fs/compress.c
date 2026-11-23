@@ -212,14 +212,14 @@ static int lzo_decompress_pages(struct decompress_io_ctx *dic)
 						dic->rbuf, &dic->rlen);
 	if (ret != LZO_E_OK) {
 		printk_ratelimited("%sF2FS-fs (%s): lzo decompress failed, ret:%d\n",
-				KERN_ERR, F2FS_I_SB(dic->inode)->sb->s_id, ret);
+				KERN_ERR, dic->sbi->sb->s_id, ret);
 		return -EIO;
 	}
 
 	if (dic->rlen != PAGE_SIZE << dic->log_cluster_size) {
 		printk_ratelimited("%sF2FS-fs (%s): lzo invalid rlen:%zu, "
 					"expected:%lu\n", KERN_ERR,
-					F2FS_I_SB(dic->inode)->sb->s_id,
+					dic->sbi->sb->s_id,
 					dic->rlen,
 					PAGE_SIZE << dic->log_cluster_size);
 		return -EIO;
@@ -309,14 +309,14 @@ static int lz4_decompress_pages(struct decompress_io_ctx *dic)
 						dic->clen, dic->rlen);
 	if (ret < 0) {
 		printk_ratelimited("%sF2FS-fs (%s): lz4 decompress failed, ret:%d\n",
-				KERN_ERR, F2FS_I_SB(dic->inode)->sb->s_id, ret);
+				KERN_ERR, dic->sbi->sb->s_id, ret);
 		return -EIO;
 	}
 
 	if (ret != PAGE_SIZE << dic->log_cluster_size) {
 		printk_ratelimited("%sF2FS-fs (%s): lz4 invalid ret:%d, "
 					"expected:%lu\n", KERN_ERR,
-					F2FS_I_SB(dic->inode)->sb->s_id, ret,
+					dic->sbi->sb->s_id, ret,
 					PAGE_SIZE << dic->log_cluster_size);
 		return -EIO;
 	}
@@ -431,7 +431,7 @@ static int zstd_init_decompress_ctx(struct decompress_io_ctx *dic)
 
 	workspace_size = ZSTD_DStreamWorkspaceBound(max_window_size);
 
-	workspace = f2fs_kvmalloc(F2FS_I_SB(dic->inode),
+	workspace = f2fs_kvmalloc(dic->sbi,
 					workspace_size, GFP_NOFS);
 	if (!workspace)
 		return -ENOMEM;
@@ -439,7 +439,7 @@ static int zstd_init_decompress_ctx(struct decompress_io_ctx *dic)
 	stream = ZSTD_initDStream(max_window_size, workspace, workspace_size);
 	if (!stream) {
 		printk_ratelimited("%sF2FS-fs (%s): %s ZSTD_initDStream failed\n",
-				KERN_ERR, F2FS_I_SB(dic->inode)->sb->s_id,
+				KERN_ERR, dic->sbi->sb->s_id,
 				__func__);
 		kvfree(workspace);
 		return -EIO;
@@ -476,7 +476,7 @@ static int zstd_decompress_pages(struct decompress_io_ctx *dic)
 	ret = ZSTD_decompressStream(stream, &outbuf, &inbuf);
 	if (ZSTD_isError(ret)) {
 		printk_ratelimited("%sF2FS-fs (%s): %s ZSTD_compressStream failed, ret: %d\n",
-				KERN_ERR, F2FS_I_SB(dic->inode)->sb->s_id,
+				KERN_ERR, dic->sbi->sb->s_id,
 				__func__, ZSTD_getErrorCode(ret));
 		return -EIO;
 	}
@@ -484,7 +484,7 @@ static int zstd_decompress_pages(struct decompress_io_ctx *dic)
 	if (dic->rlen != outbuf.pos) {
 		printk_ratelimited("%sF2FS-fs (%s): %s ZSTD invalid rlen:%zu, "
 				"expected:%lu\n", KERN_ERR,
-				F2FS_I_SB(dic->inode)->sb->s_id,
+				dic->sbi->sb->s_id,
 				__func__, dic->rlen,
 				PAGE_SIZE << dic->log_cluster_size);
 		return -EIO;
@@ -703,8 +703,8 @@ static void f2fs_release_decomp_mem(struct decompress_io_ctx *dic,
 
 void f2fs_decompress_cluster(struct decompress_io_ctx *dic, bool in_task)
 {
-	struct f2fs_sb_info *sbi = F2FS_I_SB(dic->inode);
-	struct f2fs_inode_info *fi = F2FS_I(dic->inode);
+	struct f2fs_sb_info *sbi = dic->sbi;
+	struct f2fs_inode_info *fi= F2FS_I(dic->inode);
 	const struct f2fs_compress_ops *cops =
 			f2fs_cops[fi->i_compress_algorithm];
 	bool bypass_callback = false;
@@ -1583,6 +1583,8 @@ struct decompress_io_ctx *f2fs_alloc_dic(struct compress_ctx *cc)
 
 	dic->magic = F2FS_COMPRESSED_PAGE_MAGIC;
 	dic->inode = cc->inode;
+	dic->sbi = sbi;
+	dic->compress_algorithm = F2FS_I(cc->inode)->i_compress_algorithm;
 	atomic_set(&dic->remaining_pages, cc->nr_cpages);
 	dic->cluster_idx = cc->cluster_idx;
 	dic->cluster_size = cc->cluster_size;
