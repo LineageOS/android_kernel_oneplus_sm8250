@@ -108,6 +108,7 @@ void
 nvif_vmm_fini(struct nvif_vmm *vmm)
 {
 	kfree(vmm->page);
+	vmm->page = NULL;
 	nvif_object_fini(&vmm->object);
 }
 

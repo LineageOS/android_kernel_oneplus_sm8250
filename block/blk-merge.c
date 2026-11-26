@@ -449,8 +449,10 @@ int blk_rq_map_sg(struct request_queue *q, struct request *rq,
 	    (blk_rq_bytes(rq) & q->dma_pad_mask)) {
 		unsigned int pad_len =
 			(q->dma_pad_mask & ~blk_rq_bytes(rq)) + 1;
+		unsigned int data_len = sg->length;
 
 		sg->length += pad_len;
+		sg_zero_buffer(sg, 1, pad_len, data_len);
 		rq->extra_len += pad_len;
 	}
 

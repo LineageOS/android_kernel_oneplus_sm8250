@@ -196,6 +196,9 @@ static int seg6_genl_set_tunsrc(struct sk_buff *skb, struct genl_info *info)
 	if (!info->attrs[SEG6_ATTR_DST])
 		return -EINVAL;
 
+	if (nla_len(info->attrs[SEG6_ATTR_DST]) != sizeof(struct in6_addr))
+		return -EINVAL;
+
 	val = nla_data(info->attrs[SEG6_ATTR_DST]);
 	t_new = kmemdup(val, sizeof(*val), GFP_KERNEL);
 	if (!t_new)

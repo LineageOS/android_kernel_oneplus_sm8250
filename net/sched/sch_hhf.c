@@ -547,12 +547,12 @@ static int hhf_change(struct Qdisc *sch, struct nlattr *opt,
 		return -EINVAL;
 
 	err = nla_parse_nested_deprecated(tb, TCA_HHF_MAX, opt, hhf_policy,
-					  NULL);
+					  extack);
 	if (err < 0)
 		return err;
 
 	if (tb[TCA_HHF_QUANTUM])
-		new_quantum = nla_get_u32(tb[TCA_HHF_QUANTUM]);
+		new_quantum = max(256U, nla_get_u32(tb[TCA_HHF_QUANTUM]));
 
 	if (tb[TCA_HHF_NON_HH_WEIGHT])
 		new_hhf_non_hh_weight = nla_get_u32(tb[TCA_HHF_NON_HH_WEIGHT]);
@@ -560,6 +560,16 @@ static int hhf_change(struct Qdisc *sch, struct nlattr *opt,
 	non_hh_quantum = (u64)new_quantum * new_hhf_non_hh_weight;
 	if (non_hh_quantum == 0 || non_hh_quantum > INT_MAX)
 		return -EINVAL;
+
+	/* Cap max active HHs at twice len of hh_flows table: a larger
+	 * value lets every new flow pass the hh_flows_current_cnt check
+	 * in alloc_new_hh() and grow memory without bound.
+	 */
+	if (tb[TCA_HHF_HH_FLOWS_LIMIT] &&
+	    nla_get_u32(tb[TCA_HHF_HH_FLOWS_LIMIT]) > 2 * HH_FLOWS_CNT) {
+		NL_SET_ERR_MSG_MOD(extack, "hh_flows_limit is too large");
+		return -EINVAL;
+	}
 
 	sch_tree_lock(sch);
 
@@ -608,7 +618,7 @@ static int hhf_init(struct Qdisc *sch, struct nlattr *opt,
 	int i;
 
 	sch->limit = 1000;
-	q->quantum = psched_mtu(qdisc_dev(sch));
+	q->quantum = clamp_t(u32, psched_mtu(qdisc_dev(sch)), 256, 1 << 20);
 	get_random_bytes(&q->perturbation, sizeof(q->perturbation));
 	INIT_LIST_HEAD(&q->new_buckets);
 	INIT_LIST_HEAD(&q->old_buckets);
@@ -618,6 +628,9 @@ static int hhf_init(struct Qdisc *sch, struct nlattr *opt,
 	q->hhf_admit_bytes = 131072;    /* 128 KB */
 	q->hhf_evict_timeout = HZ;      /* 1  sec */
 	q->hhf_non_hh_weight = 2;
+
+	/* Cap max active HHs at twice len of hh_flows table. */
+	q->hh_flows_limit = 2 * HH_FLOWS_CNT;
 
 	if (opt) {
 		int err = hhf_change(sch, opt, extack);
@@ -635,8 +648,6 @@ static int hhf_init(struct Qdisc *sch, struct nlattr *opt,
 		for (i = 0; i < HH_FLOWS_CNT; i++)
 			INIT_LIST_HEAD(&q->hh_flows[i]);
 
-		/* Cap max active HHs at twice len of hh_flows table. */
-		q->hh_flows_limit = 2 * HH_FLOWS_CNT;
 		q->hh_flows_overlimit = 0;
 		q->hh_flows_total_cnt = 0;
 		q->hh_flows_current_cnt = 0;

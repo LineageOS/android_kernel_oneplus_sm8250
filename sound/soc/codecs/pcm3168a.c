@@ -699,9 +699,8 @@ static void pcm3168a_disable(struct device *dev)
 void pcm3168a_remove(struct device *dev)
 {
 	pm_runtime_disable(dev);
-#ifndef CONFIG_PM
-	pcm3168a_disable(dev);
-#endif
+	if (!pm_runtime_status_suspended(dev))
+		pcm3168a_disable(dev);
 }
 EXPORT_SYMBOL_GPL(pcm3168a_remove);
 
