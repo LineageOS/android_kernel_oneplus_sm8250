@@ -1759,11 +1759,15 @@ static int ax25_ioctl(struct socket *sock, unsigned int cmd, unsigned long arg)
 	}
 
 	case SIOCGSTAMP:
+		release_sock(sk);
 		res = sock_get_timestamp(sk, argp);
+		lock_sock(sk);
 		break;
 
 	case SIOCGSTAMPNS:
+		release_sock(sk);
 		res = sock_get_timestampns(sk, argp);
+		lock_sock(sk);
 		break;
 
 	case SIOCAX25ADDUID:	/* Add a uid to the uid/call map table */

@@ -963,6 +963,19 @@ static const struct of_device_id atmel_twi_dt_ids[] = {
 MODULE_DEVICE_TABLE(of, atmel_twi_dt_ids);
 #endif
 
+static void at91_twi_dma_release(struct at91_twi_dev *dev)
+{
+	struct at91_twi_dma *dma = &dev->dma;
+
+	if (dma->chan_rx)
+		dma_release_channel(dma->chan_rx);
+	if (dma->chan_tx)
+		dma_release_channel(dma->chan_tx);
+	dma->chan_rx = NULL;
+	dma->chan_tx = NULL;
+	dev->use_dma = false;
+}
+
 static int at91_twi_configure_dma(struct at91_twi_dev *dev, u32 phy_addr)
 {
 	int ret = 0;
@@ -1038,10 +1051,7 @@ static int at91_twi_configure_dma(struct at91_twi_dev *dev, u32 phy_addr)
 error:
 	if (ret != -EPROBE_DEFER)
 		dev_info(dev->dev, "can't get DMA channel, continue without DMA support\n");
-	if (dma->chan_rx)
-		dma_release_channel(dma->chan_rx);
-	if (dma->chan_tx)
-		dma_release_channel(dma->chan_tx);
+	at91_twi_dma_release(dev);
 	return ret;
 }
 
@@ -1150,6 +1160,7 @@ static int at91_twi_probe(struct platform_device *pdev)
 
 		pm_runtime_disable(dev->dev);
 		pm_runtime_set_suspended(dev->dev);
+		at91_twi_dma_release(dev);
 
 		return rc;
 	}
@@ -1165,6 +1176,8 @@ static int at91_twi_remove(struct platform_device *pdev)
 
 	i2c_del_adapter(&dev->adapter);
 	clk_disable_unprepare(dev->clk);
+
+	at91_twi_dma_release(dev);
 
 	pm_runtime_disable(dev->dev);
 	pm_runtime_set_suspended(dev->dev);

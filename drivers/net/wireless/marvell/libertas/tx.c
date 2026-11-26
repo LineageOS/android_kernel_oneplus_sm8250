@@ -87,6 +87,14 @@ netdev_tx_t lbs_hard_start_xmit(struct sk_buff *skb, struct net_device *dev)
 		goto free;
 	}
 
+	if (priv->wdev->iftype == NL80211_IFTYPE_MONITOR &&
+	    skb->len < sizeof(struct tx_radiotap_hdr) + 4 + ETH_ALEN) {
+		lbs_deb_tx("tx err: short monitor frame %u\n", skb->len);
+		dev->stats.tx_dropped++;
+		dev->stats.tx_errors++;
+		goto free;
+	}
+
 
 	netif_stop_queue(priv->dev);
 	if (priv->mesh_dev)

@@ -350,7 +350,8 @@ static int bfs_fill_super(struct super_block *s, void *data, int silent)
 	mutex_init(&info->bfs_lock);
 	s->s_fs_info = info;
 
-	sb_set_blocksize(s, BFS_BSIZE);
+	if (!sb_set_blocksize(s, BFS_BSIZE))
+		goto out;
 
 	sbh = sb_bread(s, 0);
 	if (!sbh)

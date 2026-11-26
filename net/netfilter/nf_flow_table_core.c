@@ -135,6 +135,16 @@ static void flow_offload_fixup_ct_state(struct nf_conn *ct)
 	ct->timeout = nfct_time_stamp + timeout;
 }
 
+static void flow_offload_free_rcu(struct rcu_head *rcu_head)
+{
+	struct flow_offload_entry *e;
+
+	e = container_of(rcu_head, struct flow_offload_entry, rcu_head);
+
+	nf_ct_put(e->ct);
+	kfree(e);
+}
+
 void flow_offload_free(struct flow_offload *flow)
 {
 	struct flow_offload_entry *e;
@@ -144,8 +154,7 @@ void flow_offload_free(struct flow_offload *flow)
 	e = container_of(flow, struct flow_offload_entry, flow);
 	if (flow->flags & FLOW_OFFLOAD_DYING)
 		nf_ct_delete(e->ct, 0, 0);
-	nf_ct_put(e->ct);
-	kfree_rcu(e, rcu_head);
+	call_rcu(&e->rcu_head, flow_offload_free_rcu);
 }
 EXPORT_SYMBOL_GPL(flow_offload_free);
 
@@ -535,6 +544,13 @@ void nf_flow_table_free(struct nf_flowtable *flow_table)
 	rhashtable_destroy(&flow_table->rhashtable);
 }
 EXPORT_SYMBOL_GPL(nf_flow_table_free);
+
+static void __exit nf_flow_table_module_exit(void)
+{
+	rcu_barrier();
+}
+
+module_exit(nf_flow_table_module_exit);
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Pablo Neira Ayuso <pablo@netfilter.org>");

@@ -101,9 +101,15 @@ struct regmap *exynos_get_pmu_regmap(void)
 {
 	struct device_node *np = of_find_matching_node(NULL,
 						      exynos_pmu_of_device_ids);
-	if (np)
-		return syscon_node_to_regmap(np);
-	return ERR_PTR(-ENODEV);
+	struct regmap *regmap;
+
+	if (!np)
+		return ERR_PTR(-ENODEV);
+
+	regmap = syscon_node_to_regmap(np);
+	of_node_put(np);
+
+	return regmap;
 }
 EXPORT_SYMBOL_GPL(exynos_get_pmu_regmap);
 

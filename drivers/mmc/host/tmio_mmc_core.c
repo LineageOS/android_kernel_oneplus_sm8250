@@ -745,12 +745,17 @@ static int tmio_mmc_execute_tuning(struct mmc_host *mmc, u32 opcode)
 
 	/* Issue CMD19 twice for each tap */
 	for (i = 0; i < 2 * host->tap_num; i++) {
+		int cmd_error = 0;
+
 		if (host->prepare_tuning)
 			host->prepare_tuning(host, i % host->tap_num);
 
-		ret = mmc_send_tuning(mmc, opcode, NULL);
+		ret = mmc_send_tuning(mmc, opcode, &cmd_error);
 		if (ret == 0)
 			set_bit(i, host->taps);
+
+		if (cmd_error)
+			mmc_abort_tuning(mmc, opcode);
 
 		usleep_range(1000, 1200);
 	}

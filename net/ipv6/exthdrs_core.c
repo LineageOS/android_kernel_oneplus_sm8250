@@ -104,6 +104,8 @@ int ipv6_skip_exthdr(const struct sk_buff *skb, int start, u8 *nexthdrp,
 			hdrlen = ipv6_optlen(hp);
 
 		nexthdr = hp->nexthdr;
+		if (skb->len - start < hdrlen)
+			return -1;
 		start += hdrlen;
 	}
 
@@ -275,6 +277,9 @@ int ipv6_find_hdr(const struct sk_buff *skb, unsigned int *offset,
 			hdrlen = ipv6_optlen(hp);
 
 		if (!found) {
+			if (skb->len - start < hdrlen)
+				return -EBADMSG;
+
 			nexthdr = hp->nexthdr;
 			start += hdrlen;
 		}

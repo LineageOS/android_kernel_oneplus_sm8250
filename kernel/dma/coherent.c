@@ -369,7 +369,18 @@ static int rmem_dma_device_init(struct reserved_mem *rmem, struct device *dev)
 	}
 	mem->use_dev_dma_pfn_offset = true;
 	rmem->priv = mem;
-	dma_assign_coherent_memory(dev, mem);
+	/*
+	 * Propagate a failed assignment (e.g. -EBUSY when the device already
+	 * has a coherent pool), otherwise of_reserved_mem_device_init_by_idx()
+	 * records the pairing and the later release would drop the pool the
+	 * device actually got.  The "NULL" device used by
+	 * dma_init_reserved_memory() must still report success.
+	 */
+	if (dev) {
+		ret = dma_assign_coherent_memory(dev, mem);
+		if (ret)
+			return ret;
+	}
 	return 0;
 }
 
