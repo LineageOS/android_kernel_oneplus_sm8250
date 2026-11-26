@@ -746,16 +746,28 @@ static int rproc_handle_resources(struct rproc *rproc,
 		return 0;
 
 	for (i = 0; i < rproc->table_ptr->num; i++) {
-		int offset = rproc->table_ptr->offset[i];
-		struct fw_rsc_hdr *hdr = (void *)rproc->table_ptr + offset;
-		int avail = rproc->table_sz - offset - sizeof(*hdr);
-		void *rsc = (void *)hdr + sizeof(*hdr);
+		u32 offset = rproc->table_ptr->offset[i];
+		struct fw_rsc_hdr *hdr;
+		int avail, rsc_offset;
+		void *rsc;
 
-		/* make sure table isn't truncated */
-		if (avail < 0) {
+		/*
+		 * table->offset[] comes from untrusted firmware; validate it
+		 * with unsigned comparisons before deriving any pointer from
+		 * it, otherwise a negative (wrapped) int value bypasses the
+		 * truncation check and points hdr outside of the table.
+		 */
+		if (offset < sizeof(*rproc->table_ptr) ||
+		    offset >= rproc->table_sz ||
+		    rproc->table_sz - offset < sizeof(*hdr)) {
 			dev_err(dev, "rsc table is truncated\n");
 			return -EINVAL;
 		}
+
+		hdr = (void *)rproc->table_ptr + offset;
+		avail = rproc->table_sz - offset - sizeof(*hdr);
+		rsc_offset = offset + sizeof(*hdr);
+		rsc = (void *)hdr + sizeof(*hdr);
 
 		dev_dbg(dev, "rsc: type %d\n", hdr->type);
 
@@ -768,7 +780,7 @@ static int rproc_handle_resources(struct rproc *rproc,
 		if (!handler)
 			continue;
 
-		ret = handler(rproc, rsc, offset + sizeof(*hdr), avail);
+		ret = handler(rproc, rsc, rsc_offset, avail);
 		if (ret)
 			break;
 	}
@@ -1222,6 +1234,11 @@ int rproc_trigger_recovery(struct rproc *rproc)
 	if (ret)
 		return ret;
 
+	if (READ_ONCE(rproc->deleting)) {
+		ret = -ENODEV;
+		goto unlock_mutex;
+	}
+
 	ret = rproc_stop(rproc, true);
 	if (ret)
 		goto unlock_mutex;
@@ -1260,6 +1277,11 @@ static void rproc_crash_handler_work(struct work_struct *work)
 	dev_dbg(dev, "enter %s\n", __func__);
 
 	mutex_lock(&rproc->lock);
+
+	if (READ_ONCE(rproc->deleting)) {
+		mutex_unlock(&rproc->lock);
+		return;
+	}
 
 	if (rproc->state == RPROC_CRASHED || rproc->state == RPROC_OFFLINE) {
 		/* handle only the first crash detected */
@@ -1307,7 +1329,7 @@ int rproc_boot(struct rproc *rproc)
 		return ret;
 	}
 
-	if (rproc->state == RPROC_DELETED) {
+	if (READ_ONCE(rproc->deleting)) {
 		ret = -ENODEV;
 		dev_err(dev, "can't boot deleted rproc %s\n", rproc->name);
 		goto unlock_mutex;
@@ -1631,6 +1653,7 @@ struct rproc *rproc_alloc(struct device *dev, const char *name,
 	INIT_LIST_HEAD(&rproc->dump_segments);
 
 	INIT_WORK(&rproc->crash_handler, rproc_crash_handler_work);
+	spin_lock_init(&rproc->crash_handler_lock);
 
 	rproc->state = RPROC_OFFLINE;
 
@@ -1686,13 +1709,20 @@ EXPORT_SYMBOL(rproc_put);
  */
 int rproc_del(struct rproc *rproc)
 {
+	unsigned long flags;
+
 	if (!rproc)
 		return -EINVAL;
 
-	/* if rproc is marked always-on, rproc_add() booted it */
+	spin_lock_irqsave(&rproc->crash_handler_lock, flags);
+	WRITE_ONCE(rproc->deleting, true);
+	spin_unlock_irqrestore(&rproc->crash_handler_lock, flags);
+
+	/* Make sure no crash handling is running or queued anymore */
+	cancel_work_sync(&rproc->crash_handler);
+
 	/* TODO: make sure this works with rproc->power > 1 */
-	if (rproc->auto_boot)
-		rproc_shutdown(rproc);
+	rproc_shutdown(rproc);
 
 	mutex_lock(&rproc->lock);
 	rproc->state = RPROC_DELETED;
@@ -1765,16 +1795,25 @@ EXPORT_SYMBOL(rproc_get_by_child);
  */
 void rproc_report_crash(struct rproc *rproc, enum rproc_crash_type type)
 {
+	unsigned long flags;
+
 	if (!rproc) {
 		pr_err("NULL rproc pointer\n");
+		return;
+	}
+
+	spin_lock_irqsave(&rproc->crash_handler_lock, flags);
+	if (READ_ONCE(rproc->deleting)) {
+		spin_unlock_irqrestore(&rproc->crash_handler_lock, flags);
 		return;
 	}
 
 	dev_err(&rproc->dev, "crash detected in %s: type %s\n",
 		rproc->name, rproc_crash_to_string(type));
 
-	/* create a new task to handle the error */
-	schedule_work(&rproc->crash_handler);
+	/* Have a worker handle the error; ensure system is not suspended */
+	queue_work(system_freezable_wq, &rproc->crash_handler);
+	spin_unlock_irqrestore(&rproc->crash_handler_lock, flags);
 }
 EXPORT_SYMBOL(rproc_report_crash);
 

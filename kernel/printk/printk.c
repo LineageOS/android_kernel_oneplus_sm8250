@@ -2852,6 +2852,10 @@ int unregister_console(struct console *console)
 	console->flags &= ~CON_ENABLED;
 	console_unlock();
 	console_sysfs_notify();
+
+	if (!res && console->exit)
+		res = console->exit(console);
+
 	return res;
 }
 EXPORT_SYMBOL(unregister_console);

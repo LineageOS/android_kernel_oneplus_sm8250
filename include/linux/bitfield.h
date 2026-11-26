@@ -47,7 +47,7 @@
  *  reg |= FIELD_PREP(REG_FIELD_C, c);
  */
 
-#define __bf_shf(x) (__builtin_ffsll(x) - 1)
+#define __bf_shf __builtin_ctzll
 
 #define __BF_FIELD_CHECK(_mask, _reg, _val, _pfx)			\
 	({								\

@@ -45,6 +45,7 @@
 #include <linux/sunrpc/clnt.h>
 #include <linux/sunrpc/auth.h>
 #include <linux/sunrpc/auth_gss.h>
+#include <linux/sunrpc/gss_krb5.h>
 #include <linux/sunrpc/svcauth_gss.h>
 #include <linux/sunrpc/gss_err.h>
 #include <linux/workqueue.h>
@@ -1952,7 +1953,11 @@ gss_unwrap_resp_priv(struct rpc_cred *cred, struct gss_cl_ctx *ctx,
 
 	opaque_len = ntohl(*(*p)++);
 	offset = (u8 *)(*p) - (u8 *)rcv_buf->head[0].iov_base;
-	if (offset + opaque_len > rcv_buf->len)
+	if (offset > rcv_buf->len)
+		return status;
+	if (opaque_len > rcv_buf->len - offset)
+		return status;
+	if (opaque_len <= GSS_KRB5_TOK_HDR_LEN)
 		return status;
 	/* remove padding: */
 	rcv_buf->len = offset + opaque_len;

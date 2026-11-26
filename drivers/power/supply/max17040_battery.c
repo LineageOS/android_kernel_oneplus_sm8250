@@ -247,7 +247,7 @@ static int max17040_suspend(struct device *dev)
 	struct i2c_client *client = to_i2c_client(dev);
 	struct max17040_chip *chip = i2c_get_clientdata(client);
 
-	cancel_delayed_work(&chip->work);
+	cancel_delayed_work_sync(&chip->work);
 	return 0;
 }
 

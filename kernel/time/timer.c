@@ -2054,6 +2054,7 @@ static void migrate_timer_list(struct timer_base *new_base,
 
 		detach_if_pending(timer, get_timer_base(timer->flags), false);
 		timer->flags = (timer->flags & ~TIMER_BASEMASK) | cpu;
+		debug_timer_activate(timer);
 		internal_add_timer(new_base, timer);
 	}
 }

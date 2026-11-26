@@ -129,7 +129,8 @@ static bool rt_mt6(const struct sk_buff *skb, struct xt_action_param *par)
 
 			pr_debug("#%d ", rtinfo->addrnr);
 			for (temp = 0;
-			     temp < (unsigned int)((hdrlen - 8) / 16);
+			     temp < (unsigned int)((hdrlen - 8) / 16) &&
+			     i < rtinfo->addrnr;
 			     temp++) {
 				ap = skb_header_pointer(skb,
 							ptr
@@ -144,8 +145,6 @@ static bool rt_mt6(const struct sk_buff *skb, struct xt_action_param *par)
 					pr_debug("i=%d temp=%d;\n", i, temp);
 					i++;
 				}
-				if (i == rtinfo->addrnr)
-					break;
 			}
 			pr_debug("i=%d #%d\n", i, rtinfo->addrnr);
 			if (i == rtinfo->addrnr)
@@ -196,6 +195,12 @@ static int rt_mt6_check(const struct xt_mtchk_param *par)
 		pr_debug("too many addresses specified\n");
 		return -EINVAL;
 	}
+
+	if ((rtinfo->flags & IP6T_RT_FST_MASK) && !rtinfo->addrnr) {
+		pr_info_ratelimited("address list match requested but addrnr is 0\n");
+		return -EINVAL;
+	}
+
 	if ((rtinfo->flags & (IP6T_RT_RES | IP6T_RT_FST_MASK)) &&
 	    (!(rtinfo->flags & IP6T_RT_TYP) ||
 	     (rtinfo->rt_type != 0) ||

@@ -40,18 +40,24 @@ static int axg_card_reallocate_links(struct axg_card *priv,
 	links = krealloc(priv->card.dai_link,
 			 num_links * sizeof(*priv->card.dai_link),
 			 GFP_KERNEL | __GFP_ZERO);
-	ldata = krealloc(priv->link_data,
-			 num_links * sizeof(*priv->link_data),
-			 GFP_KERNEL | __GFP_ZERO);
-
-	if (!links || !ldata) {
+	if (!links) {
 		dev_err(priv->card.dev, "failed to allocate links\n");
 		return -ENOMEM;
 	}
 
 	priv->card.dai_link = links;
-	priv->link_data = ldata;
 	priv->card.num_links = num_links;
+
+	ldata = krealloc(priv->link_data,
+			 num_links * sizeof(*priv->link_data),
+			 GFP_KERNEL | __GFP_ZERO);
+	/* axg_card_clean_references() will free the links on this error path */
+	if (!ldata) {
+		dev_err(priv->card.dev, "failed to allocate links\n");
+		return -ENOMEM;
+	}
+
+	priv->link_data = ldata;
 	return 0;
 }
 
